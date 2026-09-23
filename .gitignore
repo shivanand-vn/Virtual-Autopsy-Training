@@ -1,0 +1,17 @@
+# Logs
+logs
+*.log
+
+# Dependencies
+node_modules
+frontend/node_modules
+
+# Build outputs
+dist
+frontend/dist
+
+# OS / Editor files
+.DS_Store
+.vscode
+.idea
+*.local

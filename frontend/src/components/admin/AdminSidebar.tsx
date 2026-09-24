@@ -9,6 +9,7 @@ import {
   GraduationCap,
   CreditCard,
   Award,
+  User,
   HelpCircle,
   LogOut,
   X
@@ -33,7 +34,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
-    { name: 'Support', path: '/admin/support', icon: HelpCircle },
+  ];
+
+  const accountNav = [
+    { name: 'Profile', path: '/admin/profile', icon: User },
+    { name: 'Help & Support', path: '/admin/support', icon: HelpCircle },
   ];
 
   const confirmLogout = () => {
@@ -69,11 +74,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
           </div>
 
           {/* System Administration Navigation */}
-          <div className="px-4 py-6">
-            <div className="px-3 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="px-4 py-5">
+            <div className="px-3 mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               System Administration
             </div>
-            <nav className="space-y-1.5">
+            <nav className="space-y-1">
               {adminNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -104,6 +109,35 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                         {item.badge}
                       </span>
                     )}
+                  </NavLink>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Account & Support Navigation */}
+          <div className="px-4 py-2 border-t border-slate-100">
+            <div className="px-3 mb-2.5 mt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Account & Support
+            </div>
+            <nav className="space-y-1">
+              {accountNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+
+                return (
+                  <NavLink
+                    key={item.name}
+                    to={item.path}
+                    onClick={onClose}
+                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                    <span>{item.name}</span>
                   </NavLink>
                 );
               })}

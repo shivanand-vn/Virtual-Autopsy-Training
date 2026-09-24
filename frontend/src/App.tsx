@@ -12,7 +12,15 @@ import { ProfilePage } from './pages/Profile';
 import { SupportPage } from './pages/Support';
 
 import { AdminDashboardPage } from './pages/admin/AdminDashboard';
-import { AdminPlaceholderPage } from './pages/admin/AdminPlaceholderPage';
+import { AdminApplicationsPage } from './pages/admin/AdminApplications';
+import { AdminUsersPage } from './pages/admin/AdminUsers';
+import { AdminCoursesPage } from './pages/admin/AdminCourses';
+import { AdminAssignmentsPage } from './pages/admin/AdminAssignments';
+import { AdminExamsPage } from './pages/admin/AdminExams';
+import { AdminPaymentsPage } from './pages/admin/AdminPayments';
+import { AdminCertificatesPage } from './pages/admin/AdminCertificates';
+import { AdminProfilePage } from './pages/admin/AdminProfilePage';
+import { AdminSupportPage } from './pages/admin/AdminSupportPage';
 
 export const App: React.FC = () => {
   return (
@@ -34,14 +42,15 @@ export const App: React.FC = () => {
 
         {/* System Administration Routes */}
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin/applications" element={<AdminPlaceholderPage title="Applications" subtitle="Applications" />} />
-        <Route path="/admin/users" element={<AdminPlaceholderPage title="Users" subtitle="Users" />} />
-        <Route path="/admin/courses" element={<AdminPlaceholderPage title="Courses" subtitle="Courses" />} />
-        <Route path="/admin/assignments" element={<AdminPlaceholderPage title="Assignments" subtitle="Assignments" />} />
-        <Route path="/admin/exams" element={<AdminPlaceholderPage title="Exams" subtitle="Exams" />} />
-        <Route path="/admin/payments" element={<AdminPlaceholderPage title="Payments" subtitle="Payments" />} />
-        <Route path="/admin/certificates" element={<AdminPlaceholderPage title="Certificates" subtitle="Certificates" />} />
-        <Route path="/admin/support" element={<AdminPlaceholderPage title="Support" subtitle="Support" />} />
+        <Route path="/admin/applications" element={<AdminApplicationsPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/courses" element={<AdminCoursesPage />} />
+        <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
+        <Route path="/admin/exams" element={<AdminExamsPage />} />
+        <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+        <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
+        <Route path="/admin/profile" element={<AdminProfilePage />} />
+        <Route path="/admin/support" element={<AdminSupportPage />} />
 
         {/* Default route opens Registration page first */}
         <Route path="/" element={<Navigate to="/register" replace />} />

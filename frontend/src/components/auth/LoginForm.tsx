@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FormInput } from '../common/FormInput';
 import { PasswordInput } from '../common/PasswordInput';
 import { Checkbox } from '../common/Checkbox';
@@ -13,6 +13,7 @@ interface LoginFormProps {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -23,38 +24,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {};
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Please enter your registered email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address.';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Please enter your password.';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError(null);
-
-    if (validate()) {
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        if (formData.email.includes('error')) {
-          setLoginError('Invalid clinical credentials or unverified account. Please check your credentials.');
-        } else {
-          alert(`Welcome back! Frontend mock login successful for ${formData.email}`);
-        }
-      }, 1000);
-    }
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      navigate('/dashboard');
+    }, 400);
   };
 
   return (
@@ -115,12 +91,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
               label={<span className="text-xs font-semibold text-slate-700">Remember this workstation</span>}
             />
 
-            <a
-              href="#forgot-password"
+            <Link
+              to="/forgot-password"
               className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors"
             >
               Forgot Password?
-            </a>
+            </Link>
           </div>
 
           {/* Primary CTA */}

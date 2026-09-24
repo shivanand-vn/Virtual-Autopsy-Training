@@ -9,8 +9,6 @@ import {
   Award,
   Sparkles,
   Eye,
-  Check,
-  X,
   Plus,
   FileText,
   Activity,
@@ -34,18 +32,7 @@ import type { ApplicantRecord } from '../../types/admin';
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const [applicants, setApplicants] = useState<ApplicantRecord[]>(MOCK_APPLICANTS);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-
-  const handleUpdateStatus = (id: string, status: 'approved' | 'rejected') => {
-    setApplicants(
-      applicants.map((app) => (app.id === id ? { ...app, status } : app))
-    );
-  };
-
-  const filteredApplicants = applicants.filter((app) =>
-    selectedFilter === 'all' ? true : app.status === selectedFilter
-  );
+  const [applicants] = useState<ApplicantRecord[]>(MOCK_APPLICANTS);
 
   return (
     <AdminLayout title="Admin Dashboard" subtitle="Dashboard">
@@ -205,27 +192,8 @@ export const AdminDashboardPage: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* 3. APPLICATIONS OVERVIEW TABLE */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-100">
-                <div>
-                  <h3 className="font-extrabold text-base text-[#0A192F]">Recent Applications</h3>
-                  <p className="text-xs text-slate-500">Clinical fellows awaiting faculty eligibility verification</p>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setSelectedFilter(st)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-colors ${
-                        selectedFilter === st
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'text-slate-500 hover:bg-slate-100'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
+              <div className="pb-2 border-b border-slate-100">
+                <h3 className="font-extrabold text-base text-[#0A192F]">Recent Applications</h3>
               </div>
 
               <div className="overflow-x-auto">
@@ -237,11 +205,10 @@ export const AdminDashboardPage: React.FC = () => {
                       <th className="py-3 px-3">ORGANIZATION</th>
                       <th className="py-3 px-3">APPLIED DATE</th>
                       <th className="py-3 px-3">STATUS</th>
-                      <th className="py-3 px-3 text-right">ACTION</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredApplicants.map((app) => (
+                    {applicants.map((app) => (
                       <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-3">
@@ -271,24 +238,6 @@ export const AdminDashboardPage: React.FC = () => {
                           >
                             {app.status}
                           </span>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end space-x-1">
-                            <button
-                              onClick={() => handleUpdateStatus(app.id, 'approved')}
-                              title="Approve"
-                              className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(app.id, 'rejected')}
-                              title="Reject"
-                              className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     ))}

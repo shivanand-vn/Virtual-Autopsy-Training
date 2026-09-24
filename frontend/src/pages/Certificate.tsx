@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award } from 'lucide-react';
+import { Award, Hammer, Construction, ShieldAlert } from 'lucide-react';
 import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 
 export const CertificatePage: React.FC = () => {
@@ -20,18 +20,22 @@ export const CertificatePage: React.FC = () => {
           </h1>
         </div>
 
-        {/* Clean Minimal Placeholder Card */}
+        {/* Minimal Under Development Placeholder Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-xs max-w-2xl mx-auto space-y-4 my-12">
           <div className="w-16 h-16 bg-amber-100 border border-amber-300 text-amber-800 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
             <Award className="w-8 h-8" />
           </div>
 
+          <span className="inline-block px-3 py-1 bg-amber-100 text-amber-900 font-bold text-xs rounded-full uppercase tracking-wider">
+            Under Development
+          </span>
+
           <h2 className="text-xl font-extrabold text-[#0A192F]">
-            Certificate & Accreditation
+            Certification Module
           </h2>
 
           <p className="text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-            Official certificate and accreditation details will be issued upon completing all course modules and final competency requirements.
+            The Certification and CME Accreditation section is currently under development. Official certificates and accreditation verification will be issued upon completing all course requirements once released.
           </p>
         </div>
       </div>

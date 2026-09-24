@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, ChevronDown, Menu, ShieldCheck } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import { MOCK_ADMIN, MOCK_ADMIN_NOTIFICATIONS } from '../../types/admin';
 
 interface AdminHeaderProps {
@@ -14,7 +14,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   subtitle = 'Dashboard'
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const unreadCount = MOCK_ADMIN_NOTIFICATIONS.filter((n) => !n.read).length;
 
@@ -80,50 +79,16 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           )}
         </div>
 
-        {/* Admin Profile Dropdown Pill */}
-        <div className="relative">
-          <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center space-x-3 p-1.5 pl-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-full transition-colors"
-          >
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-bold text-[#0A192F] leading-tight">
-                {MOCK_ADMIN.name}
-              </div>
-              <div className="text-[10px] text-amber-800 font-bold leading-tight">
-                {MOCK_ADMIN.role}
-              </div>
-            </div>
-            <img
-              src={MOCK_ADMIN.avatar}
-              alt={MOCK_ADMIN.name}
-              className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-400/50"
-            />
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 mr-1" />
-          </button>
-
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 text-xs">
-              <div className="p-3 border-b border-slate-100">
-                <p className="font-bold text-slate-800">{MOCK_ADMIN.name}</p>
-                <p className="text-[11px] text-slate-500">{MOCK_ADMIN.email}</p>
-              </div>
-              <div className="py-1">
-                <button
-                  onClick={() => setShowProfileMenu(false)}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 font-medium text-slate-700"
-                >
-                  System Preferences
-                </button>
-                <button
-                  onClick={() => setShowProfileMenu(false)}
-                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 font-medium text-slate-700"
-                >
-                  Audit Logs
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Admin Profile Info Pill (Name + Photo Only) */}
+        <div className="flex items-center space-x-3 p-1.5 pl-3.5 bg-slate-50 border border-slate-200/80 rounded-full">
+          <span className="text-xs font-bold text-[#0A192F] hidden sm:inline-block">
+            {MOCK_ADMIN.name}
+          </span>
+          <img
+            src={MOCK_ADMIN.avatar}
+            alt={MOCK_ADMIN.name}
+            className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-400/50"
+          />
         </div>
       </div>
     </header>

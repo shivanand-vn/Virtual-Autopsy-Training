@@ -1,4 +1,4 @@
-### Virtual Autopsy Online Training LMS
+### Virtual Autopsy Online Training 
 ---
 
 ### Overview

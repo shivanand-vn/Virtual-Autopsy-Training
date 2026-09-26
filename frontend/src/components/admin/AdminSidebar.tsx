@@ -12,7 +12,8 @@ import {
   User,
   HelpCircle,
   LogOut,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -27,11 +28,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
 
   const adminNav = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Applications', path: '/admin/applications', icon: FileText, badge: '18' },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Assignments', path: '/admin/assignments', icon: ClipboardList, badge: '3' },
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
+    { name: 'Discussions', path: '/admin/discussions', icon: MessageSquare },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
   ];

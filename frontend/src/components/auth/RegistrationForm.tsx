@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
+import { StepIndicator } from './StepIndicator';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { FormInput } from '../common/FormInput';
 import { SelectInput } from '../common/SelectInput';
 import { PhoneInput } from '../common/PhoneInput';
@@ -8,7 +11,6 @@ import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
-import { CheckCircle } from 'lucide-react';
 
 const QUALIFICATIONS = [
   { value: 'mbbs', label: 'MBBS / MD (Medical Doctor)' },
@@ -33,22 +35,23 @@ interface RegistrationFormProps {
 }
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogin }) => {
-  const [formData, setFormData] = useState<RegistrationFormData>({
-    fullName: '',
-    email: '',
-    countryCode: '+44',
-    phoneNumber: '',
-    qualification: '',
-    professionalRole: '',
-    organization: '',
-    cvFile: null,
-    consent: false,
-  });
+  const navigate = useNavigate();
+  const { registrationData, saveStep1AndContinue } = useRegistrationFlow();
 
+  const [formData, setFormData] = useState<RegistrationFormData>(registrationData);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
 
+  // Sync state if context registrationData updates
+  useEffect(() => {
+    setFormData(registrationData);
+  }, [registrationData]);
+
+  // Step 1 Validation Order:
+  // 1. Required registration fields
+  // 2. Email format
+  // 3. CV/file upload requirements
+  // 4. Privacy consent
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -83,7 +86,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
     }
 
     if (!formData.consent) {
-      newErrors.consent = 'You must consent to the privacy policy and terms.';
+      newErrors.consent = 'Please confirm that you agree to the Privacy Policy and the use of your personal information before continuing.';
     }
 
     setErrors(newErrors);
@@ -94,69 +97,31 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
     e.preventDefault();
 
     if (validate()) {
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsSubmitted(true);
-      }, 1200);
+      // Save Step 1 registration details into context and proceed to Step 2 (/payment)
+      saveStep1AndContinue(formData);
+      navigate('/payment');
     }
   };
-
-  if (isSubmitted) {
-    return (
-      <div className="bg-white rounded-2xl shadow-card-lg border border-slate-200/80 p-6 sm:p-8 lg:p-8 h-full min-h-full flex flex-col justify-between text-center">
-        <div className="my-auto space-y-4">
-          <div className="w-14 h-14 bg-emerald-100 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
-            <CheckCircle className="w-8 h-8" />
-          </div>
-          <div>
-            <StatusBadge>APPLICATION RECEIVED</StatusBadge>
-            <h2 className="text-2xl font-extrabold text-navy-950 mt-2">
-              Application Submitted Successfully
-            </h2>
-            <p className="text-sm text-slate-600 mt-1.5 max-w-md mx-auto leading-relaxed">
-              Thank you, <span className="font-bold text-navy-950">{formData.fullName}</span>. Your clinical credentials have been submitted for faculty and administrator review.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-600 max-w-md mx-auto text-left space-y-1">
-            <p className="font-bold text-navy-950">Next Steps for Access:</p>
-            <p>• Your profile will be reviewed by the administrator.</p>
-            <p>• Upon approval, a <strong>temporary password</strong> for your initial login will be sent to <span className="font-mono font-semibold text-slate-800">{formData.email}</span>.</p>
-            <p>• You can log in using your email and temporary password, and change it after signing in.</p>
-          </div>
-        </div>
-
-        <div className="pt-2 border-t border-slate-100">
-          {onFlipToLogin ? (
-            <PrimaryButton fullWidth={false} onClick={onFlipToLogin}>
-              Return to Sign In
-            </PrimaryButton>
-          ) : (
-            <Link to="/login">
-              <PrimaryButton fullWidth={false}>
-                Return to Sign In
-              </PrimaryButton>
-            </Link>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-2xl shadow-card-lg border border-slate-200/80 p-6 sm:p-8 lg:p-8 h-full min-h-full flex flex-col justify-between overflow-hidden">
       {/* Top Header Card Info */}
-      <div className="shrink-0 pb-1.5">
-        <div className="flex items-center justify-between gap-4 mb-1.5">
+      <div className="shrink-0 pb-1.5 space-y-2">
+        <div className="flex items-center justify-between gap-4">
           <StatusBadge>APPLICATION FORM</StatusBadge>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
-          Registration & Eligibility
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-          Please provide your professional details to begin your application.
-        </p>
+
+        {/* Step 1 Indicator */}
+        <StepIndicator currentStep={1} />
+
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+            Registration & Eligibility
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+            Please provide your professional details to begin your application.
+          </p>
+        </div>
       </div>
 
       {/* Internal Scrollable Form Area */}
@@ -247,26 +212,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             label={
               <span>
                 I agree to the{' '}
-                <a href="#privacy" className="text-amber-600 font-bold hover:underline">
+                <button
+                  type="button"
+                  onClick={() => setIsPrivacyModalOpen(true)}
+                  className="text-amber-600 font-bold hover:underline cursor-pointer focus:outline-none"
+                >
                   Privacy Policy
-                </a>{' '}
-                and{' '}
-                <a href="#terms" className="text-amber-600 font-bold hover:underline">
-                  Terms & Conditions
-                </a>{' '}
-                and consent to my information being used for eligibility assessment and course enrollment.
+                </button>{' '}
+                and consent to the collection and use of my personal information for course registration, payment, training access, communication, and certification.
               </span>
             }
           />
         </div>
 
-        {/* Submit Primary CTA */}
+        {/* Primary Button: "Continue to Payment" */}
         <div className="pt-1.5 space-y-1.5">
-          <PrimaryButton type="submit" isLoading={isLoading}>
-            Submit Application
+          <PrimaryButton type="submit">
+            Continue to Payment
           </PrimaryButton>
           <p className="text-[10px] text-slate-400 text-center leading-tight">
-            Upon admin approval, a temporary password for initial access will be sent to your email address.
+            Step 1 of 2: Registration details will be preserved when continuing to Stripe checkout.
           </p>
         </div>
       </form>
@@ -293,6 +258,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           </Link>
         )}
       </div>
+
+      {/* PRIVACY POLICY MODAL */}
+      <PrivacyPolicyModal
+        isOpen={isPrivacyModalOpen}
+        onClose={() => setIsPrivacyModalOpen(false)}
+      />
     </div>
   );
 };

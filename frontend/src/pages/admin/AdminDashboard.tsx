@@ -52,7 +52,7 @@ export const AdminDashboardPage: React.FC = () => {
                 Welcome back, {MOCK_ADMIN.name}
               </h1>
               <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
-                Here's an overview of your Virtual Autopsy LMS. You have 18 pending applications and 3 assignments requiring manual evaluation.
+                Here's an overview of your Virtual Autopsy LMS. You have 18 active user registrations and 3 assignments requiring manual evaluation.
               </p>
             </div>
 

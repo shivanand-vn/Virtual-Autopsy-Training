@@ -6,6 +6,7 @@ import {
   ClipboardList,
   GraduationCap,
   Award,
+  MessageSquare,
   User,
   HelpCircle,
   LogOut,
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { name: 'Assignments', path: '/assignments', icon: ClipboardList, badge: '2' },
     { name: 'Final Exam', path: '/exam', icon: GraduationCap, badge: '60 Qs' },
     { name: 'Certificate', path: '/certificate', icon: Award },
+    { name: 'Discussions', path: '/discussions', icon: MessageSquare, badge: '3' },
   ];
 
   const supportNav = [

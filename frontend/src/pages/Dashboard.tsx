@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 import { MOCK_STUDENT, MOCK_MODULES, MOCK_ASSIGNMENTS, MOCK_ACTIVITY } from '../types/dashboard';
+import { RecentDiscussionsWidget } from '../components/discussions/RecentDiscussionsWidget';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -350,6 +351,9 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Recent Course Discussions */}
+            <RecentDiscussionsWidget />
 
             {/* Recent PACS & Activity Log */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">

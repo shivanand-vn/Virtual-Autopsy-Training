@@ -25,44 +25,7 @@ export interface SupportTicket {
   description: string;
 }
 
-export const MOCK_TICKETS: SupportTicket[] = [
-  {
-    id: 'tkt-801',
-    ticketId: 'SUP-4019',
-    senderName: 'Dr. Helena Vance',
-    email: 'h.vance@stjude.org',
-    subject: 'DICOM Viewer WebGL Rendering Delay on Safari',
-    category: 'Technical DICOM',
-    priority: 'High',
-    createdDate: 'Oct 14, 2024',
-    status: 'open',
-    description: 'When switching to 3D surface reconstruction slice windowing in Module 2, the viewer experiences a frame drop on macOS Safari.',
-  },
-  {
-    id: 'tkt-802',
-    ticketId: 'SUP-4020',
-    senderName: 'Dr. Marcus Thorne',
-    email: 'm.thorne@berninquest.ch',
-    subject: 'NHS Hospital Group Invoice Request (£2,499)',
-    category: 'Billing & Invoice',
-    priority: 'Medium',
-    createdDate: 'Oct 13, 2024',
-    status: 'open',
-    description: 'Please issue a VAT itemized institutional invoice for Bern Medico-Legal Center accounting department.',
-  },
-  {
-    id: 'tkt-803',
-    ticketId: 'SUP-4021',
-    senderName: 'Dr. Sarah Jenkins',
-    email: 's.jenkins@melbourneforensic.au',
-    subject: 'CME Accreditation Certificate QR Code Verification',
-    category: 'Certificate Verification',
-    priority: 'Low',
-    createdDate: 'Oct 11, 2024',
-    status: 'resolved',
-    description: 'Verification QR code successfully scanned and validated against RCPath registry node.',
-  },
-];
+export const MOCK_TICKETS: SupportTicket[] = [];
 
 export const AdminSupportPage: React.FC = () => {
   const [tickets, setTickets] = useState<SupportTicket[]>(MOCK_TICKETS);
@@ -127,7 +90,9 @@ export const AdminSupportPage: React.FC = () => {
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg Response Time</p>
-              <h3 className="text-2xl font-black text-slate-800 mt-1">1.4 Hours</h3>
+              <h3 className="text-2xl font-black text-slate-800 mt-1">
+                {tickets.length > 0 ? '1.4 Hours' : 'N/A'}
+              </h3>
             </div>
             <div className="w-12 h-12 bg-slate-100 border border-slate-300 text-slate-700 rounded-2xl flex items-center justify-center">
               <MessageSquare className="w-6 h-6 text-amber-600" />
@@ -164,52 +129,60 @@ export const AdminSupportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredTickets.map((t) => (
-                  <tr key={t.id} className="hover:bg-amber-50/20 transition-colors">
-                    <td className="py-4 px-4 text-center font-mono font-bold text-slate-800">{t.ticketId}</td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="font-bold text-slate-900">{t.senderName}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{t.email}</div>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="font-extrabold text-slate-900 truncate">{t.subject}</div>
-                      <div className="text-[10px] text-amber-800 font-bold mt-0.5">{t.category}</div>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          t.priority === 'High'
-                            ? 'bg-rose-100 text-rose-800'
-                            : t.priority === 'Medium'
-                            ? 'bg-amber-100 text-amber-900'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {t.priority}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                          t.status === 'resolved'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-900'
-                        }`}
-                      >
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <button
-                        onClick={() => setSelectedTicket(t)}
-                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Inspect</span>
-                      </button>
+                {filteredTickets.length > 0 ? (
+                  filteredTickets.map((t) => (
+                    <tr key={t.id} className="hover:bg-amber-50/20 transition-colors">
+                      <td className="py-4 px-4 text-center font-mono font-bold text-slate-800">{t.ticketId}</td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="font-bold text-slate-900">{t.senderName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{t.email}</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="font-extrabold text-slate-900 truncate">{t.subject}</div>
+                        <div className="text-[10px] text-amber-800 font-bold mt-0.5">{t.category}</div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            t.priority === 'High'
+                              ? 'bg-rose-100 text-rose-800'
+                              : t.priority === 'Medium'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                            t.status === 'resolved'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <button
+                          onClick={() => setSelectedTicket(t)}
+                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Inspect</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-500 text-xs font-semibold">
+                      No support requests available.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

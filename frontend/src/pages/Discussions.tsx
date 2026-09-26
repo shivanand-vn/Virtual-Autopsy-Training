@@ -47,7 +47,7 @@ export const Discussions: React.FC = () => {
     });
 
   return (
-    <DashboardLayout>
+    <DashboardLayout headerSubtitle="DISCUSSIONS">
       <div className="space-y-6 pb-12">
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-[#0A192F] via-[#112240] to-[#0A192F] text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-800 relative overflow-hidden">
@@ -105,21 +105,27 @@ export const Discussions: React.FC = () => {
               <AlertCircle className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#0A192F]">No Discussion Topics Found</h3>
+              <h3 className="text-base font-bold text-[#0A192F]">
+                {discussions.length === 0 ? 'No discussions available.' : 'No Discussion Topics Found'}
+              </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                No discussions matched your filter criteria or search query. Try resetting your search terms.
+                {discussions.length === 0
+                  ? 'No discussion topics have been created yet.'
+                  : 'No discussions matched your filter criteria or search query. Try resetting your search terms.'}
               </p>
             </div>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('all');
-                setStatusFilter('all');
-              }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-            >
-              Reset Filters
-            </button>
+            {discussions.length > 0 && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('all');
+                  setStatusFilter('all');
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         )}
       </div>

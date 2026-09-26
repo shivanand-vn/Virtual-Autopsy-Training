@@ -46,113 +46,7 @@ export interface UserRecord {
   };
 }
 
-export const MOCK_USERS: UserRecord[] = [
-  {
-    id: 'usr-201',
-    name: 'Dr. Helena Vance',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    email: 'h.vance@stjude.org',
-    role: 'Fellow / Student',
-    institution: 'St. Jude Forensic Hub',
-    country: 'United Kingdom',
-    joinedDate: 'Oct 14, 2024',
-    status: 'active',
-    cmeCredits: 24,
-    cvDocument: {
-      title: 'Dr. Helena Vance - Curriculum Vitae',
-      fileName: 'Dr_Helena_Vance_Curriculum_Vitae.pdf',
-      fileSize: '2.4 MB',
-      uploadedDate: 'Oct 14, 2024',
-      downloadUrl: '#',
-      qualifications: 'MBBS, FRCPath (Forensic Pathology), DipRCPath (PMCT)',
-      medicalLicense: 'GMC #7482910 (UK Full Registration)'
-    }
-  },
-  {
-    id: 'usr-202',
-    name: 'Dr. Marcus Thorne',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    email: 'm.thorne@berninquest.ch',
-    role: 'Pathologist',
-    institution: 'Bern Medico-Legal Center',
-    country: 'Switzerland',
-    joinedDate: 'Oct 12, 2024',
-    status: 'active',
-    cmeCredits: 48,
-    cvDocument: {
-      title: 'Dr. Marcus Thorne - Forensic CV',
-      fileName: 'Dr_Marcus_Thorne_Forensic_CV.pdf',
-      fileSize: '3.1 MB',
-      uploadedDate: 'Oct 12, 2024',
-      downloadUrl: '#',
-      qualifications: 'MD, FMH Forensic Medicine, ISFRI Certified PMCTA Reader',
-      medicalLicense: 'CH-MedReg #8491029'
-    }
-  },
-  {
-    id: 'usr-203',
-    name: 'Dr. Sarah Jenkins',
-    avatar: 'https://images.unsplash.com/photo-1594824813566-78a933f443e6?w=150&auto=format&fit=crop&q=80',
-    email: 's.jenkins@melbourneforensic.au',
-    role: 'Faculty / Admin',
-    institution: 'Melbourne Forensic Institute',
-    country: 'Australia',
-    joinedDate: 'Aug 10, 2024',
-    status: 'active',
-    cmeCredits: 60,
-    cvDocument: {
-      title: 'Dr. Sarah Jenkins - Academic CV & Publications',
-      fileName: 'Dr_Sarah_Jenkins_Pathology_CV.pdf',
-      fileSize: '1.8 MB',
-      uploadedDate: 'Aug 10, 2024',
-      downloadUrl: '#',
-      qualifications: 'FRCPA, PhD (Post-Mortem Computed Tomography)',
-      medicalLicense: 'AHPRA #MED0001928371'
-    }
-  },
-  {
-    id: 'usr-204',
-    name: 'Dr. Aris Thorne',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    email: 'a.thorne@nordicforensic.se',
-    role: 'Fellow / Student',
-    institution: 'Nordic Forensic Sciences',
-    country: 'Sweden',
-    joinedDate: 'Sep 08, 2024',
-    status: 'active',
-    cmeCredits: 18,
-    cvDocument: {
-      title: 'Dr. Aris Thorne - Fellowship Application CV',
-      fileName: 'Dr_Aris_Thorne_Fellowship_Resume.pdf',
-      fileSize: '2.1 MB',
-      uploadedDate: 'Sep 08, 2024',
-      downloadUrl: '#',
-      qualifications: 'MD, Specialist in Forensic Medicine (Socialstyrelsen)',
-      medicalLicense: 'SE-Legitimerad Läkare #948271'
-    }
-  },
-  {
-    id: 'usr-205',
-    name: 'Dr. Kenji Sato',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    email: 'k.sato@tokyomed.jp',
-    role: 'Fellow / Student',
-    institution: 'Tokyo Mortuary Center',
-    country: 'Japan',
-    joinedDate: 'Oct 05, 2024',
-    status: 'suspended',
-    cmeCredits: 0,
-    cvDocument: {
-      title: 'Dr. Kenji Sato - Curriculum Vitae',
-      fileName: 'Dr_Kenji_Sato_CV.pdf',
-      fileSize: '4.0 MB',
-      uploadedDate: 'Oct 05, 2024',
-      downloadUrl: '#',
-      qualifications: 'MD, PhD (Forensic Radiology)',
-      medicalLicense: 'MHLW Japan License #39281'
-    }
-  },
-];
+export const MOCK_USERS: UserRecord[] = [];
 
 export const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS);
@@ -356,8 +250,8 @@ export const AdminUsersPage: React.FC = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                      No users match the search or filter criteria.
+                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                      No users available.
                     </td>
                   </tr>
                 )}

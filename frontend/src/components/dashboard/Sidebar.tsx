@@ -3,16 +3,16 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BookOpen,
-  ClipboardList,
   GraduationCap,
   Award,
   MessageSquare,
   User,
   HelpCircle,
   LogOut,
-  X,
-  AlertTriangle
+  X
 } from 'lucide-react';
+
+import { useDiscussions } from '../../context/DiscussionsContext';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -22,21 +22,36 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { discussions } = useDiscussions();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const primaryNav = [
+  // EXACT MENU ITEMS IN REQUIRED ORDER:
+  // 1. Dashboard
+  // 2. My Course
+  // 3. Final Exam
+  // 4. Certificate
+  // 5. Discussions
+  // 6. Profile
+  // 7. Help & Support
+  // 8. Logout
+  const studentNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'My Course', path: '/course', icon: BookOpen },
-    { name: 'Assignments', path: '/assignments', icon: ClipboardList, badge: '2' },
-    { name: 'Final Exam', path: '/exam', icon: GraduationCap, badge: '60 Qs' },
+    { name: 'My Course', path: '/my-course', altPaths: ['/course'], icon: BookOpen },
+    { name: 'Final Exam', path: '/final-exam', altPaths: ['/exam'], icon: GraduationCap, badge: '60 Qs' },
     { name: 'Certificate', path: '/certificate', icon: Award },
-    { name: 'Discussions', path: '/discussions', icon: MessageSquare, badge: '3' },
+    { name: 'Discussions', path: '/discussions', icon: MessageSquare, badge: discussions.length > 0 ? String(discussions.length) : undefined },
+    { name: 'Profile', path: '/profile', icon: User },
+    { name: 'Help & Support', path: '/help-support', altPaths: ['/support'], icon: HelpCircle },
   ];
 
-  const supportNav = [
-    { name: 'Profile', path: '/profile', icon: User },
-    { name: 'Help & Support', path: '/support', icon: HelpCircle },
-  ];
+  const isRouteActive = (itemPath: string, altPaths?: string[]) => {
+    const current = location.pathname;
+    if (current === itemPath || current.startsWith(`${itemPath}/`)) return true;
+    if (altPaths) {
+      return altPaths.some((alt) => current === alt || current.startsWith(`${alt}/`));
+    }
+    return false;
+  };
 
   const confirmLogout = () => {
     setShowLogoutModal(false);
@@ -70,15 +85,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             )}
           </div>
 
-          {/* Pathology Portal Navigation */}
-          <div className="px-4 py-6">
+          {/* Student LMS Navigation */}
+          <div className="px-4 py-6 space-y-1.5">
             <div className="px-3 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Pathology Portal
+              Student Navigation
             </div>
             <nav className="space-y-1.5">
-              {primaryNav.map((item) => {
+              {studentNavItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const active = isRouteActive(item.path, item.altPaths);
 
                 return (
                   <NavLink
@@ -86,19 +101,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
                     to={item.path}
                     onClick={onClose}
                     className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                      isActive
+                      active
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                      <Icon className={`w-5 h-5 ${active ? 'text-slate-950' : 'text-slate-400'}`} />
                       <span>{item.name}</span>
                     </div>
                     {item.badge && (
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                          isActive
+                          active
                             ? 'bg-slate-950 text-amber-400'
                             : 'bg-amber-100 text-amber-900'
                         }`}
@@ -111,45 +126,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               })}
             </nav>
           </div>
-
-          {/* Account & Support Navigation */}
-          <div className="px-4 py-2">
-            <div className="px-3 mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Account & Support
-            </div>
-            <nav className="space-y-1.5">
-              {supportNav.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
-
-                return (
-                  <NavLink
-                    key={item.name}
-                    to={item.path}
-                    onClick={onClose}
-                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
-                    <span>{item.name}</span>
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
         </div>
 
-        {/* Bottom Dedicated Logout Button */}
+        {/* 8. Dedicated Logout Button at bottom */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="w-full flex items-center justify-center space-x-2 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-slate-200 hover:border-rose-200 p-3 rounded-2xl font-bold text-sm transition-all shadow-xs group"
+            className="w-full flex items-center justify-center space-x-2 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-slate-200 hover:border-rose-200 p-3 rounded-2xl font-bold text-sm transition-all shadow-xs group cursor-pointer"
           >
             <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-600 transition-colors" />
-            <span>Log Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -172,13 +158,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
             <div className="flex items-center space-x-3 pt-2">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="flex-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl transition-colors"
+                className="flex-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors"
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer"
               >
                 Yes, Log Out
               </button>

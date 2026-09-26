@@ -28,21 +28,8 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout headerTitle="Candidate Credentials & Account Profile" headerSubtitle="MY PROFILE">
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 mb-1">
-            <span>ACADEMY</span>
-            <span>/</span>
-            <span>STUDENT PORTAL</span>
-            <span>/</span>
-            <span className="text-amber-700 font-bold">MY PROFILE</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#0A192F]">
-            Candidate Credentials & Account Profile
-          </h1>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Avatar & Summary Card */}

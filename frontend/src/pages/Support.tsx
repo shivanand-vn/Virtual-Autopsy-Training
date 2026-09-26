@@ -4,21 +4,8 @@ import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 
 export const SupportPage: React.FC = () => {
   return (
-    <DashboardLayout>
+    <DashboardLayout headerTitle="Help & Technical Support" headerSubtitle="HELP & SUPPORT">
       <div className="space-y-6">
-        {/* Simple Page Header */}
-        <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 mb-1">
-            <span>ACADEMY</span>
-            <span>/</span>
-            <span>STUDENT PORTAL</span>
-            <span>/</span>
-            <span className="text-amber-700 font-bold">HELP & SUPPORT</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#0A192F]">
-            Help & Technical Support
-          </h1>
-        </div>
 
         {/* Minimal Under Development Placeholder Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-xs max-w-2xl mx-auto space-y-4 my-12">

@@ -2,19 +2,23 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
-  FileText,
   Users,
   BookOpen,
+  HelpCircle,
   ClipboardList,
   GraduationCap,
   CreditCard,
   Award,
-  User,
-  HelpCircle,
+  BarChart3,
+  MessageSquare,
+  LifeBuoy,
+  Settings,
   LogOut,
   X,
-  MessageSquare
+  FileQuestion
 } from 'lucide-react';
+
+import { useDiscussions } from '../../context/DiscussionsContext';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -24,28 +28,44 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { discussions } = useDiscussions();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // EXACT ADMIN NAVIGATION ORDER FROM REQUIREMENTS:
+  // 1. Dashboard
+  // 2. Users
+  // 3. Courses
+  // 4. Question Bank (NEW)
+  // 5. Assignments
+  // 6. Exams
+  // 7. Payments
+  // 8. Certificates
+  // 9. Discussions
+  // 10. Analytics
   const adminNav = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
-    { name: 'Assignments', path: '/admin/assignments', icon: ClipboardList, badge: '3' },
+    { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion, isNew: true },
+    { name: 'Assignments', path: '/admin/assignments', icon: ClipboardList },
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
-    { name: 'Discussions', path: '/admin/discussions', icon: MessageSquare },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
+    { name: 'Discussions', path: '/admin/discussions', icon: MessageSquare, badge: discussions.length > 0 ? String(discussions.length) : undefined },
+    { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },
   ];
 
   const accountNav = [
-    { name: 'Profile', path: '/admin/profile', icon: User },
-    { name: 'Help & Support', path: '/admin/support', icon: HelpCircle },
+    { name: 'Support', path: '/admin/support', icon: LifeBuoy },
+    { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 
   const confirmLogout = () => {
     setShowLogoutModal(false);
     navigate('/login');
   };
+
+  const isQuestionBankActive = location.pathname.startsWith('/admin/question-bank');
 
   return (
     <>
@@ -82,7 +102,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
             <nav className="space-y-1">
               {adminNav.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = item.path === '/admin/question-bank'
+                  ? isQuestionBankActive
+                  : location.pathname === item.path;
 
                 return (
                   <NavLink
@@ -99,27 +121,34 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                       <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
                       <span>{item.name}</span>
                     </div>
-                    {item.badge && (
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                          isActive
-                            ? 'bg-slate-950 text-amber-400'
-                            : 'bg-amber-100 text-amber-900'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-1">
+                      {item.isNew && !isActive && (
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
+                          NEW
+                        </span>
+                      )}
+                      {item.badge && (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                            isActive
+                              ? 'bg-slate-950 text-amber-400'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
                   </NavLink>
                 );
               })}
             </nav>
           </div>
 
-          {/* Account & Support Navigation */}
-          <div className="px-4 py-2 border-t border-slate-100">
-            <div className="px-3 mb-2.5 mt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Account & Support
+          {/* Settings & Support Navigation */}
+          <div className="px-4 py-2">
+            <div className="px-3 mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Control & Support
             </div>
             <nav className="space-y-1">
               {accountNav.map((item) => {
@@ -146,14 +175,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
           </div>
         </div>
 
-        {/* Bottom Dedicated Logout Button */}
+        {/* Dedicated Admin Logout Button */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <button
             onClick={() => setShowLogoutModal(true)}
-            className="w-full flex items-center justify-center space-x-2 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-slate-200 hover:border-rose-200 p-3 rounded-2xl font-bold text-sm transition-all shadow-xs group"
+            className="w-full flex items-center justify-center space-x-2 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-slate-200 hover:border-rose-200 p-3 rounded-2xl font-bold text-sm transition-all shadow-xs group cursor-pointer"
           >
             <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-600 transition-colors" />
-            <span>Log Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -167,22 +196,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-xl font-extrabold text-[#0A192F]">Confirm Admin Logout</h3>
+              <h3 className="text-xl font-extrabold text-[#0A192F]">Confirm Logout</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Are you sure you want to end your Virtual Autopsy Admin session?
+                Are you sure you want to exit the System Administration Panel?
               </p>
             </div>
 
             <div className="flex items-center space-x-3 pt-2">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="flex-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl transition-colors"
+                className="flex-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 py-3 rounded-xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors"
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer"
               >
                 Yes, Log Out
               </button>

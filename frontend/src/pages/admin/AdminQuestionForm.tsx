@@ -30,8 +30,8 @@ export const AdminQuestionForm: React.FC = () => {
   const { courses } = useCourse();
 
   // Form Fields State
-  const [courseId, setCourseId] = useState<string>('course-1');
-  const [moduleId, setModuleId] = useState<string>('mod-3');
+  const [courseId, setCourseId] = useState<string>('');
+  const [moduleId, setModuleId] = useState<string>('');
   const [questionType, setQuestionType] = useState<QuestionType>('single');
   const [questionText, setQuestionText] = useState<string>('');
 
@@ -62,7 +62,7 @@ export const AdminQuestionForm: React.FC = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
 
-  // Pre-populate if editing
+  // Pre-populate if editing or default selection if creating
   useEffect(() => {
     if (isEditing && questionId) {
       const existing = getQuestion(questionId);
@@ -88,8 +88,16 @@ export const AdminQuestionForm: React.FC = () => {
           setTfCorrect(existing.correctAnswer || '');
         }
       }
+    } else if (!isEditing && courses.length > 0) {
+      if (!courseId || !courses.some((c) => c.id === courseId)) {
+        const firstCourse = courses[0];
+        setCourseId(firstCourse.id);
+        if (firstCourse.modules && firstCourse.modules.length > 0) {
+          setModuleId(firstCourse.modules[0].id);
+        }
+      }
     }
-  }, [isEditing, questionId]);
+  }, [isEditing, questionId, courses]);
 
   const selectedCourseObj = courses.find((c) => c.id === courseId) || courses[0];
   const availableModules = selectedCourseObj ? selectedCourseObj.modules : [];
@@ -166,7 +174,7 @@ export const AdminQuestionForm: React.FC = () => {
       return;
     }
 
-    const selectedCourseObj = MOCK_COURSES.find((c) => c.id === courseId);
+    const selectedCourseObj = courses.find((c) => c.id === courseId);
     const selectedModuleObj = availableModules.find((m) => m.id === moduleId);
 
     if (questionType === 'single') {
@@ -202,9 +210,9 @@ export const AdminQuestionForm: React.FC = () => {
 
     const questionPayload: Omit<BankQuestion, 'id' | 'createdAt'> = {
       courseId,
-      courseName: selectedCourseObj?.name || 'Advanced Virtual Autopsy Training',
+      courseName: selectedCourseObj?.name || 'Course Assessment',
       moduleId,
-      moduleName: selectedModuleObj?.name || 'Module 03: Image Interpretation & Trauma Signs',
+      moduleName: selectedModuleObj ? `Module 0${selectedModuleObj.moduleNumber}: ${selectedModuleObj.title}` : 'Module Assessment',
       type: questionType,
       text: questionText,
       image: imageUrl,

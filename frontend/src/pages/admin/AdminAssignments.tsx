@@ -24,46 +24,7 @@ export interface AssignmentRecord {
   dicomAttachment: string;
 }
 
-export const MOCK_ASSIGNMENTS: AssignmentRecord[] = [
-  {
-    id: 'asg-301',
-    candidateName: 'Dr. Helena Vance',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    caseTitle: 'Case #402: Subdural Hematoma & Temporal Bone Fracture',
-    submittedDate: 'Oct 14, 2024',
-    status: 'pending',
-    dicomAttachment: 'Vance_Helena_Case402_Annotation.dcm',
-  },
-  {
-    id: 'asg-302',
-    candidateName: 'Dr. Marcus Thorne',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    caseTitle: 'Case #405: PMCTA Coronary Stenosis Quantification',
-    submittedDate: 'Oct 12, 2024',
-    status: 'graded',
-    score: '94 / 100',
-    dicomAttachment: 'Thorne_Marcus_PMCTA_Report.dcm',
-  },
-  {
-    id: 'asg-303',
-    candidateName: 'Dr. Sarah Jenkins',
-    avatar: 'https://images.unsplash.com/photo-1594824813566-78a933f443e6?w=150&auto=format&fit=crop&q=80',
-    caseTitle: 'Case #409: High-Velocity Ballistic Cranial Entry/Exit',
-    submittedDate: 'Oct 11, 2024',
-    status: 'graded',
-    score: '98 / 100',
-    dicomAttachment: 'Jenkins_Sarah_Ballistics_Reconstruction.dcm',
-  },
-  {
-    id: 'asg-304',
-    candidateName: 'Dr. Aris Thorne',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    caseTitle: 'Case #412: Blunt Force Abdomen & Mesenteric Laceration',
-    submittedDate: 'Oct 09, 2024',
-    status: 'pending',
-    dicomAttachment: 'Thorne_Aris_Abdominal_DICOM.dcm',
-  },
-];
+export const MOCK_ASSIGNMENTS: AssignmentRecord[] = [];
 
 export const AdminAssignmentsPage: React.FC = () => {
   const [assignments, setAssignments] = useState<AssignmentRecord[]>(MOCK_ASSIGNMENTS);
@@ -187,60 +148,68 @@ export const AdminAssignmentsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredAssignments.map((item) => (
-                  <tr key={item.id} className="hover:bg-amber-50/20 transition-colors">
-                    <td className="py-4 px-4 text-center">
-                      <div className="flex items-center justify-center space-x-3">
-                        <img
-                          src={item.avatar}
-                          alt={item.candidateName}
-                          className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
-                        />
-                        <div className="min-w-0 text-left">
-                          <div className="font-extrabold text-slate-900 text-sm truncate">{item.candidateName}</div>
+                {filteredAssignments.length > 0 ? (
+                  filteredAssignments.map((item) => (
+                    <tr key={item.id} className="hover:bg-amber-50/20 transition-colors">
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center space-x-3">
+                          <img
+                            src={item.avatar}
+                            alt={item.candidateName}
+                            className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
+                          />
+                          <div className="min-w-0 text-left">
+                            <div className="font-extrabold text-slate-900 text-sm truncate">{item.candidateName}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-4 px-4 text-center">
-                      <div className="font-bold text-slate-800 truncate" title={item.caseTitle}>
-                        {item.caseTitle}
-                      </div>
-                    </td>
+                      <td className="py-4 px-4 text-center">
+                        <div className="font-bold text-slate-800 truncate" title={item.caseTitle}>
+                          {item.caseTitle}
+                        </div>
+                      </td>
 
-                    <td className="py-4 px-4 text-center text-slate-600 font-mono text-[11px]">
-                      {item.submittedDate}
-                    </td>
+                      <td className="py-4 px-4 text-center text-slate-600 font-mono text-[11px]">
+                        {item.submittedDate}
+                      </td>
 
-                    <td className="py-4 px-4 text-center font-mono font-bold text-amber-700">
-                      {item.score || '—'}
-                    </td>
+                      <td className="py-4 px-4 text-center font-mono font-bold text-amber-700">
+                        {item.score || '—'}
+                      </td>
 
-                    <td className="py-4 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                          item.status === 'graded'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-900'
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
+                      <td className="py-4 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                            item.status === 'graded'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
 
-                    <td className="py-4 px-4 text-center">
-                      <button
-                        onClick={() => {
-                          setGradingAssignment(item);
-                          setInputScore(item.score ? item.score.split('/')[0].trim() : '90');
-                        }}
-                        className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-xs"
-                      >
-                        {item.status === 'graded' ? 'Re-grade' : 'Grade Case'}
-                      </button>
+                      <td className="py-4 px-4 text-center">
+                        <button
+                          onClick={() => {
+                            setGradingAssignment(item);
+                            setInputScore(item.score ? item.score.split('/')[0].trim() : '90');
+                          }}
+                          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-xs"
+                        >
+                          {item.status === 'graded' ? 'Re-grade' : 'Grade Case'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                      No assignments available.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

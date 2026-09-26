@@ -43,7 +43,7 @@ export const AdminDiscussionDetail: React.FC = () => {
 
   if (!discussion) {
     return (
-      <AdminLayout>
+      <AdminLayout title="Discussion Topic Details" subtitle="Discussions">
         <div className="space-y-6 pb-12">
           {/* Breadcrumb */}
           <div className="flex items-center space-x-2 text-xs text-slate-500">
@@ -109,7 +109,7 @@ export const AdminDiscussionDetail: React.FC = () => {
   const isClosed = discussion.status === 'closed';
 
   return (
-    <AdminLayout>
+    <AdminLayout title="Discussion Topic Details" subtitle="Discussions">
       <div className="space-y-6 pb-16">
         {/* Breadcrumb Navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3">

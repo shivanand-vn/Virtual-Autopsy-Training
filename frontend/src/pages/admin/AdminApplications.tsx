@@ -34,93 +34,7 @@ export interface ExtendedApplicant extends ApplicantRecord {
   rejectionReason?: string;
 }
 
-export const EXTENDED_MOCK_APPLICANTS: ExtendedApplicant[] = [
-  {
-    id: 'app-101',
-    applicantName: 'Dr. Helena Vance',
-    avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80',
-    email: 'h.vance@stjude.org',
-    phone: '+44 7911 123456',
-    qualification: 'MBBS / MD (Medical Doctor)',
-    organization: 'St. Jude Forensic Imaging Hub',
-    country: 'United Kingdom',
-    appliedDate: 'Oct 14, 2024',
-    status: 'pending',
-    cvFileName: 'Vance_Helena_CV_Credentials.pdf',
-    notes: 'Candidate has 6 years post-registration pathology experience at St. Jude.',
-  },
-  {
-    id: 'app-102',
-    applicantName: 'Dr. Marcus Thorne',
-    avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&auto=format&fit=crop&q=80',
-    email: 'm.thorne@berninquest.ch',
-    phone: '+41 22 712 3456',
-    qualification: 'FRCR (Royal College Radiologist)',
-    organization: 'Bern Medico-Legal Center',
-    country: 'Switzerland',
-    appliedDate: 'Oct 12, 2024',
-    status: 'pending',
-    cvFileName: 'Thorne_Marcus_Radiology_Cert.pdf',
-    notes: 'Specializes in multi-slice cranial CT post-mortem reconstructions.',
-  },
-  {
-    id: 'app-103',
-    applicantName: 'Dr. Sarah Jenkins',
-    avatar: 'https://images.unsplash.com/photo-1594824813566-78a933f443e6?w=150&auto=format&fit=crop&q=80',
-    email: 's.jenkins@melbourneforensic.au',
-    phone: '+61 3 9123 4567',
-    qualification: 'Certified Forensic Pathologist',
-    organization: 'Melbourne Forensic Institute',
-    country: 'Australia',
-    appliedDate: 'Oct 10, 2024',
-    status: 'approved',
-    cvFileName: 'Jenkins_Sarah_Forensic_Board.pdf',
-    notes: 'Verified against Australian Medical Council registry. Full clearance.',
-  },
-  {
-    id: 'app-104',
-    applicantName: 'Dr. Aris Thorne',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    email: 'a.thorne@nordicforensic.se',
-    phone: '+46 8 123 4567',
-    qualification: 'Ph.D. Forensic Pathology',
-    organization: 'Nordic Forensic Sciences',
-    country: 'Sweden',
-    appliedDate: 'Oct 08, 2024',
-    status: 'approved',
-    cvFileName: 'Thorne_Aris_PhD_Credentials.pdf',
-    notes: 'ISFRI senior member. Approved for Advanced Fellowship track.',
-  },
-  {
-    id: 'app-105',
-    applicantName: 'Dr. Kenji Sato',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    email: 'k.sato@tokyomed.jp',
-    phone: '+81 3 1234 5678',
-    qualification: 'Senior CT/DICOM Radiographer',
-    organization: 'Tokyo Metropolitan Mortuary',
-    country: 'Japan',
-    appliedDate: 'Oct 05, 2024',
-    status: 'rejected',
-    cvFileName: 'Sato_Kenji_Radiography_License.pdf',
-    notes: 'Applicant medical degree registration could not be verified by registry.',
-    rejectionReason: 'Unverified Medical Registration / License Number',
-  },
-  {
-    id: 'app-106',
-    applicantName: 'Dr. Emily Carter',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-    email: 'e.carter@oxfordpathology.ac.uk',
-    phone: '+44 1865 234567',
-    qualification: 'MBBS / MD (Medical Doctor)',
-    organization: 'Oxford University Hospitals NHS Foundation',
-    country: 'United Kingdom',
-    appliedDate: 'Oct 03, 2024',
-    status: 'pending',
-    cvFileName: 'Carter_Emily_Oxford_GMC.pdf',
-    notes: 'GMC Registration #6129845 active. Pending faculty panel sign-off.',
-  }
-];
+export const EXTENDED_MOCK_APPLICANTS: ExtendedApplicant[] = [];
 
 export const AdminApplicationsPage: React.FC = () => {
   const [applicants, setApplicants] = useState<ExtendedApplicant[]>(EXTENDED_MOCK_APPLICANTS);
@@ -403,8 +317,8 @@ export const AdminApplicationsPage: React.FC = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                      No applications match the current filter or search criteria.
+                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                      No applications available.
                     </td>
                   </tr>
                 )}

@@ -18,10 +18,10 @@ import { MOCK_ADMIN } from '../../types/admin';
 export const AdminProfilePage: React.FC = () => {
   const [name, setName] = useState(MOCK_ADMIN.name);
   const [email, setEmail] = useState(MOCK_ADMIN.email);
-  const [institution, setInstitution] = useState('Virtual Autopsy Global Solutions Ltd.');
-  const [location, setLocation] = useState('London, United Kingdom');
+  const [institution, setInstitution] = useState('Virtual Autopsy Training Platform');
+  const [location, setLocation] = useState('Global Administrator');
   const [bio, setBio] = useState(
-    'Senior Forensic Radiologist & Platform Administrator for Virtual Autopsy Global Online Training.'
+    'Platform Administrator for Virtual Autopsy Global Online Training.'
   );
   const [avatar, setAvatar] = useState(MOCK_ADMIN.avatar);
 

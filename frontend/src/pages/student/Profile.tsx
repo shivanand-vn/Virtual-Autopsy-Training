@@ -11,8 +11,8 @@ import {
   Save,
   FileText
 } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import { MOCK_STUDENT } from '../types/dashboard';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import { MOCK_STUDENT } from '../../types/dashboard';
 
 export const ProfilePage: React.FC = () => {
   const [name, setName] = useState(MOCK_STUDENT.name);

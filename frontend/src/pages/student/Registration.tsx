@@ -1,8 +1,8 @@
 import React from 'react';
-import { Header } from '../components/common/Header';
-import { LeftShowcasePanel } from '../components/showcase/LeftShowcasePanel';
-import { FlippableAuthContainer } from '../components/auth/FlippableAuthContainer';
-import { PartnerFooter } from '../components/showcase/PartnerFooter';
+import { Header } from '../../components/common/Header';
+import { LeftShowcasePanel } from '../../components/showcase/LeftShowcasePanel';
+import { FlippableAuthContainer } from '../../components/auth/FlippableAuthContainer';
+import { PartnerFooter } from '../../components/showcase/PartnerFooter';
 
 export const RegistrationPage: React.FC = () => {
   return (

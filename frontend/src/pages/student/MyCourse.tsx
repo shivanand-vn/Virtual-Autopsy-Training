@@ -26,9 +26,9 @@ import {
   X,
   Video
 } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import { useCourse } from '../context/CourseContext';
-import { MOCK_STUDENT } from '../types/dashboard';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import { useCourse } from '../../context/CourseContext';
+import { MOCK_STUDENT } from '../../types/dashboard';
 
 export const MyCoursePage: React.FC = () => {
   const navigate = useNavigate();

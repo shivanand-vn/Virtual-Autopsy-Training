@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const studentNavItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'My Course', path: '/my-course', altPaths: ['/course'], icon: BookOpen },
-    { name: 'Final Exam', path: '/final-exam', altPaths: ['/exam'], icon: GraduationCap, badge: '60 Qs' },
+    { name: 'Final Exam', path: '/final-exam', altPaths: ['/exam'], icon: GraduationCap },
     { name: 'Certificate', path: '/certificate', icon: Award },
     { name: 'Discussions', path: '/discussions', icon: MessageSquare, badge: discussions.length > 0 ? String(discussions.length) : undefined },
     { name: 'Profile', path: '/profile', icon: User },

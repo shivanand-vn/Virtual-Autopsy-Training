@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useDiscussions } from '../context/DiscussionsContext';
-import { DiscussionCard } from '../components/discussions/DiscussionCard';
-import { DiscussionFilters } from '../components/discussions/DiscussionFilters';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { useDiscussions } from '../../context/DiscussionsContext';
+import { DiscussionCard } from '../../components/discussions/DiscussionCard';
+import { DiscussionFilters } from '../../components/discussions/DiscussionFilters';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { MessageSquare, Sparkles, Plus, BookOpen, AlertCircle } from 'lucide-react';
 
 export const Discussions: React.FC = () => {

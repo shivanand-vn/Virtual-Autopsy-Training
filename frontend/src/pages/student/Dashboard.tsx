@@ -17,9 +17,9 @@ import {
   Lock,
   MessageSquare
 } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import { useCourse } from '../context/CourseContext';
-import { RecentDiscussionsWidget } from '../components/discussions/RecentDiscussionsWidget';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import { useCourse } from '../../context/CourseContext';
+import { RecentDiscussionsWidget } from '../../components/discussions/RecentDiscussionsWidget';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -81,20 +81,6 @@ export const DashboardPage: React.FC = () => {
               <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
                 {activeCourse?.shortDescription || 'Welcome to your Virtual Autopsy LMS training portal.'}
               </p>
-            </div>
-
-            {/* CME Credits Badge (Calculated from Completed Modules) */}
-            <div className="bg-slate-950/60 backdrop-blur-md border border-slate-800 p-4 rounded-2xl flex items-center space-x-4 shrink-0">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
-                <Award className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-xs text-slate-400 font-medium">CME / CPD Credits</div>
-                <div className="text-xl font-black text-amber-400">
-                  {cmeCreditsEarned} / {cmeCreditsTotal} Pts
-                </div>
-                <div className="text-[11px] text-slate-400">Dynamic Verified Progress</div>
-              </div>
             </div>
           </div>
         </div>

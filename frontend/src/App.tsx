@@ -5,6 +5,7 @@ import { DiscussionsProvider } from './context/DiscussionsContext';
 import { CourseProgressProvider } from './context/CourseProgressContext';
 import { QuestionBankProvider } from './context/QuestionBankContext';
 import { CourseProvider } from './context/CourseContext';
+import { FinalExamProvider } from './context/FinalExamContext';
 
 import { LoginPage } from './pages/student/Login';
 import { RegistrationPage } from './pages/student/Registration';
@@ -29,6 +30,8 @@ import { AdminCourseForm } from './pages/admin/AdminCourseForm';
 import { AdminCourseDetail } from './pages/admin/AdminCourseDetail';
 import { AdminAssignmentsPage } from './pages/admin/AdminAssignments';
 import { AdminExamsPage } from './pages/admin/AdminExams';
+import { AdminExamFormPage } from './pages/admin/AdminExamForm';
+import { AdminExamDetailPage } from './pages/admin/AdminExamDetail';
 import { AdminDiscussions } from './pages/admin/AdminDiscussions';
 import { AdminDiscussionDetail } from './pages/admin/AdminDiscussionDetail';
 import { AdminPaymentsPage } from './pages/admin/AdminPayments';
@@ -48,65 +51,71 @@ export const App: React.FC = () => {
         <CourseProgressProvider>
           <DiscussionsProvider>
             <QuestionBankProvider>
-              <Router>
-                <Routes>
-                  {/* Auth & Registration / Payment Routes */}
-                  <Route path="/register" element={<RegistrationPage />} />
-                  <Route path="/payment" element={<PaymentPage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <FinalExamProvider>
+                <Router>
+                  <Routes>
+                    {/* Auth & Registration / Payment Routes */}
+                    <Route path="/register" element={<RegistrationPage />} />
+                    <Route path="/payment" element={<PaymentPage />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-                  {/* Student LMS Dashboard Routes */}
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/my-course" element={<MyCoursePage />} />
-                  <Route path="/my-course/:moduleId" element={<MyCoursePage />} />
-                  <Route path="/my-course/:moduleId/:lessonId" element={<MyCoursePage />} />
-                  <Route path="/course" element={<Navigate to="/my-course" replace />} />
-                  <Route path="/course/:moduleId" element={<MyCoursePage />} />
-                  <Route path="/course/:moduleId/:lessonId" element={<MyCoursePage />} />
-                  <Route path="/final-exam" element={<FinalExamPage />} />
-                  <Route path="/exam" element={<Navigate to="/final-exam" replace />} />
-                  <Route path="/certificate" element={<CertificatePage />} />
-                  <Route path="/discussions" element={<Discussions />} />
-                  <Route path="/discussions/:discussionId" element={<DiscussionDetail />} />
-                  <Route path="/assessment/:moduleId" element={<ModuleAssessmentPage />} />
-                  <Route path="/assessment/:moduleId/result" element={<AssessmentResultPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/help-support" element={<SupportPage />} />
-                  <Route path="/support" element={<Navigate to="/help-support" replace />} />
+                    {/* Student LMS Dashboard Routes */}
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/my-course" element={<MyCoursePage />} />
+                    <Route path="/my-course/:moduleId" element={<MyCoursePage />} />
+                    <Route path="/my-course/:moduleId/:lessonId" element={<MyCoursePage />} />
+                    <Route path="/course" element={<Navigate to="/my-course" replace />} />
+                    <Route path="/course/:moduleId" element={<MyCoursePage />} />
+                    <Route path="/course/:moduleId/:lessonId" element={<MyCoursePage />} />
+                    <Route path="/final-exam" element={<FinalExamPage />} />
+                    <Route path="/exam" element={<Navigate to="/final-exam" replace />} />
+                    <Route path="/certificate" element={<CertificatePage />} />
+                    <Route path="/discussions" element={<Discussions />} />
+                    <Route path="/discussions/:discussionId" element={<DiscussionDetail />} />
+                    <Route path="/assessment/:moduleId" element={<ModuleAssessmentPage />} />
+                    <Route path="/assessment/:moduleId/result" element={<AssessmentResultPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/help-support" element={<SupportPage />} />
+                    <Route path="/support" element={<Navigate to="/help-support" replace />} />
 
-                  {/* System Administration Routes */}
-                  <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                  <Route path="/admin/users" element={<AdminUsersPage />} />
-                  
-                  {/* ADMIN COURSE MANAGEMENT ROUTES */}
-                  <Route path="/admin/courses" element={<AdminCoursesPage />} />
-                  <Route path="/admin/courses/add" element={<AdminCourseForm />} />
-                  <Route path="/admin/courses/:courseId" element={<AdminCourseDetail />} />
-                  <Route path="/admin/courses/:courseId/edit" element={<AdminCourseForm />} />
+                    {/* System Administration Routes */}
+                    <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+                    <Route path="/admin/users" element={<AdminUsersPage />} />
+                    
+                    {/* ADMIN COURSE MANAGEMENT ROUTES */}
+                    <Route path="/admin/courses" element={<AdminCoursesPage />} />
+                    <Route path="/admin/courses/add" element={<AdminCourseForm />} />
+                    <Route path="/admin/courses/:courseId" element={<AdminCourseDetail />} />
+                    <Route path="/admin/courses/:courseId/edit" element={<AdminCourseForm />} />
 
-                  {/* ADMIN QUESTION BANK ROUTES */}
-                  <Route path="/admin/question-bank" element={<AdminQuestionBankList />} />
-                  <Route path="/admin/question-bank/add" element={<AdminQuestionForm />} />
-                  <Route path="/admin/question-bank/:questionId" element={<AdminQuestionDetail />} />
-                  <Route path="/admin/question-bank/:questionId/edit" element={<AdminQuestionForm />} />
+                    {/* ADMIN QUESTION BANK ROUTES */}
+                    <Route path="/admin/question-bank" element={<AdminQuestionBankList />} />
+                    <Route path="/admin/question-bank/add" element={<AdminQuestionForm />} />
+                    <Route path="/admin/question-bank/:questionId" element={<AdminQuestionDetail />} />
+                    <Route path="/admin/question-bank/:questionId/edit" element={<AdminQuestionForm />} />
 
-                  <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
-                  <Route path="/admin/exams" element={<AdminExamsPage />} />
-                  <Route path="/admin/discussions" element={<AdminDiscussions />} />
-                  <Route path="/admin/discussions/:discussionId" element={<AdminDiscussionDetail />} />
-                  <Route path="/admin/payments" element={<AdminPaymentsPage />} />
-                  <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
-                  <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-                  <Route path="/admin/profile" element={<AdminProfilePage />} />
-                  <Route path="/admin/support" element={<AdminSupportPage />} />
-                  <Route path="/admin/settings" element={<AdminSettingsPage />} />
+                    {/* ADMIN FINAL EXAMS / ASSESSMENT BUILDER ROUTES */}
+                    <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
+                    <Route path="/admin/exams" element={<AdminExamsPage />} />
+                    <Route path="/admin/exams/create" element={<AdminExamFormPage />} />
+                    <Route path="/admin/exams/:examId" element={<AdminExamDetailPage />} />
+                    <Route path="/admin/exams/:examId/edit" element={<AdminExamFormPage />} />
+                    <Route path="/admin/discussions" element={<AdminDiscussions />} />
+                    <Route path="/admin/discussions/:discussionId" element={<AdminDiscussionDetail />} />
+                    <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+                    <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
+                    <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                    <Route path="/admin/profile" element={<AdminProfilePage />} />
+                    <Route path="/admin/support" element={<AdminSupportPage />} />
+                    <Route path="/admin/settings" element={<AdminSettingsPage />} />
 
-                  {/* Default route opens Registration page first */}
-                  <Route path="/" element={<Navigate to="/register" replace />} />
-                  <Route path="*" element={<Navigate to="/register" replace />} />
-                </Routes>
-              </Router>
+                    {/* Default route opens Registration page first */}
+                    <Route path="/" element={<Navigate to="/register" replace />} />
+                    <Route path="*" element={<Navigate to="/register" replace />} />
+                  </Routes>
+                </Router>
+              </FinalExamProvider>
             </QuestionBankProvider>
           </DiscussionsProvider>
         </CourseProgressProvider>

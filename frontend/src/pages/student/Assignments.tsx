@@ -14,8 +14,8 @@ import {
   ShieldCheck,
   Sparkles
 } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import { MOCK_ASSIGNMENTS } from '../types/dashboard';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import { MOCK_ASSIGNMENTS } from '../../types/dashboard';
 
 export const AssignmentsPage: React.FC = () => {
   const [selectedOption, setSelectedOption] = useState('B');

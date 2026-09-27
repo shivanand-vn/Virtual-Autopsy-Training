@@ -1,8 +1,8 @@
 import React from 'react';
 import { Award, CheckCircle2, Lock, Download, FileText } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import { useCourse } from '../context/CourseContext';
-import { useRegistrationFlow } from '../context/RegistrationFlowContext';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import { useCourse } from '../../context/CourseContext';
+import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
 
 export const CertificatePage: React.FC = () => {
   const { activeCourse, completedTopicIds } = useCourse();

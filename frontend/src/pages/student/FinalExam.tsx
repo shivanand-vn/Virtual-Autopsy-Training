@@ -19,7 +19,7 @@ import {
   Check,
   X
 } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 
 type ExamStage = 'intro' | 'taking' | 'confirm_modal' | 'result';
 

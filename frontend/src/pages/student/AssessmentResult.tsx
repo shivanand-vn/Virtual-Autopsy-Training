@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useCourseProgress } from '../context/CourseProgressContext';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { useCourseProgress } from '../../context/CourseProgressContext';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { CheckCircle2, XCircle, ArrowRight, Award, BookOpen, RotateCcw, ArrowLeft } from 'lucide-react';
 
 export const AssessmentResultPage: React.FC = () => {

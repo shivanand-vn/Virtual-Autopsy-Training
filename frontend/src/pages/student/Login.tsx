@@ -1,15 +1,15 @@
 import React from 'react';
-import { Header } from '../components/common/Header';
-import { LeftShowcasePanel } from '../components/showcase/LeftShowcasePanel';
-import { PaymentForm } from '../components/auth/PaymentForm';
-import { PartnerFooter } from '../components/showcase/PartnerFooter';
+import { Header } from '../../components/common/Header';
+import { LeftShowcasePanel } from '../../components/showcase/LeftShowcasePanel';
+import { FlippableAuthContainer } from '../../components/auth/FlippableAuthContainer';
+import { PartnerFooter } from '../../components/showcase/PartnerFooter';
 
-export const PaymentPage: React.FC = () => {
+export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between font-sans overflow-x-hidden">
       <div>
         {/* Navigation Header */}
-        <Header page="register" />
+        <Header page="login" />
 
         {/* Main Content Area (Offset for fixed glassmorphism header) */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8 sm:pt-28 sm:pb-12">
@@ -20,9 +20,9 @@ export const PaymentPage: React.FC = () => {
               <LeftShowcasePanel />
             </div>
 
-            {/* Right Payment Form Card Section */}
+            {/* Right Flippable Form Card Section (Stretch height to match Left panel exactly) */}
             <div className="lg:col-span-6 flex flex-col justify-between">
-              <PaymentForm />
+              <FlippableAuthContainer />
             </div>
 
           </div>

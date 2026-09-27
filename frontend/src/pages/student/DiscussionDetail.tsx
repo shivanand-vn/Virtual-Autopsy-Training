@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useDiscussions } from '../context/DiscussionsContext';
-import { DocumentPreview } from '../components/discussions/DocumentPreview';
-import { DiscussionPostItem } from '../components/discussions/DiscussionPostItem';
-import { CommentComposer } from '../components/discussions/CommentComposer';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { useDiscussions } from '../../context/DiscussionsContext';
+import { DocumentPreview } from '../../components/discussions/DocumentPreview';
+import { DiscussionPostItem } from '../../components/discussions/DiscussionPostItem';
+import { CommentComposer } from '../../components/discussions/CommentComposer';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import {
   ArrowLeft,
   Pin,

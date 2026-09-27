@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useCourseProgress } from '../context/CourseProgressContext';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
-import type { Question, QuestionOption } from '../types/assessment';
+import { useCourseProgress } from '../../context/CourseProgressContext';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
+import type { Question, QuestionOption } from '../../types/assessment';
 import {
   ChevronLeft,
   ChevronRight,

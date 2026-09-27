@@ -1,6 +1,6 @@
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
-import { DashboardLayout } from '../components/dashboard/DashboardLayout';
+import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 
 export const SupportPage: React.FC = () => {
   return (

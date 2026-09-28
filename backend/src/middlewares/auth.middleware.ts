@@ -58,3 +58,27 @@ export function requireRole(...allowedRoles: Array<'ADMIN' | 'STUDENT' | 'PENDIN
     next();
   };
 }
+
+export async function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
+  const token = req.cookies?.vat_auth_token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { id: true, email: true, fullName: true, role: true, isActive: true },
+      });
+      if (user && user.isActive) {
+        req.user = {
+          userId: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+        };
+      }
+    }
+  }
+
+  next();
+}

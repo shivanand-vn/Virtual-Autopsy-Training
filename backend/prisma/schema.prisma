@@ -1,0 +1,404 @@
+// ==========================================
+// Virtual Autopsy Online Training LMS
+// Prisma Database Schema (PostgreSQL)
+// ==========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------
+// Enums
+// ------------------------------------------
+
+enum Role {
+  ADMIN
+  STUDENT
+  PENDING_APPROVAL
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ResourceType {
+  VIDEO_STREAM         // Bunny.net Stream HLS playback
+  PROTECTED_DOCUMENT   // In-app Canvas PDF (View-only)
+  DOWNLOADABLE_BRIEF   // Whitelisted downloadable PDF / assignment brief
+  IMAGE_GALLERY        // High-res PMCT autopsy scan images
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_RESPONSE
+  TRUE_FALSE_COMBINATION
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  RESUBMISSION_REQUESTED
+}
+
+enum CertificateStatus {
+  ACTIVE
+  REVOKED
+}
+
+// ------------------------------------------
+// Core Authentication & User Management
+// ------------------------------------------
+
+model User {
+  id               String             @id @default(uuid())
+  email            String             @unique
+  passwordHash     String
+  fullName         String
+  role             Role               @default(STUDENT)
+  avatar           String?
+  title            String?
+  organization     String?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // Relationships
+  application      Application?
+  courseProgress   CourseProgress[]
+  submissions      Submission[]
+  examAttempts     ExamAttempt[]
+  certificates     Certificate[]
+  discussions      Discussion[]
+  discussionReplies DiscussionReply[]
+
+  @@map("users")
+}
+
+// ------------------------------------------
+// Student Eligibility Vetting Application
+// ------------------------------------------
+
+model Application {
+  id               String            @id @default(uuid())
+  fullName         String
+  email            String
+  countryCode      String            @default("+44")
+  phoneNumber      String
+  qualification    String
+  professionalRole String
+  organization     String
+  cvFileUrl        String            // Cloudflare R2 uploaded PDF URL
+  consent          Boolean           @default(false)
+  status           ApplicationStatus @default(PENDING)
+  adminNotes       String?
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  userId           String?           @unique
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@map("applications")
+}
+
+// ------------------------------------------
+// Course, Modules & Content Delivery
+// ------------------------------------------
+
+model Course {
+  id               String         @id @default(uuid())
+  title            String
+  shortDescription String?
+  description      String
+  duration         String?        @default("16 Weeks")
+  thumbnailUrl     String?
+  status           CourseStatus   @default(PUBLISHED)
+  order            Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Relationships
+  modules      Module[]
+  finalExams   FinalExam[]
+  certificates Certificate[]
+
+  @@map("courses")
+}
+
+model Module {
+  id              String           @id @default(uuid())
+  courseId        String
+  course          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title           String
+  subtitle        String?
+  description     String?
+  order           Int              @default(1) // Sequential gating (1, 2, 3...)
+  duration        String?          @default("2h 00m")
+  durationMinutes Int              @default(120)
+  cmeCredits      Int              @default(4)
+  status          CourseStatus     @default(PUBLISHED)
+  isFreePreview   Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relationships
+  resources       Resource[]
+  assignments     Assignment[]
+  courseProgress  CourseProgress[]
+  discussions     Discussion[]
+
+  @@map("modules")
+}
+
+model Resource {
+  id              String       @id @default(uuid())
+  moduleId        String
+  module          Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  type            ResourceType
+  bunnyVideoId    String?      // Bunny.net Stream Video ID
+  bunnyPullZone   String?
+  videoUrl        String?
+  content         String?      // For text / description lecture content
+  durationSeconds Int?
+  fileStorageKey  String?      // Cloudflare R2 key
+  fileUrl         String?
+  order           Int          @default(1)
+  isDownloadable  Boolean      @default(false) // False for lecture docs, True for templates
+  status          CourseStatus @default(PUBLISHED)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("resources")
+}
+
+model CourseProgress {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleId           String
+  module             Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  isCompleted        Boolean   @default(false)
+  completedAt        DateTime?
+  lastVideoTimestamp Float     @default(0) // Resume playback in seconds
+  lastAccessedAt     DateTime  @default(now())
+
+  @@unique([userId, moduleId])
+  @@map("course_progress")
+}
+
+// ------------------------------------------
+// Question Bank & Final Examination
+// ------------------------------------------
+
+model QuestionBank {
+  id          String     @id @default(uuid())
+  title       String
+  category    String     // e.g., "Forensic Pathology", "PMCT Imaging"
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  questions   Question[]
+
+  @@map("question_banks")
+}
+
+model Question {
+  id              String           @id @default(uuid())
+  questionBankId  String?
+  questionBank    QuestionBank?    @relation(fields: [questionBankId], references: [id], onDelete: SetNull)
+  type            QuestionType     @default(SINGLE_CHOICE)
+  text            String
+  imageUrl        String?
+  marks           Int              @default(1)
+  explanation     String?
+  order           Int              @default(0)
+  statement1      String?          // For TRUE_FALSE_COMBINATION
+  statement2      String?
+  correctAnswer   String?          // Single option key (e.g., "opt-1")
+  correctAnswers  String[]         // Multiple choice keys (e.g., ["opt-1", "opt-3"])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  options         QuestionOption[]
+  examQuestions   ExamQuestion[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  order      Int      @default(0)
+
+  @@map("question_options")
+}
+
+model FinalExam {
+  id                 String         @id @default(uuid())
+  courseId           String
+  course             Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title              String
+  description        String?
+  durationMinutes    Int            @default(60)
+  totalMarks         Int            @default(100)
+  passPercentage     Int            @default(75)
+  randomizeQuestions Boolean        @default(true)
+  status             ExamStatus     @default(DRAFT)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  examQuestions      ExamQuestion[]
+  attempts           ExamAttempt[]
+
+  @@map("final_exams")
+}
+
+model ExamQuestion {
+  id         String    @id @default(uuid())
+  examId     String
+  exam       FinalExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  order      Int       @default(0)
+
+  @@unique([examId, questionId])
+  @@map("exam_questions")
+}
+
+model ExamAttempt {
+  id               String       @id @default(uuid())
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examId           String
+  exam             FinalExam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attemptNumber    Int          @default(1)
+  startedAt        DateTime     @default(now())
+  completedAt      DateTime?
+  timeSpentSeconds Int          @default(0)
+  totalScore       Float        @default(0)
+  maxScore         Float
+  passed           Boolean      @default(false)
+  answersJson      Json?        // Detailed question response audit log
+
+  certificate      Certificate?
+
+  @@map("exam_attempts")
+}
+
+// ------------------------------------------
+// Assignments & Submissions
+// ------------------------------------------
+
+model Assignment {
+  id           String       @id @default(uuid())
+  moduleId     String
+  module       Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title        String
+  instructions String
+  maxScore     Int          @default(100)
+  dueDate      DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  submissions  Submission[]
+
+  @@map("assignments")
+}
+
+model Submission {
+  id           String           @id @default(uuid())
+  assignmentId String
+  assignment   Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileUrl      String           // Uploaded document in R2
+  status       SubmissionStatus @default(SUBMITTED)
+  score        Float?
+  feedback     String?
+  gradedBy     String?
+  gradedAt     DateTime?
+  submittedAt  DateTime         @default(now())
+
+  @@map("submissions")
+}
+
+// ------------------------------------------
+// Student Discussions & Q&A
+// ------------------------------------------
+
+model Discussion {
+  id         String            @id @default(uuid())
+  moduleId   String?
+  module     Module?           @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String
+  isResolved Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  replies    DiscussionReply[]
+
+  @@map("discussions")
+}
+
+model DiscussionReply {
+  id           String     @id @default(uuid())
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content      String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("discussion_replies")
+}
+
+// ------------------------------------------
+// Verifiable Certification System
+// ------------------------------------------
+
+model Certificate {
+  id              String            @id @default(uuid())
+  certificateCode String            @unique // e.g. "VAT-2026-A8F9C2"
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId        String
+  course          Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  examAttemptId   String?           @unique
+  examAttempt     ExamAttempt?      @relation(fields: [examAttemptId], references: [id], onDelete: SetNull)
+  recipientName   String
+  courseTitle     String
+  issueDate       DateTime          @default(now())
+  pdfUrl          String            // Downloadable Certificate PDF in Cloudflare R2
+  status          CertificateStatus @default(ACTIVE)
+
+  @@map("certificates")
+}

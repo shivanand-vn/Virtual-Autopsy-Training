@@ -28,10 +28,12 @@ export interface CourseModule {
 export interface Course {
   id: string;
   name: string;
+  title?: string;
   shortDescription: string;
   description: string;
   duration: string;
   thumbnail?: string;
+  thumbnailUrl?: string;
   status: 'draft' | 'published';
   createdAt: string;
   modules: CourseModule[];

@@ -43,21 +43,24 @@ import { AdminQuestionForm } from './pages/admin/AdminQuestionForm';
 import { AdminQuestionDetail } from './pages/admin/AdminQuestionDetail';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalytics';
 import { AdminSettingsPage } from './pages/admin/AdminSettings';
+import { AdminApplicationsPage } from './pages/admin/AdminApplications';
+import { AuthProvider } from './context/AuthContext';
 
 export const App: React.FC = () => {
   return (
-    <RegistrationFlowProvider>
-      <CourseProvider>
-        <CourseProgressProvider>
-          <DiscussionsProvider>
-            <QuestionBankProvider>
-              <FinalExamProvider>
-                <Router>
-                  <Routes>
-                    {/* Auth & Registration / Payment Routes */}
-                    <Route path="/register" element={<RegistrationPage />} />
-                    <Route path="/payment" element={<PaymentPage />} />
-                    <Route path="/login" element={<LoginPage />} />
+    <AuthProvider>
+      <RegistrationFlowProvider>
+        <CourseProvider>
+          <CourseProgressProvider>
+            <DiscussionsProvider>
+              <QuestionBankProvider>
+                <FinalExamProvider>
+                  <Router>
+                    <Routes>
+                      {/* Auth & Registration / Payment Routes */}
+                      <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/payment" element={<PaymentPage />} />
+                      <Route path="/login" element={<LoginPage />} />
                     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
                     {/* Student LMS Dashboard Routes */}
@@ -82,6 +85,7 @@ export const App: React.FC = () => {
                     {/* System Administration Routes */}
                     <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
                     <Route path="/admin/users" element={<AdminUsersPage />} />
+                    <Route path="/admin/applications" element={<AdminApplicationsPage />} />
                     
                     {/* ADMIN COURSE MANAGEMENT ROUTES */}
                     <Route path="/admin/courses" element={<AdminCoursesPage />} />
@@ -121,6 +125,7 @@ export const App: React.FC = () => {
         </CourseProgressProvider>
       </CourseProvider>
     </RegistrationFlowProvider>
+  </AuthProvider>
   );
 };
 

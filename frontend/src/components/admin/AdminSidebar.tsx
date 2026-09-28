@@ -15,7 +15,8 @@ import {
   Settings,
   LogOut,
   X,
-  FileQuestion
+  FileQuestion,
+  UserCheck
 } from 'lucide-react';
 
 import { useDiscussions } from '../../context/DiscussionsContext';
@@ -31,19 +32,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const { discussions } = useDiscussions();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // EXACT ADMIN NAVIGATION ORDER FROM REQUIREMENTS:
-  // 1. Dashboard
-  // 2. Users
-  // 3. Courses
-  // 4. Question Bank (NEW)
-  // 5. Assignments
-  // 6. Exams
-  // 7. Payments
-  // 8. Certificates
-  // 9. Discussions
-  // 10. Analytics
-  const adminNav = [
+  interface NavItem {
+    name: string;
+    path: string;
+    icon: any;
+    badge?: string;
+    isNew?: boolean;
+  }
+
+  const adminNav: NavItem[] = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Applications', path: '/admin/applications', icon: UserCheck },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion },

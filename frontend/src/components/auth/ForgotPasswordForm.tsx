@@ -28,7 +28,7 @@ export const ForgotPasswordForm: React.FC = () => {
 
   // Resend OTP Cooldown Timer
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (step === 2 && resendCooldown > 0) {
       timer = setInterval(() => {
         setResendCooldown((prev) => prev - 1);

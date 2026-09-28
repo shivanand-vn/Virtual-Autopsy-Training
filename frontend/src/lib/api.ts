@@ -18,6 +18,12 @@ export function setAuthToken(token: string): void {
 export function clearAuthToken(): void {
   localStorage.removeItem('vat_auth_token');
   localStorage.removeItem('vat_user');
+  try {
+    sessionStorage.clear();
+    window.dispatchEvent(new Event('auth-logout'));
+  } catch {
+    // Ignore in non-browser environments
+  }
 }
 
 export function getStoredUser(): any | null {

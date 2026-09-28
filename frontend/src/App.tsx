@@ -6,6 +6,8 @@ import { CourseProgressProvider } from './context/CourseProgressContext';
 import { QuestionBankProvider } from './context/QuestionBankContext';
 import { CourseProvider } from './context/CourseContext';
 import { FinalExamProvider } from './context/FinalExamContext';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute, PublicOnlyRoute } from './components/auth/ProtectedRoute';
 
 import { LoginPage } from './pages/student/Login';
 import { RegistrationPage } from './pages/student/Registration';
@@ -44,7 +46,6 @@ import { AdminQuestionDetail } from './pages/admin/AdminQuestionDetail';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalytics';
 import { AdminSettingsPage } from './pages/admin/AdminSettings';
 import { AdminApplicationsPage } from './pages/admin/AdminApplications';
-import { AuthProvider } from './context/AuthContext';
 
 export const App: React.FC = () => {
   return (
@@ -57,75 +58,342 @@ export const App: React.FC = () => {
                 <FinalExamProvider>
                   <Router>
                     <Routes>
-                      {/* Auth & Registration / Payment Routes */}
+                      {/* Public & Guest Routes */}
                       <Route path="/register" element={<RegistrationPage />} />
                       <Route path="/payment" element={<PaymentPage />} />
-                      <Route path="/login" element={<LoginPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route
+                        path="/login"
+                        element={
+                          <PublicOnlyRoute>
+                            <LoginPage />
+                          </PublicOnlyRoute>
+                        }
+                      />
+                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-                    {/* Student LMS Dashboard Routes */}
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/my-course" element={<MyCoursePage />} />
-                    <Route path="/my-course/:moduleId" element={<MyCoursePage />} />
-                    <Route path="/my-course/:moduleId/:lessonId" element={<MyCoursePage />} />
-                    <Route path="/course" element={<Navigate to="/my-course" replace />} />
-                    <Route path="/course/:moduleId" element={<MyCoursePage />} />
-                    <Route path="/course/:moduleId/:lessonId" element={<MyCoursePage />} />
-                    <Route path="/final-exam" element={<FinalExamPage />} />
-                    <Route path="/exam" element={<Navigate to="/final-exam" replace />} />
-                    <Route path="/certificate" element={<CertificatePage />} />
-                    <Route path="/discussions" element={<Discussions />} />
-                    <Route path="/discussions/:discussionId" element={<DiscussionDetail />} />
-                    <Route path="/assessment/:moduleId" element={<ModuleAssessmentPage />} />
-                    <Route path="/assessment/:moduleId/result" element={<AssessmentResultPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/help-support" element={<SupportPage />} />
-                    <Route path="/support" element={<Navigate to="/help-support" replace />} />
+                      {/* Student LMS Protected Routes */}
+                      <Route
+                        path="/dashboard"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <DashboardPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/my-course"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <MyCoursePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/my-course/:moduleId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <MyCoursePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/my-course/:moduleId/:lessonId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <MyCoursePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="/course" element={<Navigate to="/my-course" replace />} />
+                      <Route
+                        path="/course/:moduleId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <MyCoursePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/course/:moduleId/:lessonId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <MyCoursePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/final-exam"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <FinalExamPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="/exam" element={<Navigate to="/final-exam" replace />} />
+                      <Route
+                        path="/certificate"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <CertificatePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/discussions"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <Discussions />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/discussions/:discussionId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <DiscussionDetail />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/assessment/:moduleId"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <ModuleAssessmentPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/assessment/:moduleId/result"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <AssessmentResultPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/profile"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <ProfilePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/help-support"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <SupportPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route path="/support" element={<Navigate to="/help-support" replace />} />
 
-                    {/* System Administration Routes */}
-                    <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                    <Route path="/admin/users" element={<AdminUsersPage />} />
-                    <Route path="/admin/applications" element={<AdminApplicationsPage />} />
-                    
-                    {/* ADMIN COURSE MANAGEMENT ROUTES */}
-                    <Route path="/admin/courses" element={<AdminCoursesPage />} />
-                    <Route path="/admin/courses/add" element={<AdminCourseForm />} />
-                    <Route path="/admin/courses/:courseId" element={<AdminCourseDetail />} />
-                    <Route path="/admin/courses/:courseId/edit" element={<AdminCourseForm />} />
+                      {/* System Administration Protected Routes */}
+                      <Route
+                        path="/admin/dashboard"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminDashboardPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/users"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminUsersPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/applications"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminApplicationsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/courses"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminCoursesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/courses/add"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminCourseForm />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/courses/:courseId"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminCourseDetail />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/courses/:courseId/edit"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminCourseForm />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/question-bank"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminQuestionBankList />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/question-bank/add"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminQuestionForm />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/question-bank/:questionId"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminQuestionDetail />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/question-bank/:questionId/edit"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminQuestionForm />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/assignments"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminAssignmentsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/exams"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminExamsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/exams/create"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminExamFormPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/exams/:examId"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminExamDetailPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/exams/:examId/edit"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminExamFormPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/discussions"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminDiscussions />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/discussions/:discussionId"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminDiscussionDetail />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/payments"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminPaymentsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/certificates"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminCertificatesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/analytics"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminAnalyticsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/profile"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminProfilePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/support"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminSupportPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/settings"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminSettingsPage />
+                          </ProtectedRoute>
+                        }
+                      />
 
-                    {/* ADMIN QUESTION BANK ROUTES */}
-                    <Route path="/admin/question-bank" element={<AdminQuestionBankList />} />
-                    <Route path="/admin/question-bank/add" element={<AdminQuestionForm />} />
-                    <Route path="/admin/question-bank/:questionId" element={<AdminQuestionDetail />} />
-                    <Route path="/admin/question-bank/:questionId/edit" element={<AdminQuestionForm />} />
-
-                    {/* ADMIN FINAL EXAMS / ASSESSMENT BUILDER ROUTES */}
-                    <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
-                    <Route path="/admin/exams" element={<AdminExamsPage />} />
-                    <Route path="/admin/exams/create" element={<AdminExamFormPage />} />
-                    <Route path="/admin/exams/:examId" element={<AdminExamDetailPage />} />
-                    <Route path="/admin/exams/:examId/edit" element={<AdminExamFormPage />} />
-                    <Route path="/admin/discussions" element={<AdminDiscussions />} />
-                    <Route path="/admin/discussions/:discussionId" element={<AdminDiscussionDetail />} />
-                    <Route path="/admin/payments" element={<AdminPaymentsPage />} />
-                    <Route path="/admin/certificates" element={<AdminCertificatesPage />} />
-                    <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-                    <Route path="/admin/profile" element={<AdminProfilePage />} />
-                    <Route path="/admin/support" element={<AdminSupportPage />} />
-                    <Route path="/admin/settings" element={<AdminSettingsPage />} />
-
-                    {/* Default route opens Registration page first */}
-                    <Route path="/" element={<Navigate to="/register" replace />} />
-                    <Route path="*" element={<Navigate to="/register" replace />} />
-                  </Routes>
-                </Router>
-              </FinalExamProvider>
-            </QuestionBankProvider>
-          </DiscussionsProvider>
-        </CourseProgressProvider>
-      </CourseProvider>
-    </RegistrationFlowProvider>
-  </AuthProvider>
+                      {/* Fallback routes */}
+                      <Route path="/" element={<Navigate to="/register" replace />} />
+                      <Route path="*" element={<Navigate to="/register" replace />} />
+                    </Routes>
+                  </Router>
+                </FinalExamProvider>
+              </QuestionBankProvider>
+            </DiscussionsProvider>
+          </CourseProgressProvider>
+        </CourseProvider>
+      </RegistrationFlowProvider>
+    </AuthProvider>
   );
 };
 

@@ -126,14 +126,16 @@ model Application {
 // ------------------------------------------
 
 model Course {
-  id           String         @id @default(uuid())
-  title        String
-  description  String
-  thumbnailUrl String?
-  status       CourseStatus   @default(DRAFT)
-  order        Int            @default(1)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id               String         @id @default(uuid())
+  title            String
+  shortDescription String?
+  description      String
+  duration         String?        @default("16 Weeks")
+  thumbnailUrl     String?
+  status           CourseStatus   @default(PUBLISHED)
+  order            Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   // Relationships
   modules      Module[]
@@ -148,9 +150,13 @@ model Module {
   courseId        String
   course          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title           String
+  subtitle        String?
   description     String?
   order           Int              @default(1) // Sequential gating (1, 2, 3...)
-  durationMinutes Int              @default(45)
+  duration        String?          @default("2h 00m")
+  durationMinutes Int              @default(120)
+  cmeCredits      Int              @default(4)
+  status          CourseStatus     @default(PUBLISHED)
   isFreePreview   Boolean          @default(false)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -169,14 +175,18 @@ model Resource {
   moduleId        String
   module          Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   title           String
+  description     String?
   type            ResourceType
   bunnyVideoId    String?      // Bunny.net Stream Video ID
   bunnyPullZone   String?
+  videoUrl        String?
+  content         String?      // For text / description lecture content
   durationSeconds Int?
   fileStorageKey  String?      // Cloudflare R2 key
   fileUrl         String?
   order           Int          @default(1)
   isDownloadable  Boolean      @default(false) // False for lecture docs, True for templates
+  status          CourseStatus @default(PUBLISHED)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

@@ -142,15 +142,7 @@ export const AdminDashboardPage: React.FC = () => {
         {/* QUICK ACTIONS BAR */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
           <h3 className="font-extrabold text-sm text-[#0A192F]">Quick Administrative Actions</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <button
-              onClick={() => navigate('/admin/applications')}
-              className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-bold text-xs transition-colors flex flex-col items-center text-center space-y-1 cursor-pointer"
-            >
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span>Review Apps</span>
-            </button>
-
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <button
               onClick={() => navigate('/admin/courses')}
               className="p-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-bold text-xs shadow-xs transition-all flex flex-col items-center text-center space-y-1 cursor-pointer"

@@ -66,6 +66,28 @@ export const PaymentForm: React.FC = () => {
     setConfirmEmailError(null);
     updatePaymentData({ error: null });
 
+    const enteredEmail = confirmEmail.trim();
+    const storedRegEmail = (
+      registrationData.email ||
+      localStorage.getItem('virtual_autopsy_registration_email') ||
+      ''
+    ).trim();
+
+    if (!enteredEmail) {
+      setConfirmEmailError('Please use the same emailID used in registration');
+      return;
+    }
+
+    if (storedRegEmail && enteredEmail.toLowerCase() !== storedRegEmail.toLowerCase()) {
+      setConfirmEmailError('Please use the same emailID used in registration');
+      return;
+    }
+
+    if (!storedRegEmail) {
+      setConfirmEmailError('No registration record found. Please complete registration first.');
+      return;
+    }
+
     // Instantly approve frontend testing payment!
     processPayment(confirmEmail, {
       cardholderName,
@@ -73,6 +95,23 @@ export const PaymentForm: React.FC = () => {
       expiryDate,
       cvc,
     });
+  };
+
+  const handleConfirmEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setConfirmEmail(val);
+
+    const storedRegEmail = (
+      registrationData.email ||
+      localStorage.getItem('virtual_autopsy_registration_email') ||
+      ''
+    ).trim();
+
+    if (val.trim() && storedRegEmail && val.trim().toLowerCase() !== storedRegEmail.toLowerCase()) {
+      setConfirmEmailError('Please use the same emailID used in registration');
+    } else {
+      setConfirmEmailError(null);
+    }
   };
 
   return (
@@ -144,19 +183,13 @@ export const PaymentForm: React.FC = () => {
           <FormInput
             label="Confirm Email Address"
             type="email"
-            placeholder="Type your email address manually..."
+            placeholder="Type your email address..."
             value={confirmEmail}
-            onChange={(e) => {
-              setConfirmEmail(e.target.value);
-              setConfirmEmailError(null);
-            }}
+            onChange={handleConfirmEmailChange}
             onPaste={handlePastePrevent}
             autoComplete="off"
             error={confirmEmailError || undefined}
           />
-          <p className="text-[10px] text-slate-400">
-            * Note: For security verification, copy & paste is disabled for this field. You must manually type your email.
-          </p>
         </div>
 
         {/* Mock Stripe Payment Details Section */}

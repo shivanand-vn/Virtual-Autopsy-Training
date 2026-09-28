@@ -5,6 +5,7 @@ import courseRoutes from './course.routes.js';
 import examRoutes from './exam.routes.js';
 import assignmentRoutes from './assignment.routes.js';
 import discussionRoutes from './discussion.routes.js';
+import paymentRoutes from './payment.routes.js';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use('/courses', courseRoutes);
 router.use('/exams', examRoutes);
 router.use('/assignments', assignmentRoutes);
 router.use('/discussions', discussionRoutes);
+router.use('/payments', paymentRoutes);
 
 // Health check endpoint
 router.get('/health', (_req, res) => {

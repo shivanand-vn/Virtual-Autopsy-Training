@@ -90,6 +90,7 @@ model User {
   certificates     Certificate[]
   discussions      Discussion[]
   discussionReplies DiscussionReply[]
+  payments         Payment[]
 
   @@map("users")
 }
@@ -402,3 +403,35 @@ model Certificate {
 
   @@map("certificates")
 }
+
+// ------------------------------------------
+// Financial Transactions & Student Payments
+// ------------------------------------------
+
+enum PaymentStatus {
+  COMPLETED
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  transactionRef String        @unique // e.g. "VA-DEMO-480783"
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  candidateName  String
+  email          String
+  tier           String        @default("Virtual Autopsy Online Fellowship (£999)")
+  amount         String        @default("£999.00")
+  currency       String        @default("GBP")
+  paymentMethod  String        @default("Stripe Credit Card")
+  cardLast4      String?       @default("4242")
+  status         PaymentStatus @default(COMPLETED)
+  receiptUrl     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("payments")
+}
+

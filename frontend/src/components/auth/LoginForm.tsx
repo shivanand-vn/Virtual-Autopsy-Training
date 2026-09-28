@@ -29,17 +29,30 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+
+    const cleanEmail = (formData.email || '').trim();
+    const cleanPassword = (formData.password || '').trim();
+
+    if (!cleanEmail) {
+      setLoginError('Please enter your email address.');
+      return;
+    }
+    if (!cleanPassword) {
+      setLoginError('Please enter your password.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const loggedUser = await login(formData.email, formData.password);
+      const loggedUser = await login(cleanEmail, cleanPassword);
       if (loggedUser.role === 'ADMIN') {
         navigate('/admin/dashboard');
       } else {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setLoginError(err.message || 'Invalid credentials. Please verify your email and password.');
+      setLoginError(err.message || 'Invalid email or password. Please verify your credentials.');
     } finally {
       setIsLoading(false);
     }

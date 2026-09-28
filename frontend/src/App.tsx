@@ -9,6 +9,7 @@ import { FinalExamProvider } from './context/FinalExamContext';
 
 import { LoginPage } from './pages/student/Login';
 import { RegistrationPage } from './pages/student/Registration';
+import { PrivacyPolicyPage } from './pages/student/PrivacyPolicy';
 import { PaymentPage } from './pages/student/Payment';
 import { ForgotPasswordPage } from './pages/student/ForgotPassword';
 import { DashboardPage } from './pages/student/Dashboard';
@@ -56,6 +57,8 @@ export const App: React.FC = () => {
                   <Routes>
                     {/* Auth & Registration / Payment Routes */}
                     <Route path="/register" element={<RegistrationPage />} />
+                    <Route path="/register/privacy-policy" element={<PrivacyPolicyPage />} />
+                    <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                     <Route path="/payment" element={<PaymentPage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/forgot-password" element={<ForgotPasswordPage />} />

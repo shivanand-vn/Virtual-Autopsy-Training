@@ -11,7 +11,6 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { CheckCircle, ShieldCheck, Mail, CreditCard, BookOpen } from 'lucide-react';
 import { PrimaryButton } from '../common/PrimaryButton';
 
 interface PaymentSuccessModalProps {

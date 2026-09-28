@@ -6,12 +6,36 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed for Virtual Autopsy LMS...');
 
-  // 1. Seed Admin User
-  const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
+  // 1. Seed Primary Admin User (admin@gmail.com)
+  const adminPasswordHash = await bcrypt.hash('Admin@123', 12);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@virtualautopsylms.com' },
+    where: { email: 'admin@gmail.com' },
     update: {
       passwordHash: adminPasswordHash,
+      role: Role.ADMIN,
+      fullName: 'System Administrator',
+      title: 'Head of Virtual Autopsy Education',
+      organization: 'Virtual Autopsy Global Solutions, UK',
+      isActive: true,
+    },
+    create: {
+      email: 'admin@gmail.com',
+      passwordHash: adminPasswordHash,
+      fullName: 'System Administrator',
+      role: Role.ADMIN,
+      title: 'Head of Virtual Autopsy Education',
+      organization: 'Virtual Autopsy Global Solutions, UK',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Seeded Admin User: ${admin.email} (Password: Admin@123)`);
+
+  // Secondary Institutional Admin
+  const instAdminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'admin@virtualautopsylms.com' },
+    update: {
+      passwordHash: instAdminPasswordHash,
       role: Role.ADMIN,
       fullName: 'Dr. Bhargav R',
       title: 'Head of Virtual Autopsy Education',
@@ -20,7 +44,7 @@ async function main() {
     },
     create: {
       email: 'admin@virtualautopsylms.com',
-      passwordHash: adminPasswordHash,
+      passwordHash: instAdminPasswordHash,
       fullName: 'Dr. Bhargav R',
       role: Role.ADMIN,
       title: 'Head of Virtual Autopsy Education',
@@ -28,7 +52,6 @@ async function main() {
       isActive: true,
     },
   });
-  console.log(`✅ Seeded Admin User: ${admin.email} (Password: AdminPassword123!)`);
 
   // 2. Seed Sample Student User
   const studentPasswordHash = await bcrypt.hash('StudentPassword123!', 12);

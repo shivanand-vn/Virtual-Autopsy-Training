@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { useDiscussions } from '../../context/DiscussionsContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -23,7 +24,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { discussions } = useDiscussions();
+  const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // EXACT MENU ITEMS IN REQUIRED ORDER:
   // 1. Dashboard
@@ -53,9 +56,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     return false;
   };
 
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    navigate('/login');
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+      navigate('/login', { replace: true });
+    }
   };
 
   return (
@@ -164,9 +175,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer"
+                disabled={isLoggingOut}
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
-                Yes, Log Out
+                {isLoggingOut ? 'Logging out...' : 'Yes, Log Out'}
               </button>
             </div>
           </div>

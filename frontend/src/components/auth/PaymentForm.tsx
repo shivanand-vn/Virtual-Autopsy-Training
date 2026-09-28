@@ -6,7 +6,7 @@ import { PaymentSuccessModal } from './PaymentSuccessModal';
 import { FormInput } from '../common/FormInput';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
-import { CreditCard, Lock, ArrowLeft, ShieldCheck, Mail } from 'lucide-react';
+import { CreditCard, Lock, ArrowLeft, ShieldCheck, Mail, Loader2, AlertCircle } from 'lucide-react';
 
 export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export const PaymentForm: React.FC = () => {
     paymentData,
     processPayment,
     updatePaymentData,
+    demoCredential,
   } = useRegistrationFlow();
 
   // Email confirmation state (CRITICAL: MUST start completely empty "")
@@ -61,8 +62,12 @@ export const PaymentForm: React.FC = () => {
     navigate('/register');
   };
 
-  const handleSubmitPayment = (e: React.FormEvent) => {
+  const isSubmitting = paymentData.paymentStatus === 'processing';
+
+  const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     setConfirmEmailError(null);
     updatePaymentData({ error: null });
 
@@ -83,13 +88,12 @@ export const PaymentForm: React.FC = () => {
       return;
     }
 
-    if (!storedRegEmail) {
-      setConfirmEmailError('No registration record found. Please complete registration first.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(enteredEmail)) {
+      setConfirmEmailError('Please enter a valid email address.');
       return;
     }
 
-    // Instantly approve frontend testing payment!
-    processPayment(confirmEmail, {
+    await processPayment(enteredEmail, {
       cardholderName,
       cardNumber,
       expiryDate,
@@ -145,12 +149,20 @@ export const PaymentForm: React.FC = () => {
 
       {/* Internal Scrollable Payment Form Area */}
       <form onSubmit={handleSubmitPayment} className="flex-1 overflow-y-auto pr-1.5 space-y-4 custom-scrollbar my-1.5" noValidate>
+        {/* Error Alert Banner */}
+        {paymentData.error && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{paymentData.error}</span>
+          </div>
+        )}
+
         {/* Course Summary Box */}
         <div className="bg-slate-900 rounded-2xl p-4 text-white border border-slate-800 space-y-2.5 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">ENROLLMENT COURSE</p>
-              <h3 className="text-sm font-bold text-white mt-0.5">Basic Virtual Autopsy – An Online Introduction</h3>
+              <h3 className="text-sm font-bold text-white mt-0.5">Post-Mortem Computed Tomography (PMCT) Training</h3>
             </div>
             <div className="text-right shrink-0 ml-3">
               <p className="text-[10px] text-slate-400 uppercase font-bold">FELLOWSHIP FEE</p>
@@ -183,13 +195,16 @@ export const PaymentForm: React.FC = () => {
           <FormInput
             label="Confirm Email Address"
             type="email"
-            placeholder="Type your email address..."
+            placeholder={registrationData.email || "Type your email address manually..."}
             value={confirmEmail}
             onChange={handleConfirmEmailChange}
             onPaste={handlePastePrevent}
             autoComplete="off"
             error={confirmEmailError || undefined}
           />
+          <p className="text-[10px] text-slate-400">
+            * Note: For security verification, copy & paste is disabled for this field. You must manually type your email.
+          </p>
         </div>
 
         {/* Mock Stripe Payment Details Section */}
@@ -246,8 +261,15 @@ export const PaymentForm: React.FC = () => {
 
         {/* Submit Button ("Pay £999") */}
         <div className="pt-1.5 space-y-2">
-          <PrimaryButton type="submit">
-            Pay £999
+          <PrimaryButton type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Processing Payment & Enrolling...</span>
+              </span>
+            ) : (
+              <span>Pay £999</span>
+            )}
           </PrimaryButton>
 
           <p className="text-[10px] text-slate-400 text-center leading-tight flex items-center justify-center gap-1">
@@ -260,10 +282,11 @@ export const PaymentForm: React.FC = () => {
       {/* SUCCESS POPUP MODAL (Rendered instantly when paymentStatus is 'success') */}
       {paymentData.paymentStatus === 'success' && (
         <PaymentSuccessModal
-          email={paymentData.confirmedEmail || registrationData.email || 'a.vance@hospital.org'}
+          email={paymentData.confirmedEmail || registrationData.email || 'student@virtualautopsy.edu'}
           transactionId={paymentData.transactionId}
           amount={paymentData.amount}
-          courseName="Basic Virtual Autopsy – An Online Introduction"
+          courseName="Post-Mortem Computed Tomography (PMCT) Training"
+          temporaryPassword={demoCredential?.temporaryPassword}
         />
       )}
     </div>

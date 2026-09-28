@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import type { RegistrationFormData } from '../types/auth';
+import { api } from '../lib/api';
 
 export interface CardData {
   cardholderName: string;
@@ -31,7 +32,7 @@ interface RegistrationFlowContextType {
   updatePaymentData: (data: Partial<PaymentData>) => void;
   demoCredential: DemoCredential | null;
   saveStep1AndContinue: (data: RegistrationFormData) => void;
-  processPayment: (confirmEmail?: string, cardData?: Partial<CardData>) => boolean;
+  processPayment: (confirmEmail?: string, cardData?: Partial<CardData>) => Promise<boolean>;
   resetFlow: () => void;
 }
 
@@ -44,7 +45,7 @@ const initialRegistrationData: RegistrationFormData = {
   qualificationOther: '',
   organization: '',
   cvFile: null,
-  consent: false, // Unchecked by default (User must explicitly check)
+  consent: false,
 };
 
 const initialPaymentData: PaymentData = {
@@ -112,7 +113,7 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     setStep(2);
   };
 
-  const processPayment = (confirmEmail?: string, cardData?: Partial<CardData>): boolean => {
+  const processPayment = async (confirmEmail?: string, cardData?: Partial<CardData>): Promise<boolean> => {
     const regEmail = (registrationData.email || localStorage.getItem(LOCAL_STORAGE_REG_KEY) || '').trim();
     const enteredEmail = (confirmEmail || '').trim();
 
@@ -127,27 +128,61 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
 
     const finalEmail = enteredEmail || regEmail || 'doctor@virtualautopsy.edu';
 
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-    const txnId = `VA-DEMO-${randomSuffix}`;
-
-    setDemoCredential({
-      email: finalEmail,
-      temporaryPassword: 'VA@Demo123',
-    });
-
     setPaymentData((prev) => ({
       ...prev,
+      paymentStatus: 'processing',
       confirmedEmail: finalEmail,
-      paymentStatus: 'success',
-      transactionId: txnId,
       error: null,
-      cardData: {
-        ...prev.cardData,
-        ...cardData,
-      },
     }));
 
-    return true;
+    try {
+      const payload = {
+        fullName: registrationData.fullName.trim() || 'Registered Student',
+        email: finalEmail,
+        countryCode: registrationData.countryCode || '+44',
+        phoneNumber: registrationData.phoneNumber || '',
+        qualification: registrationData.qualification || 'MBBS / MD',
+        professionalRole: registrationData.professionalRole || 'Forensic Pathologist',
+        organization: registrationData.organization || 'Virtual Autopsy Training Academy',
+        cvFileUrl: 'https://res.cloudinary.com/demo/image/upload/sample.pdf',
+        amount: paymentData.amount || '£999.00',
+        currency: 'GBP',
+        tier: 'Virtual Autopsy Online Fellowship (£999)',
+        cardholderName: cardData?.cardholderName || registrationData.fullName || 'Cardholder',
+        cardLast4: (cardData?.cardNumber || '4242').replace(/\s/g, '').slice(-4) || '4242',
+      };
+
+      const response = await api.post('/payments/complete-registration', payload);
+      const { credentials, payment } = response.data;
+
+      setDemoCredential({
+        email: credentials.email,
+        temporaryPassword: credentials.temporaryPassword,
+      });
+
+      setPaymentData((prev) => ({
+        ...prev,
+        confirmedEmail: credentials.email,
+        paymentStatus: 'success',
+        transactionId: payment.transactionRef,
+        error: null,
+        cardData: {
+          ...prev.cardData,
+          ...cardData,
+        },
+      }));
+
+      return true;
+    } catch (err: any) {
+      console.error('Registration payment error:', err);
+      const errMsg = err?.message || 'Payment processing failed. Please check your details and try again.';
+      setPaymentData((prev) => ({
+        ...prev,
+        paymentStatus: 'failed',
+        error: errMsg,
+      }));
+      return false;
+    }
   };
 
   const resetFlow = () => {

@@ -15,10 +15,12 @@ import {
   Settings,
   LogOut,
   X,
-  FileQuestion
+  FileQuestion,
+  UserCheck
 } from 'lucide-react';
 
 import { useDiscussions } from '../../context/DiscussionsContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -29,21 +31,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const location = useLocation();
   const navigate = useNavigate();
   const { discussions } = useDiscussions();
+  const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // EXACT ADMIN NAVIGATION ORDER FROM REQUIREMENTS:
-  // 1. Dashboard
-  // 2. Users
-  // 3. Courses
-  // 4. Question Bank (NEW)
-  // 5. Assignments
-  // 6. Exams
-  // 7. Payments
-  // 8. Certificates
-  // 9. Discussions
-  // 10. Analytics
-  const adminNav = [
+  interface NavItem {
+    name: string;
+    path: string;
+    icon: any;
+    badge?: string;
+    isNew?: boolean;
+  }
+
+  const adminNav: NavItem[] = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Applications', path: '/admin/applications', icon: UserCheck },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion },
@@ -59,9 +61,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    navigate('/login');
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+      navigate('/login', { replace: true });
+    }
   };
 
   const isQuestionBankActive = location.pathname.startsWith('/admin/question-bank');
@@ -210,9 +220,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer"
+                disabled={isLoggingOut}
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
-                Yes, Log Out
+                {isLoggingOut ? 'Logging out...' : 'Yes, Log Out'}
               </button>
             </div>
           </div>

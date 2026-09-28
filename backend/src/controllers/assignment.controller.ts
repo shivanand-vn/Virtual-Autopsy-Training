@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
-import { uploadToR2 } from '../services/r2.service.js';
+import { uploadDocument } from '../services/storage.service.js';
 import { Role, SubmissionStatus } from '@prisma/client';
 
 export async function getAssignments(req: Request, res: Response): Promise<void> {
@@ -66,8 +66,8 @@ export async function submitAssignment(req: Request, res: Response): Promise<voi
       return;
     }
 
-    const key = `submissions/${assignmentId}/${userId}_${Date.now()}.pdf`;
-    const fileUrl = await uploadToR2(file.buffer, key, file.mimetype);
+    const fileName = `${userId}_${Date.now()}.pdf`;
+    const fileUrl = await uploadDocument(file.buffer, `submissions/${assignmentId}`, fileName, file.mimetype);
 
     const submission = await prisma.submission.create({
       data: {

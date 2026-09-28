@@ -24,6 +24,12 @@ const envSchema = z.object({
   CLOUDFLARE_R2_BUCKET_NAME: z.string().default('vat-lms-files'),
   CLOUDFLARE_R2_PUBLIC_DOMAIN: z.string().optional(),
 
+  // Cloudinary File & Image Storage
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_URL: z.string().optional(),
+
   // Bunny.net Stream
   BUNNY_STREAM_LIBRARY_ID: z.string().optional(),
   BUNNY_STREAM_API_KEY: z.string().optional(),

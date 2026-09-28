@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
-import { uploadToR2 } from '../services/r2.service.js';
+import { uploadDocument } from '../services/storage.service.js';
 import {
   sendApplicationReceivedEmail,
   sendApprovalCredentialsEmail,
@@ -52,19 +52,12 @@ export async function submitApplication(req: Request, res: Response): Promise<vo
     return;
   }
 
-  // Upload CV to Cloudflare R2
+  // Upload CV to Cloudinary / R2 via Universal Storage Service
   const timestamp = Date.now();
   const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const r2Key = `cvs/${timestamp}-${sanitizedFilename}`;
+  const fileName = `${timestamp}-${sanitizedFilename}`;
 
-  let cvFileUrl = '';
-  try {
-    cvFileUrl = await uploadToR2(req.file.buffer, r2Key, req.file.mimetype);
-  } catch (err) {
-    console.error('Failed to upload CV to Cloudflare R2:', err);
-    // If R2 is not yet configured, save the key as mock URL for local dev
-    cvFileUrl = `/uploads/${r2Key}`;
-  }
+  const cvFileUrl = await uploadDocument(req.file.buffer, 'cvs', fileName, req.file.mimetype);
 
   // Create Application in DB
   const application = await prisma.application.create({

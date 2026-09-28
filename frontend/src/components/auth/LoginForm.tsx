@@ -7,6 +7,7 @@ import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { LoginFormData, FormErrors } from '../../types/auth';
 import { Mail, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface LoginFormProps {
   onFlipToRegister?: () => void;
@@ -14,6 +15,7 @@ interface LoginFormProps {
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -24,13 +26,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
     setIsLoading(true);
-    setTimeout(() => {
+
+    try {
+      const loggedUser = await login(formData.email, formData.password);
+      if (loggedUser.role === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      setLoginError(err.message || 'Invalid credentials. Please verify your email and password.');
+    } finally {
       setIsLoading(false);
-      navigate('/dashboard');
-    }, 400);
+    }
   };
 
   return (

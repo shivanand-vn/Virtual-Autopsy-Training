@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
 import { StepIndicator } from './StepIndicator';
-import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import { FormInput } from '../common/FormInput';
 import { SelectInput } from '../common/SelectInput';
 import { PhoneInput } from '../common/PhoneInput';
@@ -12,22 +11,16 @@ import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
 
-const QUALIFICATIONS = [
-  { value: 'mbbs', label: 'MBBS / MD (Medical Doctor)' },
-  { value: 'frcr', label: 'FRCR (Fellow of Royal College of Radiologists)' },
-  { value: 'forensic_pathologist', label: 'Certified Forensic Pathologist' },
-  { value: 'radiographer', label: 'Senior CT/DICOM Radiographer' },
-  { value: 'phd_forensic', label: 'Ph.D. Forensic Science / Pathology' },
-  { value: 'other', label: 'Other Postgraduate Medical Specialty' },
-];
-
-const ROLES = [
-  { value: 'forensic_pathologist', label: 'Forensic Pathologist / Medical Examiner' },
-  { value: 'radiologist', label: 'Clinical / Forensic Radiologist' },
-  { value: 'coroner_officer', label: 'Coroner / Medicolegal Investigator' },
-  { value: 'mortuary_technician', label: 'Anatomical Pathology Technologist (APT)' },
-  { value: 'academic_researcher', label: 'Academic Researcher / Faculty Member' },
-  { value: 'postgrad_trainee', label: 'Postgraduate Medical Trainee / Resident' },
+const QUALIFICATION_OPTIONS = [
+  { value: 'Medical Doctors', label: 'Medical Doctors' },
+  { value: 'Forensic Medicine Faculty', label: 'Forensic Medicine Faculty' },
+  { value: 'Forensic Medicine Residents', label: 'Forensic Medicine Residents' },
+  { value: 'Forensic Pathologists', label: 'Forensic Pathologists' },
+  { value: 'Radiologists', label: 'Radiologists' },
+  { value: 'Radiology Residents', label: 'Radiology Residents' },
+  { value: 'Radiographers', label: 'Radiographers' },
+  { value: 'Law Enforcement', label: 'Law Enforcement' },
+  { value: 'Others', label: 'Others' },
 ];
 
 interface RegistrationFormProps {
@@ -40,7 +33,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
   const [formData, setFormData] = useState<RegistrationFormData>(registrationData);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
 
   // Sync state if context registrationData updates
   useEffect(() => {
@@ -70,11 +62,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
     }
 
     if (!formData.qualification) {
-      newErrors.qualification = 'Please select your medical qualification.';
+      newErrors.qualification = 'Please select your qualification.';
     }
 
-    if (!formData.professionalRole) {
-      newErrors.professionalRole = 'Please select your professional role.';
+    if (formData.qualification === 'Others' && !formData.qualificationOther?.trim()) {
+      newErrors.qualificationOther = 'Please specify your profession or background.';
     }
 
     if (!formData.organization.trim()) {
@@ -116,10 +108,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
         <div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
-            Registration & Eligibility
+            Registration & Qualification
           </h2>
           <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-            Please provide your professional details to begin your application.
+            Please provide your details and qualification to begin your application.
           </p>
         </div>
       </div>
@@ -164,34 +156,41 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             label="Qualification"
             required
             placeholder="Select your qualification"
-            options={QUALIFICATIONS}
+            options={QUALIFICATION_OPTIONS}
             value={formData.qualification}
-            onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFormData({
+                ...formData,
+                qualification: val,
+                qualificationOther: val === 'Others' ? formData.qualificationOther : '',
+              });
+            }}
             error={errors.qualification}
           />
         </div>
 
-        {/* Row 3: Professional Role & Organization */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          <SelectInput
-            label="Professional Role"
-            required
-            placeholder="Select your professional role"
-            options={ROLES}
-            value={formData.professionalRole}
-            onChange={(e) => setFormData({ ...formData, professionalRole: e.target.value })}
-            error={errors.professionalRole}
-          />
-
+        {/* Conditional "Please specify" field when Qualification === "Others" */}
+        {formData.qualification === 'Others' && (
           <FormInput
-            label="Organization"
+            label="Please specify"
             required
-            placeholder="e.g. Royal Forensic Medical Institute"
-            value={formData.organization}
-            onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
-            error={errors.organization}
+            placeholder="Enter your profession/background"
+            value={formData.qualificationOther}
+            onChange={(e) => setFormData({ ...formData, qualificationOther: e.target.value })}
+            error={errors.qualificationOther}
           />
-        </div>
+        )}
+
+        {/* Row 3: Organization */}
+        <FormInput
+          label="Organization"
+          required
+          placeholder="e.g. Royal Forensic Medical Institute"
+          value={formData.organization}
+          onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
+          error={errors.organization}
+        />
 
         {/* Row 4: CV Upload Component */}
         <FileUpload
@@ -212,13 +211,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             label={
               <span>
                 I agree to the{' '}
-                <button
-                  type="button"
-                  onClick={() => setIsPrivacyModalOpen(true)}
+                <Link
+                  to="/register/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-amber-600 font-bold hover:underline cursor-pointer focus:outline-none"
                 >
                   Privacy Policy
-                </button>{' '}
+                </Link>{' '}
                 and consent to the collection and use of my personal information for course registration, payment, training access, communication, and certification.
               </span>
             }
@@ -258,12 +258,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           </Link>
         )}
       </div>
-
-      {/* PRIVACY POLICY MODAL */}
-      <PrivacyPolicyModal
-        isOpen={isPrivacyModalOpen}
-        onClose={() => setIsPrivacyModalOpen(false)}
-      />
     </div>
   );
 };

@@ -23,6 +23,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
 
 export interface UserRecord {
   id: string;
@@ -35,6 +36,8 @@ export interface UserRecord {
   joinedDate: string;
   status: 'active' | 'suspended' | 'pending';
   cmeCredits: number;
+  qualification?: string;
+  qualificationOther?: string;
   cvDocument: {
     title: string;
     fileName: string;
@@ -49,6 +52,7 @@ export interface UserRecord {
 export const MOCK_USERS: UserRecord[] = [];
 
 export const AdminUsersPage: React.FC = () => {
+  const { registrationData } = useRegistrationFlow();
   const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -280,6 +284,23 @@ export const AdminUsersPage: React.FC = () => {
                 <span className="font-bold text-slate-400 uppercase">EMAIL</span>
                 <p className="font-mono font-bold text-slate-800">{selectedUser.email}</p>
               </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
+                <span className="font-bold text-slate-400 uppercase">QUALIFICATION</span>
+                <p className="font-bold text-slate-800">
+                  {selectedUser.qualification || registrationData.qualification || 'Radiologists'}
+                </p>
+              </div>
+
+              {((selectedUser.qualification === 'Others' && selectedUser.qualificationOther) ||
+                (!selectedUser.qualification && registrationData.qualification === 'Others' && registrationData.qualificationOther)) && (
+                <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
+                  <span className="font-bold text-slate-400 uppercase">PLEASE SPECIFY</span>
+                  <p className="font-bold text-slate-800">
+                    {selectedUser.qualificationOther || registrationData.qualificationOther}
+                  </p>
+                </div>
+              )}
 
               <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
                 <span className="font-bold text-slate-400 uppercase">ORGANIZATION / INSTITUTION</span>

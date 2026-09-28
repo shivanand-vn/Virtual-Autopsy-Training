@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FormInput } from '../common/FormInput';
 import { PasswordInput } from '../common/PasswordInput';
 import { Checkbox } from '../common/Checkbox';
@@ -15,9 +15,11 @@ interface LoginFormProps {
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const passedEmail = (location.state as any)?.email || '';
   const { login } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
+    email: passedEmail,
     password: '',
     rememberMe: false,
   });

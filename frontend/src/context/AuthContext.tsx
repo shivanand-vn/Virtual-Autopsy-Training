@@ -57,6 +57,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     refreshUser();
+
+    const handleLogoutEvent = () => {
+      setUser(null);
+      setToken(null);
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'vat_auth_token' && !e.newValue) {
+        setUser(null);
+        setToken(null);
+      }
+    };
+
+    window.addEventListener('auth-logout', handleLogoutEvent);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('auth-logout', handleLogoutEvent);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {

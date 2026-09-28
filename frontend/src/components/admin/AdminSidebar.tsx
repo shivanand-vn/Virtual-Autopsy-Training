@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 
 import { useDiscussions } from '../../context/DiscussionsContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -30,7 +31,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const location = useLocation();
   const navigate = useNavigate();
   const { discussions } = useDiscussions();
+  const { logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   interface NavItem {
     name: string;
@@ -58,9 +61,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    navigate('/login');
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+      navigate('/login', { replace: true });
+    }
   };
 
   const isQuestionBankActive = location.pathname.startsWith('/admin/question-bank');
@@ -209,9 +220,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer"
+                disabled={isLoggingOut}
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-3 rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
-                Yes, Log Out
+                {isLoggingOut ? 'Logging out...' : 'Yes, Log Out'}
               </button>
             </div>
           </div>

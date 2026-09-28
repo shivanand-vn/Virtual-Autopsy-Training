@@ -230,9 +230,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           <PrimaryButton type="submit">
             Continue to Payment
           </PrimaryButton>
-          <p className="text-[10px] text-slate-400 text-center leading-tight">
-            Step 1 of 2: Registration details will be preserved when continuing to Stripe checkout.
-          </p>
         </div>
       </form>
 

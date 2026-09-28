@@ -49,6 +49,12 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
 }) => {
   const activePlaceholder = placeholder || getPhonePlaceholder(countryCode);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const numericValue = e.target.value.replace(/\D/g, '');
+    e.target.value = numericValue;
+    onPhoneNumberChange(e);
+  };
+
   return (
     <div className="w-full min-w-0 space-y-1.5">
       <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">
@@ -78,8 +84,10 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
         <div className="relative flex-1 min-w-0">
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={phoneNumber}
-            onChange={onPhoneNumberChange}
+            onChange={handleInputChange}
             placeholder={activePlaceholder}
             className={`w-full h-11 px-3 bg-slate-50/70 border ${error
               ? 'border-red-400 focus:ring-red-400'

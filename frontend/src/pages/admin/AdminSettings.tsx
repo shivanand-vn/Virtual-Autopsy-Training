@@ -4,7 +4,7 @@ import { Settings, Shield, Bell, Database, Save, CheckCircle2 } from 'lucide-rea
 
 export const AdminSettingsPage: React.FC = () => {
   const [platformName, setPlatformName] = useState('Virtual Autopsy Global Training');
-  const [contactEmail, setContactEmail] = useState('support@virtualautopsy.edu');
+  const [contactEmail, setContactEmail] = useState('info@virtualautopsyuk.com');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleSaveSettings = (e: React.FormEvent) => {

@@ -55,12 +55,11 @@ export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, 
             <p className="text-slate-600">We may collect and process the following personal information:</p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2 font-medium text-slate-800">
               <li className="flex items-center gap-1.5">• Full Name</li>
-              <li className="flex items-center gap-1.5">• Professional Role</li>
               <li className="flex items-center gap-1.5">• Email Address</li>
+              <li className="flex items-center gap-1.5">• Qualification</li>
               <li className="flex items-center gap-1.5">• Organization / Institution</li>
               <li className="flex items-center gap-1.5">• Mobile Number</li>
               <li className="flex items-center gap-1.5">• CV / Uploaded Documents</li>
-              <li className="flex items-center gap-1.5">• Medical Qualification</li>
               <li className="flex items-center gap-1.5">• Payment-related Enrollment Data</li>
             </ul>
           </div>
@@ -112,7 +111,7 @@ export const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, 
               <span>5. Contact & Inquiries</span>
             </h3>
             <p className="text-slate-600">
-              If you have any questions regarding your personal data or training enrollment, please contact our support team at <strong className="text-navy-950 font-mono">support@virtualautopsy.edu</strong>.
+              If you have any questions regarding your personal data or training enrollment, please contact our support team at <strong className="text-navy-950 font-mono">info@virtualautopsyuk.com</strong>.
             </p>
           </div>
         </div>

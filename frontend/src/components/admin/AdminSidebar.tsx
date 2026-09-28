@@ -49,7 +49,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion },
-    { name: 'Assignments', path: '/admin/assignments', icon: ClipboardList },
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },

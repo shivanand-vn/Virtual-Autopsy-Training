@@ -71,24 +71,51 @@ export const PaymentForm: React.FC = () => {
     setConfirmEmailError(null);
     updatePaymentData({ error: null });
 
-    const finalEmail = confirmEmail.trim() || registrationData.email.trim();
+    const enteredEmail = confirmEmail.trim();
+    const storedRegEmail = (
+      registrationData.email ||
+      localStorage.getItem('virtual_autopsy_registration_email') ||
+      ''
+    ).trim();
 
-    if (!finalEmail) {
-      setConfirmEmailError('Please enter your email address to confirm enrollment.');
+    if (!enteredEmail) {
+      setConfirmEmailError('Please use the same emailID used in registration');
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(finalEmail)) {
+    if (storedRegEmail && enteredEmail.toLowerCase() !== storedRegEmail.toLowerCase()) {
+      setConfirmEmailError('Please use the same emailID used in registration');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(enteredEmail)) {
       setConfirmEmailError('Please enter a valid email address.');
       return;
     }
 
-    await processPayment(finalEmail, {
+    await processPayment(enteredEmail, {
       cardholderName,
       cardNumber,
       expiryDate,
       cvc,
     });
+  };
+
+  const handleConfirmEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setConfirmEmail(val);
+
+    const storedRegEmail = (
+      registrationData.email ||
+      localStorage.getItem('virtual_autopsy_registration_email') ||
+      ''
+    ).trim();
+
+    if (val.trim() && storedRegEmail && val.trim().toLowerCase() !== storedRegEmail.toLowerCase()) {
+      setConfirmEmailError('Please use the same emailID used in registration');
+    } else {
+      setConfirmEmailError(null);
+    }
   };
 
   return (
@@ -170,10 +197,7 @@ export const PaymentForm: React.FC = () => {
             type="email"
             placeholder={registrationData.email || "Type your email address manually..."}
             value={confirmEmail}
-            onChange={(e) => {
-              setConfirmEmail(e.target.value);
-              setConfirmEmailError(null);
-            }}
+            onChange={handleConfirmEmailChange}
             onPaste={handlePastePrevent}
             autoComplete="off"
             error={confirmEmailError || undefined}

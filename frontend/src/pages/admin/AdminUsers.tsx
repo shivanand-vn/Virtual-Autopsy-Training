@@ -85,7 +85,7 @@ export const AdminUsersPage: React.FC = () => {
     <AdminLayout title="User Management" subtitle="Users">
       <div className="space-y-6">
         {/* Top Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Users</p>
@@ -105,18 +105,6 @@ export const AdminUsersPage: React.FC = () => {
             </div>
             <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-2xl flex items-center justify-center">
               <UserCheck className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Faculty & Admins</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">
-                {users.filter((u) => u.role === 'Faculty / Admin').length}
-              </h3>
-            </div>
-            <div className="w-12 h-12 bg-slate-100 border border-slate-300 text-slate-700 rounded-2xl flex items-center justify-center">
-              <Shield className="w-6 h-6 text-amber-600" />
             </div>
           </div>
 

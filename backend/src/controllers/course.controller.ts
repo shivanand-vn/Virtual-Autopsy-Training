@@ -397,6 +397,7 @@ export async function getVideoStreamToken(req: Request, res: Response): Promise<
       {
         videoId,
         streamUrl: streamToken.streamUrl,
+        embedUrl: streamToken.embedUrl,
         expiresAt: streamToken.expiresAt,
         token: streamToken.token,
       },

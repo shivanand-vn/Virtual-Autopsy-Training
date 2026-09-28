@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, ArrowRight, ShieldCheck, Mail, CreditCard, BookOpen } from 'lucide-react';
+import { CheckCircle, ShieldCheck, Mail, CreditCard, BookOpen } from 'lucide-react';
 import { PrimaryButton } from '../common/PrimaryButton';
 
 interface PaymentSuccessModalProps {
@@ -93,10 +93,7 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({
         {/* Primary CTA Button */}
         <div className="pt-2">
           <PrimaryButton onClick={handleContinueToLogin}>
-            <span className="flex items-center justify-center gap-2">
-              <span>Continue to Login</span>
-              <ArrowRight className="w-4 h-4" />
-            </span>
+            Continue to Login
           </PrimaryButton>
         </div>
       </div>

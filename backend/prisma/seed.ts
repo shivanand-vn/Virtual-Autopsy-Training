@@ -227,9 +227,20 @@ async function main() {
         },
       });
       console.log(`  ➕ Module ${mData.order} created: ${existingModule.title}`);
+    } else {
+      console.log(`  ℹ️ Module ${mData.order} already exists`);
+    }
 
-      // Seed resources/topics for this module
-      for (const tData of mData.topics) {
+    // Seed resources/topics for this module
+    for (const tData of mData.topics) {
+      const existingResource = await prisma.resource.findFirst({
+        where: {
+          moduleId: existingModule.id,
+          order: tData.order,
+        },
+      });
+
+      if (!existingResource) {
         await prisma.resource.create({
           data: {
             moduleId: existingModule.id,
@@ -244,9 +255,6 @@ async function main() {
           },
         });
       }
-      console.log(`    ↳ Added ${mData.topics.length} topics/resources`);
-    } else {
-      console.log(`  ℹ️ Module ${mData.order} already exists`);
     }
   }
 
@@ -271,7 +279,7 @@ async function main() {
     });
     console.log(`✅ Created Final Exam: ${exam.title} (ID: ${exam.id})`);
 
-    // Add sample questions
+    // Add sample questions with explicit option IDs matching correct answers
     const q1 = await prisma.question.create({
       data: {
         type: QuestionType.SINGLE_CHOICE,
@@ -282,10 +290,10 @@ async function main() {
         correctAnswer: 'opt-2',
         options: {
           create: [
-            { text: 'Unilateral pleural dome depression with severe mediastinal displacement to the contralateral side', order: 1 },
-            { text: 'Diffuse intravascular and intrahepatic gas distribution without signs of mediastinal mass effect', order: 2 },
-            { text: 'Presence of subcutaneous emphysema isolated exclusively to the thoracic inlet', order: 3 },
-            { text: 'Elevated Hounsfield Units (+120 HU) within the pleural cavity', order: 4 },
+            { id: 'opt-1', text: 'Unilateral pleural dome depression with severe mediastinal displacement to the contralateral side', order: 1 },
+            { id: 'opt-2', text: 'Diffuse intravascular and intrahepatic gas distribution without signs of mediastinal mass effect', order: 2 },
+            { id: 'opt-3', text: 'Presence of subcutaneous emphysema isolated exclusively to the thoracic inlet', order: 3 },
+            { id: 'opt-4', text: 'Elevated Hounsfield Units (+120 HU) within the pleural cavity', order: 4 },
           ],
         },
       },
@@ -301,10 +309,10 @@ async function main() {
         correctAnswers: ['opt-1', 'opt-3'],
         options: {
           create: [
-            { text: 'Sub-millimeter slice thickness (<= 0.75 mm)', order: 1 },
-            { text: 'Standard soft-tissue smooth reconstruction filter only', order: 2 },
-            { text: 'High-frequency ultra-sharp bone kernel', order: 3 },
-            { text: 'Intravenous iodinated contrast administered prior to initial bone acquisition', order: 4 },
+            { id: 'opt-1', text: 'Sub-millimeter slice thickness (<= 0.75 mm)', order: 1 },
+            { id: 'opt-2', text: 'Standard soft-tissue smooth reconstruction filter only', order: 2 },
+            { id: 'opt-3', text: 'High-frequency ultra-sharp bone kernel', order: 3 },
+            { id: 'opt-4', text: 'Intravenous iodinated contrast administered prior to initial bone acquisition', order: 4 },
           ],
         },
       },
@@ -319,13 +327,13 @@ async function main() {
         statement2: 'Statement 2: High contrast extravasation into the pericardial sac confirms fatal cardiac rupture or aortic dissection.',
         explanation: 'Both statements are true. PMCTA utilizes dual femoral access, and contrast hemopericardium demonstrates true structural vascular disruption.',
         order: 3,
-        correctAnswer: 'both-true',
+        correctAnswer: 'opt-1',
         options: {
           create: [
-            { text: 'Both Statement 1 and Statement 2 are True', order: 1 },
-            { text: 'Statement 1 is True, Statement 2 is False', order: 2 },
-            { text: 'Statement 1 is False, Statement 2 is True', order: 3 },
-            { text: 'Both Statement 1 and Statement 2 are False', order: 4 },
+            { id: 'opt-1', text: 'Both Statement 1 and Statement 2 are True', order: 1 },
+            { id: 'opt-2', text: 'Statement 1 is True, Statement 2 is False', order: 2 },
+            { id: 'opt-3', text: 'Statement 1 is False, Statement 2 is True', order: 3 },
+            { id: 'opt-4', text: 'Both Statement 1 and Statement 2 are False', order: 4 },
           ],
         },
       },

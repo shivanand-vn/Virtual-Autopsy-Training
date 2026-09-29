@@ -17,7 +17,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const { registrationData } = useRegistrationFlow();
 
   const studentName = registrationData.fullName || 'Student';
-  const studentTitle = registrationData.professionalRole || 'Fellow Practitioner';
+  const studentTitle = (registrationData.qualification === 'Others' ? registrationData.qualificationOther : registrationData.qualification) || 'Fellow Practitioner';
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">

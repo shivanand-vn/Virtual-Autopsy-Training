@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { type Course, type CourseModule, type Topic, INITIAL_COURSES } from '../types/course';
 
 interface CourseContextType {
@@ -29,11 +29,32 @@ interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
+const LOCAL_STORAGE_KEY = 'va_lms_courses';
+
+const getInitialCourses = (): Course[] => {
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to parse courses from localStorage', e);
+    }
+  }
+  return INITIAL_COURSES;
+};
+
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+  const [courses, setCourses] = useState<Course[]>(getInitialCourses);
   
   // Student completed topic tracking (by topic id)
   const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(courses));
+  }, [courses]);
 
   const activeCourse = courses[0];
 

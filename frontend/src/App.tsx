@@ -1,16 +1,21 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute, PublicOnlyRoute } from './components/auth/ProtectedRoute';
 import { RegistrationFlowProvider } from './context/RegistrationFlowContext';
 import { DiscussionsProvider } from './context/DiscussionsContext';
 import { CourseProgressProvider } from './context/CourseProgressContext';
 import { QuestionBankProvider } from './context/QuestionBankContext';
 import { CourseProvider } from './context/CourseContext';
 import { FinalExamProvider } from './context/FinalExamContext';
-import { AuthProvider } from './context/AuthContext';
-import { ProtectedRoute, PublicOnlyRoute } from './components/auth/ProtectedRoute';
+import { ScrollToTop } from './components/common/ScrollToTop';
 
+import { LandingPage } from './pages/public/LandingPage';
 import { LoginPage } from './pages/student/Login';
 import { RegistrationPage } from './pages/student/Registration';
+import { PrivacyPolicyPage } from './pages/student/PrivacyPolicy';
+import { TermsConditionsPage } from './pages/student/TermsConditions';
+import { RefundPolicyPage } from './pages/student/RefundPolicy';
 import { PaymentPage } from './pages/student/Payment';
 import { ForgotPasswordPage } from './pages/student/ForgotPassword';
 import { DashboardPage } from './pages/student/Dashboard';
@@ -57,9 +62,20 @@ export const App: React.FC = () => {
               <QuestionBankProvider>
                 <FinalExamProvider>
                   <Router>
+                    <ScrollToTop />
                     <Routes>
-                      {/* Public & Guest Routes */}
+                      {/* Public Course Landing Page & Auth Routes */}
+                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/landing" element={<LandingPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
+                      <Route path="/register/privacy-policy" element={<PrivacyPolicyPage />} />
+                      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                      <Route path="/terms" element={<TermsConditionsPage />} />
+                      <Route path="/terms-conditions" element={<TermsConditionsPage />} />
+                      <Route path="/register/terms" element={<TermsConditionsPage />} />
+                      <Route path="/refund-policy" element={<RefundPolicyPage />} />
+                      <Route path="/refund-cancellation-policy" element={<RefundPolicyPage />} />
+                      <Route path="/register/refund-policy" element={<RefundPolicyPage />} />
                       <Route path="/payment" element={<PaymentPage />} />
                       <Route
                         path="/login"
@@ -289,7 +305,7 @@ export const App: React.FC = () => {
                         path="/admin/exams"
                         element={
                           <ProtectedRoute allowedRoles={['ADMIN']}>
-                            <AdminExamsPage />
+                            <AdminExamFormPage />
                           </ProtectedRoute>
                         }
                       />
@@ -382,9 +398,8 @@ export const App: React.FC = () => {
                         }
                       />
 
-                      {/* Fallback routes */}
-                      <Route path="/" element={<Navigate to="/register" replace />} />
-                      <Route path="*" element={<Navigate to="/register" replace />} />
+                      {/* Default route opens Public Landing Page */}
+                      <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </Router>
                 </FinalExamProvider>

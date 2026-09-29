@@ -136,6 +136,7 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({
         {/* Primary CTA Button */}
         <div className="pt-1">
           <PrimaryButton onClick={handleContinueToLogin}>
+            Continue to Login
             <span className="flex items-center justify-center gap-2">
               <span>Sign In to Student Portal</span>
               <ArrowRight className="w-4 h-4" />

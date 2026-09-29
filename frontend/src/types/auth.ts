@@ -4,7 +4,8 @@ export interface RegistrationFormData {
   countryCode: string;
   phoneNumber: string;
   qualification: string;
-  professionalRole: string;
+  qualificationOther: string;
+  professionalRole?: string;
   organization: string;
   cvFile: File | null;
   consent: boolean;

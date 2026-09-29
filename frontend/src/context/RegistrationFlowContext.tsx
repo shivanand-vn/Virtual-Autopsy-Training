@@ -42,7 +42,7 @@ const initialRegistrationData: RegistrationFormData = {
   countryCode: '+44',
   phoneNumber: '',
   qualification: '',
-  professionalRole: '',
+  qualificationOther: '',
   organization: '',
   cvFile: null,
   consent: false,

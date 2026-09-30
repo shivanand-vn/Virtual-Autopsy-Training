@@ -205,6 +205,7 @@ export const App: React.FC = () => {
                       <Route path="/support" element={<Navigate to="/help-support" replace />} />
 
                       {/* System Administration Protected Routes */}
+                      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                       <Route
                         path="/admin/dashboard"
                         element={

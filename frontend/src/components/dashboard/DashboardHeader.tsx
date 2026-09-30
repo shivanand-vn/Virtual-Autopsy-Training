@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bell, ChevronDown, Menu } from 'lucide-react';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface DashboardHeaderProps {
   onMenuToggle?: () => void;
@@ -15,9 +16,16 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const { registrationData } = useRegistrationFlow();
+  const { user } = useAuth();
 
-  const studentName = registrationData.fullName || 'Student';
-  const studentTitle = (registrationData.qualification === 'Others' ? registrationData.qualificationOther : registrationData.qualification) || 'Fellow Practitioner';
+  const studentName = user?.fullName || registrationData.fullName || 'Student';
+  const studentTitle =
+    user?.title ||
+    user?.organization ||
+    (registrationData.qualification === 'Others'
+      ? registrationData.qualificationOther
+      : registrationData.qualification) ||
+    'Fellow Practitioner';
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
@@ -84,9 +92,17 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 {studentTitle}
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-[#0A192F] text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
-              {studentName.charAt(0).toUpperCase()}
-            </div>
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={studentName}
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-400/60 shadow-xs shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#0A192F] text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
+                {studentName.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
         </div>
       </div>

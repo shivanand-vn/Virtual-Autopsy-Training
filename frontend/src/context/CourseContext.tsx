@@ -1,26 +1,28 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { type Course, type CourseModule, type Topic, type AssignmentSubmission, type SubmissionStatus, INITIAL_COURSES } from '../types/course';
-
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { type Course, type CourseModule, type Topic, type ContentType, type AssignmentSubmission, type SubmissionStatus, INITIAL_COURSES } from '../types/course';
 import type { AssessmentResult } from '../types/assessment';
+import { api } from '../lib/api';
 
-interface CourseContextType {
+export interface CourseContextType {
   courses: Course[];
   activeCourse: Course;
+  isLoading: boolean;
+  refreshCourses: () => Promise<void>;
   getCourse: (courseId: string) => Course | undefined;
-  addCourse: (course: Omit<Course, 'id' | 'createdAt' | 'modules'>) => Course;
-  updateCourse: (courseId: string, updated: Partial<Course>) => void;
-  deleteCourse: (courseId: string) => void;
+  addCourse: (course: Partial<Course> & { name: string; description: string; modules?: CourseModule[] }) => Promise<Course>;
+  updateCourse: (courseId: string, updated: Partial<Course>) => Promise<void>;
+  deleteCourse: (courseId: string) => Promise<void>;
 
   // Module Operations
-  addModule: (courseId: string, moduleData: { title: string; description: string; subtitle?: string }) => CourseModule;
-  updateModule: (courseId: string, moduleId: string, updatedData: Partial<CourseModule>) => void;
-  deleteModule: (courseId: string, moduleId: string) => void;
+  addModule: (courseId: string, moduleData: { title: string; description: string; subtitle?: string; duration?: string; cmeCredits?: number; status?: 'draft' | 'published' }) => Promise<CourseModule>;
+  updateModule: (courseId: string, moduleId: string, updatedData: Partial<CourseModule>) => Promise<void>;
+  deleteModule: (courseId: string, moduleId: string) => Promise<void>;
   reorderModules: (courseId: string, moduleId: string, direction: 'up' | 'down') => void;
 
   // Topic Operations
-  addTopic: (courseId: string, moduleId: string, topicData: Omit<Topic, 'id' | 'order' | 'status'>) => Topic;
-  updateTopic: (courseId: string, moduleId: string, topicId: string, updatedData: Partial<Topic>) => void;
-  deleteTopic: (courseId: string, moduleId: string, topicId: string) => void;
+  addTopic: (courseId: string, moduleId: string, topicData: Omit<Topic, 'id' | 'order' | 'status'> & { status?: 'draft' | 'published' }) => Promise<Topic>;
+  updateTopic: (courseId: string, moduleId: string, topicId: string, updatedData: Partial<Topic>) => Promise<void>;
+  deleteTopic: (courseId: string, moduleId: string, topicId: string) => Promise<void>;
   reorderTopics: (courseId: string, moduleId: string, topicId: string, direction: 'up' | 'down') => void;
 
   // Assignment Submissions Operations
@@ -75,23 +77,83 @@ const INITIAL_SUBMISSIONS: AssignmentSubmission[] = [
   }
 ];
 
+// Sanitize courses to guarantee huge base64 data URIs never choke localStorage
+const sanitizeCoursesForStorage = (courseList: Course[]): Course[] => {
+  if (!Array.isArray(courseList)) return [];
+  return courseList.map((course) => ({
+    ...course,
+    modules: (course.modules || []).map((mod) => ({
+      ...mod,
+      topics: (mod.topics || []).map((top) => ({
+        ...top,
+        videoUrl: top.videoUrl?.startsWith('data:') ? '' : top.videoUrl,
+        thumbnail: top.thumbnail?.startsWith('data:') ? '' : top.thumbnail,
+      })),
+    })),
+  }));
+};
+
 const getInitialCourses = (): Course[] => {
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (saved) {
-    try {
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return sanitizeCoursesForStorage(parsed);
       }
-    } catch (e) {
-      console.error('Failed to parse courses from localStorage', e);
+    }
+  } catch (e) {
+    console.warn('Failed to parse courses from localStorage. Resetting cache:', e);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // Ignore
     }
   }
   return INITIAL_COURSES;
 };
 
+// Maps backend Prisma Course model (with modules and resources) to frontend Course format
+export const mapBackendCourseToFrontend = (bCourse: any): Course => {
+  return {
+    id: bCourse.id,
+    name: bCourse.title || bCourse.name || '',
+    title: bCourse.title || bCourse.name || '',
+    shortDescription: bCourse.shortDescription || '',
+    description: bCourse.description || '',
+    duration: bCourse.duration || '16 Weeks',
+    thumbnail: bCourse.thumbnailUrl || bCourse.thumbnail || '',
+    thumbnailUrl: bCourse.thumbnailUrl || bCourse.thumbnail || '',
+    status: (bCourse.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+    createdAt: bCourse.createdAt ? new Date(bCourse.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    modules: (bCourse.modules || []).map((m: any, idx: number) => ({
+      id: m.id,
+      moduleNumber: m.order || (idx + 1),
+      title: m.title || '',
+      subtitle: m.subtitle || '',
+      description: m.description || '',
+      duration: m.duration || '2h 00m',
+      cmeCredits: m.cmeCredits ?? 4,
+      order: m.order || (idx + 1),
+      status: (m.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+      topics: (m.resources || m.topics || []).map((r: any, rIdx: number) => ({
+        id: r.id,
+        title: r.title || '',
+        description: r.description || '',
+        contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : 'description') as ContentType,
+        content: r.content || '',
+        videoUrl: r.videoUrl || '',
+        thumbnail: r.thumbnail || '',
+        order: r.order || (rIdx + 1),
+        status: (r.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+      })),
+    })),
+  };
+};
+
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [courses, setCourses] = useState<Course[]>(getInitialCourses);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Persistent student completed topics (by topic id)
   const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>(() => {
@@ -126,8 +188,19 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return INITIAL_SUBMISSIONS;
   });
 
+  // Sync to localStorage as client-side backup cache
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(courses));
+    try {
+      const sanitized = sanitizeCoursesForStorage(courses);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
+    } catch (err) {
+      console.warn('LocalStorage quota exceeded or write failed for courses:', err);
+      try {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
+    }
   }, [courses]);
 
   useEffect(() => {
@@ -142,64 +215,241 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     localStorage.setItem(ASSIGNMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assignmentSubmissions));
   }, [assignmentSubmissions]);
 
+  // Fetch courses directly from Supabase / Backend API on mount
+  const refreshCourses = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await api.get('/courses');
+      if (res && res.data && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapBackendCourseToFrontend);
+        if (mapped.length > 0) {
+          setCourses(mapped);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch courses from backend API, using cached data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCourses();
+  }, [refreshCourses]);
+
   const activeCourse = courses[0] || INITIAL_COURSES[0];
 
   const getCourse = (courseId: string) => {
     return courses.find((c) => c.id === courseId);
   };
 
-  const addCourse = (courseData: Omit<Course, 'id' | 'createdAt' | 'modules'>): Course => {
-    const newId = `crs-${Date.now().toString().slice(-4)}`;
-    const newCourse: Course = {
-      ...courseData,
-      id: newId,
-      createdAt: new Date().toISOString().split('T')[0],
-      modules: []
+  // ADD COURSE (persists course + modules + topics to backend DB)
+  const addCourse = async (
+    courseData: Partial<Course> & { name: string; description: string; modules?: CourseModule[] }
+  ): Promise<Course> => {
+    const payload = {
+      title: courseData.name || courseData.title || '',
+      shortDescription: courseData.shortDescription || null,
+      description: courseData.description,
+      duration: courseData.duration || '16 Weeks',
+      thumbnailUrl: courseData.thumbnailUrl || courseData.thumbnail || null,
+      status: courseData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
     };
-    setCourses((prev) => [...prev, newCourse]);
-    return newCourse;
+
+    let createdCourse: Course;
+
+    try {
+      const res = await api.post('/courses', payload);
+      const bCourse = res.data;
+      const courseId = bCourse.id;
+
+      const createdModules: CourseModule[] = [];
+
+      // If modules were constructed in the form, persist each module and its topics to DB
+      if (courseData.modules && courseData.modules.length > 0) {
+        for (const mod of courseData.modules) {
+          try {
+            const modRes = await api.post(`/courses/${courseId}/modules`, {
+              title: mod.title,
+              subtitle: mod.subtitle || null,
+              description: mod.description || null,
+              duration: mod.duration || '2h 00m',
+              durationMinutes: 120,
+              cmeCredits: mod.cmeCredits ?? 4,
+              status: mod.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+            });
+            const bMod = modRes.data;
+            const createdTopics: Topic[] = [];
+
+            // Persist topics inside this module
+            if (mod.topics && mod.topics.length > 0) {
+              for (const top of mod.topics) {
+                try {
+                  const topRes = await api.post(`/courses/modules/${bMod.id}/topics`, {
+                    title: top.title,
+                    description: top.description || null,
+                    type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+                    videoUrl: top.videoUrl || null,
+                    content: top.content || null,
+                    status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+                  });
+                  const bTop = topRes.data;
+                  createdTopics.push({
+                    id: bTop.id,
+                    title: bTop.title,
+                    description: bTop.description || '',
+                    contentType: (bTop.type === 'VIDEO_STREAM' ? 'video' : 'description') as ContentType,
+                    content: bTop.content || '',
+                    videoUrl: bTop.videoUrl || '',
+                    thumbnail: top.thumbnail || '',
+                    order: bTop.order || 1,
+                    status: bTop.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
+                  });
+                } catch (topErr) {
+                  console.error('Failed to persist topic to DB:', topErr);
+                }
+              }
+            }
+
+            createdModules.push({
+              id: bMod.id,
+              moduleNumber: bMod.order || (createdModules.length + 1),
+              title: bMod.title,
+              subtitle: bMod.subtitle || '',
+              description: bMod.description || '',
+              duration: bMod.duration || '2h 00m',
+              cmeCredits: bMod.cmeCredits ?? 4,
+              order: bMod.order || (createdModules.length + 1),
+              status: bMod.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
+              topics: createdTopics,
+            });
+          } catch (modErr) {
+            console.error('Failed to persist module to DB:', modErr);
+          }
+        }
+      }
+
+      createdCourse = {
+        ...mapBackendCourseToFrontend(bCourse),
+        modules: createdModules,
+      };
+
+      setCourses((prev) => [...prev, createdCourse]);
+      return createdCourse;
+    } catch (err: any) {
+      console.warn('API addCourse failed, falling back to local state:', err);
+      const newId = `crs-${Date.now().toString().slice(-4)}`;
+      createdCourse = {
+        id: newId,
+        name: courseData.name,
+        title: courseData.name,
+        shortDescription: courseData.shortDescription || '',
+        description: courseData.description,
+        duration: courseData.duration || '16 Weeks',
+        thumbnail: courseData.thumbnail || '',
+        thumbnailUrl: courseData.thumbnailUrl || '',
+        status: courseData.status || 'published',
+        createdAt: new Date().toISOString().split('T')[0],
+        modules: courseData.modules || [],
+      };
+      setCourses((prev) => [...prev, createdCourse]);
+      return createdCourse;
+    }
   };
 
-  const updateCourse = (courseId: string, updatedData: Partial<Course>) => {
+  // UPDATE COURSE (persists metadata and optionally syncs modules)
+  const updateCourse = async (courseId: string, updatedData: Partial<Course>): Promise<void> => {
+    const payload: any = {};
+    if (updatedData.name !== undefined || updatedData.title !== undefined) {
+      payload.title = updatedData.name || updatedData.title;
+    }
+    if (updatedData.shortDescription !== undefined) payload.shortDescription = updatedData.shortDescription;
+    if (updatedData.description !== undefined) payload.description = updatedData.description;
+    if (updatedData.duration !== undefined) payload.duration = updatedData.duration;
+    if (updatedData.thumbnailUrl !== undefined || updatedData.thumbnail !== undefined) {
+      payload.thumbnailUrl = updatedData.thumbnailUrl || updatedData.thumbnail;
+    }
+    if (updatedData.status !== undefined) {
+      payload.status = updatedData.status.toUpperCase();
+    }
+
+    try {
+      await api.put(`/courses/${courseId}`, payload);
+    } catch (e) {
+      console.warn('API updateCourse failed or course is client-only:', e);
+    }
+
     setCourses((prev) =>
       prev.map((c) => (c.id === courseId ? { ...c, ...updatedData } : c))
     );
   };
 
-  const deleteCourse = (courseId: string) => {
+  // DELETE COURSE
+  const deleteCourse = async (courseId: string): Promise<void> => {
+    try {
+      await api.delete(`/courses/${courseId}`);
+    } catch (e) {
+      console.warn('API deleteCourse failed or course is client-only:', e);
+    }
     setCourses((prev) => prev.filter((c) => c.id !== courseId));
   };
 
   // MODULE OPERATIONS
-  const addModule = (
+  const addModule = async (
     courseId: string,
-    moduleData: { title: string; description: string; subtitle?: string }
-  ): CourseModule => {
-    let newModule: CourseModule = {
-      id: `mod-${Date.now().toString().slice(-4)}`,
-      moduleNumber: 1,
+    moduleData: { title: string; description: string; subtitle?: string; duration?: string; cmeCredits?: number; status?: 'draft' | 'published' }
+  ): Promise<CourseModule> => {
+    const payload = {
       title: moduleData.title,
-      subtitle: moduleData.subtitle || '',
-      description: moduleData.description,
-      duration: '2h 00m',
-      cmeCredits: 4,
-      order: 1,
-      status: 'published',
-      topics: []
+      subtitle: moduleData.subtitle || null,
+      description: moduleData.description || null,
+      duration: moduleData.duration || '2h 00m',
+      durationMinutes: 120,
+      cmeCredits: moduleData.cmeCredits ?? 4,
+      status: moduleData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
     };
+
+    let newModule: CourseModule;
+
+    try {
+      const res = await api.post(`/courses/${courseId}/modules`, payload);
+      const bMod = res.data;
+      newModule = {
+        id: bMod.id,
+        moduleNumber: bMod.order || 1,
+        title: bMod.title,
+        subtitle: bMod.subtitle || '',
+        description: bMod.description || '',
+        duration: bMod.duration || '2h 00m',
+        cmeCredits: bMod.cmeCredits ?? 4,
+        order: bMod.order || 1,
+        status: bMod.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
+        topics: [],
+      };
+    } catch (err) {
+      console.warn('API addModule failed, falling back to local ID:', err);
+      newModule = {
+        id: `mod-${Date.now().toString().slice(-4)}`,
+        moduleNumber: 1,
+        title: moduleData.title,
+        subtitle: moduleData.subtitle || '',
+        description: moduleData.description,
+        duration: moduleData.duration || '2h 00m',
+        cmeCredits: moduleData.cmeCredits ?? 4,
+        order: 1,
+        status: moduleData.status || 'published',
+        topics: []
+      };
+    }
 
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
           const newOrder = c.modules.length + 1;
-          newModule = {
-            ...newModule,
-            moduleNumber: newOrder,
-            order: newOrder
-          };
+          const finalizedMod = { ...newModule, moduleNumber: newOrder, order: newOrder };
           return {
             ...c,
-            modules: [...c.modules, newModule]
+            modules: [...c.modules, finalizedMod]
           };
         }
         return c;
@@ -209,7 +459,26 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return newModule;
   };
 
-  const updateModule = (courseId: string, moduleId: string, updatedData: Partial<CourseModule>) => {
+  const updateModule = async (
+    courseId: string,
+    moduleId: string,
+    updatedData: Partial<CourseModule>
+  ): Promise<void> => {
+    const payload: any = {};
+    if (updatedData.title !== undefined) payload.title = updatedData.title;
+    if (updatedData.subtitle !== undefined) payload.subtitle = updatedData.subtitle;
+    if (updatedData.description !== undefined) payload.description = updatedData.description;
+    if (updatedData.duration !== undefined) payload.duration = updatedData.duration;
+    if (updatedData.cmeCredits !== undefined) payload.cmeCredits = updatedData.cmeCredits;
+    if (updatedData.order !== undefined) payload.order = updatedData.order;
+    if (updatedData.status !== undefined) payload.status = updatedData.status.toUpperCase();
+
+    try {
+      await api.put(`/courses/modules/${moduleId}`, payload);
+    } catch (e) {
+      console.warn('API updateModule failed:', e);
+    }
+
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
@@ -223,12 +492,17 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
   };
 
-  const deleteModule = (courseId: string, moduleId: string) => {
+  const deleteModule = async (courseId: string, moduleId: string): Promise<void> => {
+    try {
+      await api.delete(`/courses/modules/${moduleId}`);
+    } catch (e) {
+      console.warn('API deleteModule failed:', e);
+    }
+
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
           const filtered = c.modules.filter((m) => m.id !== moduleId);
-          // Re-index module orders & numbers
           const reindexed = filtered.map((m, idx) => ({
             ...m,
             moduleNumber: idx + 1,
@@ -255,12 +529,16 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           newModules[index] = newModules[targetIndex];
           newModules[targetIndex] = temp;
 
-          // Update numbering
           const reindexed = newModules.map((m, idx) => ({
             ...m,
             moduleNumber: idx + 1,
             order: idx + 1
           }));
+
+          // Sync order to backend in background
+          reindexed.forEach((m) => {
+            api.put(`/courses/modules/${m.id}`, { order: m.order }).catch(() => {});
+          });
 
           return { ...c, modules: reindexed };
         }
@@ -270,17 +548,45 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // TOPIC OPERATIONS
-  const addTopic = (
+  const addTopic = async (
     courseId: string,
     moduleId: string,
-    topicData: Omit<Topic, 'id' | 'order' | 'status'>
-  ): Topic => {
-    let newTopic: Topic = {
-      ...topicData,
-      id: `t-${Date.now().toString().slice(-4)}`,
-      order: 1,
-      status: 'published'
+    topicData: Omit<Topic, 'id' | 'order' | 'status'> & { status?: 'draft' | 'published' }
+  ): Promise<Topic> => {
+    const payload = {
+      title: topicData.title,
+      description: topicData.description || null,
+      type: topicData.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+      videoUrl: topicData.videoUrl || null,
+      content: topicData.content || null,
+      status: topicData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
     };
+
+    let newTopic: Topic;
+
+    try {
+      const res = await api.post(`/courses/modules/${moduleId}/topics`, payload);
+      const bRes = res.data;
+      newTopic = {
+        id: bRes.id,
+        title: bRes.title,
+        description: bRes.description || '',
+        contentType: (bRes.type === 'VIDEO_STREAM' ? 'video' : 'description') as ContentType,
+        content: bRes.content || '',
+        videoUrl: bRes.videoUrl || '',
+        thumbnail: topicData.thumbnail || '',
+        order: bRes.order || 1,
+        status: bRes.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
+      };
+    } catch (err) {
+      console.warn('API addTopic failed, falling back to local ID:', err);
+      newTopic = {
+        ...topicData,
+        id: `t-${Date.now().toString().slice(-4)}`,
+        order: 1,
+        status: topicData.status || 'published'
+      };
+    }
 
     setCourses((prev) =>
       prev.map((c) => {
@@ -288,10 +594,10 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const updatedModules = c.modules.map((m) => {
             if (m.id === moduleId) {
               const newOrder = m.topics.length + 1;
-              newTopic = { ...newTopic, order: newOrder };
+              const finalizedTopic = { ...newTopic, order: newOrder };
               return {
                 ...m,
-                topics: [...m.topics, newTopic]
+                topics: [...m.topics, finalizedTopic]
               };
             }
             return m;
@@ -305,12 +611,29 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return newTopic;
   };
 
-  const updateTopic = (
+  const updateTopic = async (
     courseId: string,
     moduleId: string,
     topicId: string,
     updatedData: Partial<Topic>
-  ) => {
+  ): Promise<void> => {
+    const payload: any = {};
+    if (updatedData.title !== undefined) payload.title = updatedData.title;
+    if (updatedData.description !== undefined) payload.description = updatedData.description;
+    if (updatedData.contentType !== undefined) {
+      payload.type = updatedData.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT';
+    }
+    if (updatedData.videoUrl !== undefined) payload.videoUrl = updatedData.videoUrl;
+    if (updatedData.content !== undefined) payload.content = updatedData.content;
+    if (updatedData.order !== undefined) payload.order = updatedData.order;
+    if (updatedData.status !== undefined) payload.status = updatedData.status.toUpperCase();
+
+    try {
+      await api.put(`/courses/topics/${topicId}`, payload);
+    } catch (e) {
+      console.warn('API updateTopic failed:', e);
+    }
+
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
@@ -330,7 +653,13 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
   };
 
-  const deleteTopic = (courseId: string, moduleId: string, topicId: string) => {
+  const deleteTopic = async (courseId: string, moduleId: string, topicId: string): Promise<void> => {
+    try {
+      await api.delete(`/courses/topics/${topicId}`);
+    } catch (e) {
+      console.warn('API deleteTopic failed:', e);
+    }
+
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
@@ -371,6 +700,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               newTopics[targetIndex] = temp;
 
               const reindexed = newTopics.map((t, idx) => ({ ...t, order: idx + 1 }));
+
+              reindexed.forEach((t) => {
+                api.put(`/courses/topics/${t.id}`, { order: t.order }).catch(() => {});
+              });
+
               return { ...m, topics: reindexed };
             }
             return m;
@@ -553,6 +887,8 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       value={{
         courses,
         activeCourse,
+        isLoading,
+        refreshCourses,
         getCourse,
         addCourse,
         updateCourse,

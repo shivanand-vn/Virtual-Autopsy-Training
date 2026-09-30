@@ -14,7 +14,10 @@ import {
   deleteTopic,
   getVideoStreamToken,
   updateProgress,
+  uploadCourseMediaHandler,
+  deleteCourseMediaHandler,
 } from '../controllers/course.controller.js';
+import { uploadCourseMedia } from '../middlewares/upload.middleware.js';
 
 const router = Router();
 
@@ -33,6 +36,9 @@ router.put('/modules/:moduleId', requireAuth, requireRole('ADMIN'), updateModule
 router.delete('/modules/:moduleId', requireAuth, requireRole('ADMIN'), deleteModule);
 
 // Admin Topic / Resource CRUD
+router.post('/upload-media', requireAuth, requireRole('ADMIN'), uploadCourseMedia.single('file'), uploadCourseMediaHandler);
+router.post('/delete-media', requireAuth, requireRole('ADMIN'), deleteCourseMediaHandler);
+router.delete('/delete-media', requireAuth, requireRole('ADMIN'), deleteCourseMediaHandler);
 router.post('/modules/:moduleId/topics', requireAuth, requireRole('ADMIN'), createTopic);
 router.put('/topics/:topicId', requireAuth, requireRole('ADMIN'), updateTopic);
 router.delete('/topics/:topicId', requireAuth, requireRole('ADMIN'), deleteTopic);

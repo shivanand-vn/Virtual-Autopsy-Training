@@ -106,9 +106,62 @@ export const api = {
   delete: <T = any>(url: string, headers?: Record<string, string>) =>
     request<T>(url, { method: 'DELETE', headers }),
 
-  upload: <T = any>(url: string, formData: FormData) =>
-    request<T>(url, {
-      method: 'POST',
-      body: formData,
-    }),
+  upload: <T = any>(
+    url: string,
+    formData: FormData,
+    onProgress?: (percent: number) => void
+  ): Promise<ApiResponse<T>> => {
+    return new Promise((resolve, reject) => {
+      const token = getAuthToken();
+      const endpoint = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+      const xhr = new XMLHttpRequest();
+
+      xhr.open('POST', endpoint, true);
+      xhr.withCredentials = true;
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      // Extended 30 minutes timeout on the browser side for large video uploads
+      xhr.timeout = 30 * 60 * 1000;
+
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300 && data.success !== false) {
+            if (onProgress) onProgress(100);
+            resolve(data);
+          } else {
+            const errorMsg = data.message || `Request failed with status ${xhr.status}`;
+            const err = new Error(errorMsg) as Error & { status: number; data: any };
+            err.status = xhr.status;
+            err.data = data;
+            reject(err);
+          }
+        } catch {
+          reject(new Error('Invalid server response'));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error('Network error during media upload. Please check your connection.'));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error('Upload timed out. Please try again with a faster connection or smaller file.'));
+      };
+
+      xhr.send(formData);
+    });
+  },
 };

@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
-import { generateBunnyStreamToken } from '../services/bunny.service.js';
+import { generateBunnyStreamToken, createBunnyVideo, uploadBunnyVideoBuffer, deleteBunnyVideo } from '../services/bunny.service.js';
+import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary.service.js';
+import { env } from '../config/env.js';
 import { CourseStatus, Role } from '@prisma/client';
 
 export async function getAllCourses(req: Request, res: Response): Promise<void> {
@@ -443,3 +445,130 @@ export async function updateProgress(req: Request, res: Response): Promise<void>
     sendError(res, error.message || 'Failed to update progress', 500);
   }
 }
+
+export async function uploadCourseMediaHandler(req: Request, res: Response): Promise<void> {
+  // Prevent socket timeout during large video uploads (30 minutes)
+  req.setTimeout(30 * 60 * 1000);
+  res.setTimeout(30 * 60 * 1000);
+
+  try {
+    if (!req.file) {
+      sendError(res, 'No media file provided for upload', 400);
+      return;
+    }
+
+    const isVideo = req.file.mimetype.startsWith('video/');
+
+    if (isVideo) {
+      // 1. VIDEOS ARE UPLOADED TO SECURE STREAMING STORAGE
+      console.log(`[Media Upload] Uploading video to streaming storage: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)...`);
+
+      const videoTitle = req.file.originalname.replace(/\.[^/.]+$/, '');
+      let bunnyGuid: string | null = null;
+
+      try {
+        bunnyGuid = await createBunnyVideo(videoTitle);
+        await uploadBunnyVideoBuffer(bunnyGuid, req.file.buffer);
+
+        const libraryId = env.BUNNY_STREAM_LIBRARY_ID || '764331';
+        const pullZone = env.BUNNY_STREAM_PULL_ZONE || 'vz-6c065033-dcc.b-cdn.net';
+        
+        // Responsive Bunny embed player URL & HLS direct playlist URL
+        const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${bunnyGuid}`;
+        const streamUrl = `https://${pullZone}/${bunnyGuid}/playlist.m3u8`;
+
+        console.log(`[Media Upload] Video successfully uploaded to secure storage! GUID: ${bunnyGuid}`);
+
+        sendSuccess(
+          res,
+          {
+            url: embedUrl,
+            streamUrl,
+            bunnyVideoId: bunnyGuid,
+            provider: 'bunny',
+            fileName: req.file.originalname,
+            mimeType: req.file.mimetype,
+            size: req.file.size,
+          },
+          'Video uploaded successfully'
+        );
+      } catch (uploadErr: any) {
+        if (bunnyGuid) {
+          try {
+            await deleteBunnyVideo(bunnyGuid);
+          } catch (delErr) {
+            console.warn('[Media Upload] Could not clean up failed video GUID:', bunnyGuid);
+          }
+        }
+        throw uploadErr;
+      }
+    } else {
+      // 2. THUMBNAILS AND IMAGES ARE UPLOADED TO CLOUD STORAGE
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedName}`;
+
+      console.log(`[Media Upload] Uploading thumbnail image: ${req.file.originalname}...`);
+
+      const mediaUrl = await uploadToCloudinary(
+        req.file.buffer,
+        'course-thumbnails',
+        fileName,
+        false,
+        'image'
+      );
+
+      console.log(`[Media Upload] Image successfully uploaded to storage: ${mediaUrl}`);
+
+      sendSuccess(
+        res,
+        {
+          url: mediaUrl,
+          provider: 'cloudinary',
+          fileName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+        },
+        'Thumbnail image uploaded successfully'
+      );
+    }
+  } catch (error: any) {
+    console.error('Course media upload failed:', error);
+    sendError(res, error.message || 'Failed to upload media', 500);
+  }
+}
+
+export async function deleteCourseMediaHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const { url, bunnyVideoId, provider } = req.body;
+
+    if (!url && !bunnyVideoId) {
+      sendError(res, 'Media URL or video ID is required for deletion', 400);
+      return;
+    }
+
+    let deleted = false;
+
+    // 1. Delete from Bunny Stream if it is a Bunny video
+    if (bunnyVideoId || provider === 'bunny' || (url && (url.includes('mediadelivery.net') || url.includes('bunny')))) {
+      const vidId = bunnyVideoId || url?.split('/').filter(Boolean).pop()?.split('?')[0];
+      if (vidId) {
+        deleted = await deleteBunnyVideo(vidId);
+        console.log(`[Media Delete] Deleted Bunny video ${vidId}: ${deleted}`);
+      }
+    }
+
+    // 2. Delete from Cloudinary if it is a Cloudinary asset
+    if (provider === 'cloudinary' || (url && url.includes('cloudinary.com'))) {
+      const isVideo = url.includes('/video/');
+      deleted = await deleteFromCloudinary(url, isVideo ? 'video' : 'image');
+      console.log(`[Media Delete] Deleted Cloudinary asset: ${deleted}`);
+    }
+
+    sendSuccess(res, { deleted: true }, 'Media deleted successfully');
+  } catch (error: any) {
+    console.error('Course media deletion failed:', error);
+    sendError(res, error.message || 'Failed to delete media', 500);
+  }
+}
+
+

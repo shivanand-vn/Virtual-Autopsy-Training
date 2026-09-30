@@ -222,8 +222,10 @@ export const AdminCoursesPage: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    deleteCourse(deletingCourseId);
+                  onClick={async () => {
+                    if (deletingCourseId) {
+                      await deleteCourse(deletingCourseId);
+                    }
                     setDeletingCourseId(null);
                   }}
                   className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-colors cursor-pointer"

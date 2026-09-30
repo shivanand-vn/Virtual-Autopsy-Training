@@ -1,10 +1,29 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/common/Header';
 import { LeftShowcasePanel } from '../../components/showcase/LeftShowcasePanel';
 import { FlippableAuthContainer } from '../../components/auth/FlippableAuthContainer';
 import { PartnerFooter } from '../../components/showcase/PartnerFooter';
+import { useAuth } from '../../context/AuthContext';
+import { getAuthToken, getStoredUser } from '../../lib/api';
 
 export const LoginPage: React.FC = () => {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const activeUser = user || getStoredUser();
+    const activeToken = token || getAuthToken();
+
+    if (activeUser && activeToken) {
+      if (activeUser.role === 'ADMIN') {
+        navigate('/admin/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, token, navigate]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between font-sans overflow-x-hidden">
       <div>

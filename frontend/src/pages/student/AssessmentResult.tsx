@@ -4,13 +4,21 @@ import { useCourseProgress } from '../../context/CourseProgressContext';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { CheckCircle2, XCircle, ArrowRight, Award, BookOpen, RotateCcw, ArrowLeft } from 'lucide-react';
 
+import { useCourse } from '../../context/CourseContext';
+
 export const AssessmentResultPage: React.FC = () => {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
+  const { activeCourse } = useCourse();
   const { modules, getAssessmentResult } = useCourseProgress();
 
   const currentModule = modules.find((m) => m.id === moduleId);
   const result = moduleId ? getAssessmentResult(moduleId) : undefined;
+
+  // Find next module in activeCourse
+  const courseModules = activeCourse?.modules || [];
+  const currentModIndex = courseModules.findIndex((m) => m.id === moduleId);
+  const nextModule = currentModIndex !== -1 && currentModIndex < courseModules.length - 1 ? courseModules[currentModIndex + 1] : null;
 
   if (!currentModule || !result) {
     return (
@@ -71,7 +79,7 @@ export const AssessmentResultPage: React.FC = () => {
               <span className={`inline-block text-xs font-extrabold uppercase px-3.5 py-1 rounded-full ${
                 result.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
               }`}>
-                {result.passed ? '✓ Assessment Passed' : 'Needs Review'}
+                {result.passed ? '✓ Assessment Passed & Module Completed' : 'Needs Review'}
               </span>
 
               <h1 className="text-2xl sm:text-3xl font-black text-[#0A192F]">
@@ -111,11 +119,11 @@ export const AssessmentResultPage: React.FC = () => {
           <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 text-xs text-slate-700 leading-relaxed max-w-lg mx-auto">
             {result.passed ? (
               <p>
-                Congratulations! You have demonstrated clinical competency in Module 0{currentModule.moduleNumber}. Your assessment score of <span className="font-bold text-slate-900">{result.scorePercent}%</span> meets the ISFRI / RCPath accreditation standard.
+                Congratulations! You have demonstrated clinical competency in Module 0{currentModule.moduleNumber}. Your score of <span className="font-bold text-slate-900">{result.scorePercent}%</span> meets the accreditation benchmark. {nextModule ? `Module 0${nextModule.moduleNumber} is now unlocked!` : 'All course modules completed! You can now take the Final Exam.'}
               </p>
             ) : (
               <p>
-                Your score of <span className="font-bold text-rose-700">{result.scorePercent}%</span> is below the required 70% passing threshold. You can review the course materials and re-attempt the assessment when ready.
+                Your score of <span className="font-bold text-rose-700">{result.scorePercent}%</span> is below the required passing threshold. Review course materials and re-attempt the assessment to unlock the next module.
               </p>
             )}
           </div>
@@ -132,13 +140,33 @@ export const AssessmentResultPage: React.FC = () => {
               </button>
             )}
 
-            <button
-              onClick={() => navigate('/course')}
-              className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-            >
-              <span>Continue to Course</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {result.passed ? (
+              nextModule ? (
+                <button
+                  onClick={() => navigate(`/my-course/${nextModule.id}`)}
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <span>Continue to Module 0{nextModule.moduleNumber}: {nextModule.title}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate('/final-exam')}
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <span>Proceed to Final Examination</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )
+            ) : (
+              <button
+                onClick={() => navigate('/course')}
+                className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-8 py-3.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                <span>Return to Course Topics</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

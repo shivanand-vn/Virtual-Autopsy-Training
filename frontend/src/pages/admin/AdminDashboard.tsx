@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -18,11 +18,51 @@ import {
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
+import { api } from '../../lib/api';
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { courses, completedTopicIds } = useCourse();
   const { registrationData, paymentData } = useRegistrationFlow();
+
+  const [studentsCount, setStudentsCount] = useState<number>(0);
+  const [pendingAppsCount, setPendingAppsCount] = useState<number>(0);
+  const [recentApplications, setRecentApplications] = useState<any[]>([]);
+
+  const hasApplicant = Boolean(registrationData.fullName || registrationData.email);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMetrics = async () => {
+      try {
+        const [usersRes, appsRes] = await Promise.allSettled([
+          api.get('/users'),
+          api.get('/applications/admin'),
+        ]);
+
+        if (isMounted) {
+          if (usersRes.status === 'fulfilled' && usersRes.value?.data?.users) {
+            const allUsers = usersRes.value.data.users;
+            const students = allUsers.filter((u: any) => u.role === 'STUDENT');
+            setStudentsCount(students.length);
+          }
+          if (appsRes.status === 'fulfilled' && appsRes.value?.data?.applications) {
+            const allApps = appsRes.value.data.applications;
+            const pending = allApps.filter((a: any) => a.status === 'PENDING');
+            setPendingAppsCount(pending.length);
+            setRecentApplications(allApps.slice(0, 5));
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load dashboard live metrics:', err);
+      }
+    };
+
+    fetchMetrics();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // DYNAMIC COMPUTATIONS FROM APPLICATION STATE
   const activeCoursesCount = courses.filter((c) => c.status === 'published').length;
@@ -32,8 +72,6 @@ export const AdminDashboardPage: React.FC = () => {
 
   const hasSuccessfulPayment = paymentData.paymentStatus === 'success';
   const totalRevenueFormatted = hasSuccessfulPayment ? paymentData.amount : '£0.00';
-
-  const hasApplicant = Boolean(registrationData.fullName || registrationData.email);
 
   return (
     <AdminLayout title="Admin Dashboard" subtitle="Dashboard">
@@ -72,22 +110,28 @@ export const AdminDashboardPage: React.FC = () => {
 
         {/* 2. KEY STATISTICS GRID (DYNAMIC STATS FROM FRONTEND STATE) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div
+            onClick={() => navigate('/admin/users')}
+            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+          >
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Registered Students</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{hasApplicant ? 1 : 0}</h3>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Active Account</p>
+              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{studentsCount}</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Active Fellows</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
               <Users className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div
+            onClick={() => navigate('/admin/applications')}
+            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+          >
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Apps</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">0</h3>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Applications</p>
+              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{pendingAppsCount}</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Eligibility Review</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <Clock className="w-5 h-5" />
@@ -194,7 +238,49 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
 
-              {hasApplicant ? (
+              {recentApplications.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                        <th className="py-3 px-3">APPLICANT</th>
+                        <th className="py-3 px-3">QUALIFICATION</th>
+                        <th className="py-3 px-3">ORGANIZATION</th>
+                        <th className="py-3 px-3">STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentApplications.map((app) => (
+                        <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3 px-3 font-bold text-slate-900">
+                            {app.fullName}
+                            <div className="text-[10px] text-slate-400 font-normal">{app.email}</div>
+                          </td>
+                          <td className="py-3 px-3 font-medium text-slate-700">
+                            {app.qualification || 'Pathology Practitioner'}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600">
+                            {app.organization || 'Medical Center'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase ${
+                                app.status === 'APPROVED'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : app.status === 'PENDING'
+                                  ? 'bg-amber-100 text-amber-900'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {app.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : hasApplicant ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>

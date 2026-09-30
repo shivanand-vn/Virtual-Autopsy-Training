@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Search,
@@ -21,23 +21,50 @@ import {
   ShieldCheck,
   AlertTriangle,
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import type { ApplicantRecord } from '../../types/admin';
+import { api } from '../../lib/api';
 
 export interface ExtendedApplicant extends ApplicantRecord {
   phone: string;
   cvFileName: string;
+  cvFileUrl?: string;
   notes?: string;
   country: string;
   rejectionReason?: string;
 }
 
-export const EXTENDED_MOCK_APPLICANTS: ExtendedApplicant[] = [];
+export const mapBackendApplication = (app: any): ExtendedApplicant => {
+  const cvFileName = app.cvFileUrl
+    ? app.cvFileUrl.split('/').pop()?.split('?')[0] || `${app.fullName}_CV.pdf`
+    : `${app.fullName.replace(/\s+/g, '_')}_CV.pdf`;
+
+  return {
+    id: app.id,
+    applicantName: app.fullName,
+    avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=150&auto=format&fit=crop&q=80',
+    email: app.email,
+    phone: `${app.countryCode || ''} ${app.phoneNumber || ''}`.trim(),
+    qualification: app.qualification,
+    organization: app.organization,
+    appliedDate: app.createdAt ? new Date(app.createdAt).toISOString().split('T')[0] : 'Recently',
+    status: (app.status?.toLowerCase() || 'pending') as 'pending' | 'approved' | 'rejected',
+    cvFileName,
+    cvFileUrl: app.cvFileUrl,
+    notes: app.adminNotes || '',
+    country: app.countryCode || 'UK',
+    rejectionReason: app.adminNotes || '',
+  };
+};
 
 export const AdminApplicationsPage: React.FC = () => {
-  const [applicants, setApplicants] = useState<ExtendedApplicant[]>(EXTENDED_MOCK_APPLICANTS);
+  const [applicants, setApplicants] = useState<ExtendedApplicant[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isActionSubmitting, setIsActionSubmitting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [qualificationFilter, setQualificationFilter] = useState('all');
@@ -57,6 +84,26 @@ export const AdminApplicationsPage: React.FC = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const fetchApplications = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.get('/applications/admin');
+      if (res && res.data && Array.isArray(res.data.applications)) {
+        setApplicants(res.data.applications.map(mapBackendApplication));
+      } else {
+        setApplicants([]);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load applications from API:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
   // Open Approval Confirmation Card
   const initiateApprove = (app: ExtendedApplicant) => {
     setPendingActionApplicant(app);
@@ -71,45 +118,70 @@ export const AdminApplicationsPage: React.FC = () => {
   };
 
   // Confirm Approval
-  const handleConfirmApproval = () => {
+  const handleConfirmApproval = async () => {
     if (!pendingActionApplicant) return;
 
-    setApplicants(
-      applicants.map((app) =>
-        app.id === pendingActionApplicant.id ? { ...app, status: 'approved' } : app
-      )
-    );
+    setIsActionSubmitting(true);
+    try {
+      const res = await api.post(`/applications/admin/${pendingActionApplicant.id}/approve`, {});
+      if (res && res.success) {
+        setApplicants((prev) =>
+          prev.map((app) =>
+            app.id === pendingActionApplicant.id ? { ...app, status: 'approved' } : app
+          )
+        );
 
-    if (selectedApplicant && selectedApplicant.id === pendingActionApplicant.id) {
-      setSelectedApplicant({ ...selectedApplicant, status: 'approved' });
+        if (selectedApplicant && selectedApplicant.id === pendingActionApplicant.id) {
+          setSelectedApplicant((prev) => prev ? { ...prev, status: 'approved' } : null);
+        }
+
+        showToast(`Application for ${pendingActionApplicant.applicantName} APPROVED successfully! Login credentials dispatched.`);
+        setPendingActionApplicant(null);
+        setActionType(null);
+      } else {
+        throw new Error(res?.message || 'Approval failed');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to approve application.');
+    } finally {
+      setIsActionSubmitting(false);
     }
-
-    showToast(`Application for ${pendingActionApplicant.applicantName} APPROVED successfully! Login credentials dispatched.`);
-    setPendingActionApplicant(null);
-    setActionType(null);
   };
 
   // Confirm Rejection with Typed Reason
-  const handleConfirmRejection = () => {
+  const handleConfirmRejection = async () => {
     if (!pendingActionApplicant) return;
 
     const finalReason = rejectionReasonText.trim() || 'Medical registration or credential requirements not met';
+    setIsActionSubmitting(true);
+    try {
+      const res = await api.post(`/applications/admin/${pendingActionApplicant.id}/reject`, {
+        adminNotes: finalReason,
+      });
+      if (res && res.success) {
+        setApplicants((prev) =>
+          prev.map((app) =>
+            app.id === pendingActionApplicant.id
+              ? { ...app, status: 'rejected', rejectionReason: finalReason }
+              : app
+          )
+        );
 
-    setApplicants(
-      applicants.map((app) =>
-        app.id === pendingActionApplicant.id
-          ? { ...app, status: 'rejected', rejectionReason: finalReason }
-          : app
-      )
-    );
+        if (selectedApplicant && selectedApplicant.id === pendingActionApplicant.id) {
+          setSelectedApplicant((prev) => prev ? { ...prev, status: 'rejected', rejectionReason: finalReason } : null);
+        }
 
-    if (selectedApplicant && selectedApplicant.id === pendingActionApplicant.id) {
-      setSelectedApplicant({ ...selectedApplicant, status: 'rejected', rejectionReason: finalReason });
+        showToast(`Application for ${pendingActionApplicant.applicantName} REJECTED. Reason: "${finalReason}"`);
+        setPendingActionApplicant(null);
+        setActionType(null);
+      } else {
+        throw new Error(res?.message || 'Rejection failed');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to reject application.');
+    } finally {
+      setIsActionSubmitting(false);
     }
-
-    showToast(`Application for ${pendingActionApplicant.applicantName} REJECTED. Reason: "${finalReason}"`);
-    setPendingActionApplicant(null);
-    setActionType(null);
   };
 
   const filteredApplicants = applicants.filter((app) => {
@@ -234,6 +306,16 @@ export const AdminApplicationsPage: React.FC = () => {
               <option value="Pathologist">Forensic Pathologist</option>
               <option value="Radiographer">CT Radiographer</option>
             </select>
+
+            <button
+              onClick={fetchApplications}
+              disabled={isLoading}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              title="Refresh applications"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
           </div>
         </div>
 
@@ -252,7 +334,16 @@ export const AdminApplicationsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredApplicants.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center text-slate-400 font-semibold text-xs">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
+                        <span>Loading applications from database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredApplicants.length > 0 ? (
                   filteredApplicants.map((app) => (
                     <tr key={app.id} className="hover:bg-amber-50/20 transition-colors">
                       <td className="py-4 px-4 text-center">
@@ -412,10 +503,25 @@ export const AdminApplicationsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <button className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 text-amber-400 font-bold rounded-xl text-xs hover:bg-slate-800 transition-colors">
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download CV</span>
-                </button>
+                {selectedApplicant.cvFileUrl ? (
+                  <a
+                    href={selectedApplicant.cvFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 text-amber-400 font-bold rounded-xl text-xs hover:bg-slate-800 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download CV</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => alert('No CV document uploaded for this applicant.')}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs cursor-not-allowed"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>No CV</span>
+                  </button>
+                )}
               </div>
 
               {/* Rejection reason if already rejected */}

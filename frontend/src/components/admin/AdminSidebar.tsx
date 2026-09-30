@@ -21,6 +21,7 @@ import {
 
 import { useDiscussions } from '../../context/DiscussionsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCourse } from '../../context/CourseContext';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -32,6 +33,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const navigate = useNavigate();
   const { discussions } = useDiscussions();
   const { logout } = useAuth();
+  const { getPendingSubmissionsCount } = useCourse();
+  const pendingSubmissions = getPendingSubmissionsCount();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -45,10 +48,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
 
   const adminNav: NavItem[] = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Applications', path: '/admin/applications', icon: UserCheck },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion },
+    { name: 'Assignment Submissions', path: '/admin/assignments', icon: ClipboardList, badge: pendingSubmissions > 0 ? String(pendingSubmissions) : undefined },
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
@@ -74,7 +77,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     }
   };
 
-  const isQuestionBankActive = location.pathname.startsWith('/admin/question-bank');
+  const isRouteActive = (path: string) => {
+    if (path === '/admin/dashboard') {
+      return location.pathname === '/admin/dashboard';
+    }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
   return (
     <>
@@ -111,9 +119,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
             <nav className="space-y-1">
               {adminNav.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.path === '/admin/question-bank'
-                  ? isQuestionBankActive
-                  : location.pathname === item.path;
+                const isActive = isRouteActive(item.path);
 
                 return (
                   <NavLink
@@ -162,7 +168,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
             <nav className="space-y-1">
               {accountNav.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = isRouteActive(item.path);
 
                 return (
                   <NavLink

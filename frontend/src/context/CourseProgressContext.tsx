@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { type CourseModule, MOCK_MODULES } from '../types/dashboard';
+import React, { createContext, useContext, ReactNode } from 'react';
 import type { ModuleAssessment, AssessmentResult } from '../types/assessment';
 import { MOCK_ASSESSMENTS } from '../data/mockAssessments';
+import { useCourse } from './CourseContext';
 
 interface CourseProgressContextType {
-  modules: CourseModule[];
-  toggleLessonCompletion: (moduleId: string, lessonId: string) => void;
+  modules: any[];
   isAssessmentUnlocked: (moduleId: string) => boolean;
   getModuleAssessment: (moduleId: string) => ModuleAssessment | undefined;
   saveAssessmentResult: (result: AssessmentResult) => void;
@@ -15,67 +14,43 @@ interface CourseProgressContextType {
 const CourseProgressContext = createContext<CourseProgressContextType | undefined>(undefined);
 
 export const CourseProgressProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [modules, setModules] = useState<CourseModule[]>(MOCK_MODULES);
-  const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>({});
+  const {
+    activeCourse,
+    isModuleAssessmentUnlocked,
+    saveAssessmentResult,
+    getAssessmentResult,
+    completedTopicIds
+  } = useCourse();
 
-  const toggleLessonCompletion = (moduleId: string, lessonId: string) => {
-    setModules((prev) =>
-      prev.map((mod) => {
-        if (mod.id === moduleId) {
-          const updatedLessons = mod.lessons.map((les) => {
-            if (les.id === lessonId) {
-              const nextStatus = les.status === 'completed' ? 'active' : 'completed';
-              return { ...les, status: nextStatus as any };
-            }
-            return les;
-          });
-
-          const completedCount = updatedLessons.filter((l) => l.status === 'completed').length;
-          const totalCount = updatedLessons.length;
-          const allCompleted = completedCount === totalCount;
-          const progressPercent = Math.round((completedCount / totalCount) * 100);
-
-          return {
-            ...mod,
-            lessons: updatedLessons,
-            completedLessons: completedCount,
-            progressPercent,
-            status: allCompleted ? 'completed' : (progressPercent > 0 ? 'in_progress' : 'locked')
-          };
-        }
-        return mod;
-      })
-    );
-  };
-
-  const isAssessmentUnlocked = (moduleId: string): boolean => {
-    const mod = modules.find((m) => m.id === moduleId);
-    if (!mod) return false;
-    // Condition: EVERY required topic in that module must be completed
-    return mod.completedLessons === mod.lessonsCount && mod.lessonsCount > 0;
-  };
+  const modules = (activeCourse?.modules || []).map((m) => {
+    const topicsCount = m.topics.length;
+    const completedCount = m.topics.filter((t) => Boolean(completedTopicIds[t.id])).length;
+    return {
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      duration: m.duration,
+      moduleNumber: m.moduleNumber,
+      completedLessons: completedCount,
+      lessonsCount: topicsCount,
+      progressPercent: topicsCount > 0 ? Math.round((completedCount / topicsCount) * 100) : 0,
+      lessons: m.topics.map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: completedTopicIds[t.id] ? 'completed' : 'active'
+      }))
+    };
+  });
 
   const getModuleAssessment = (moduleId: string): ModuleAssessment | undefined => {
-    return MOCK_ASSESSMENTS[moduleId];
-  };
-
-  const saveAssessmentResult = (result: AssessmentResult) => {
-    setAssessmentResults((prev) => ({
-      ...prev,
-      [result.moduleId]: result
-    }));
-  };
-
-  const getAssessmentResult = (moduleId: string): AssessmentResult | undefined => {
-    return assessmentResults[moduleId];
+    return MOCK_ASSESSMENTS[moduleId] || MOCK_ASSESSMENTS['mod-1'];
   };
 
   return (
     <CourseProgressContext.Provider
       value={{
         modules,
-        toggleLessonCompletion,
-        isAssessmentUnlocked,
+        isAssessmentUnlocked: isModuleAssessmentUnlocked,
         getModuleAssessment,
         saveAssessmentResult,
         getAssessmentResult

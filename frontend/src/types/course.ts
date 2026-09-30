@@ -1,15 +1,43 @@
-export type ContentType = 'description' | 'video';
+export type ContentType = 'description' | 'theory' | 'video' | 'assignment';
 
 export interface Topic {
   id: string;
   title: string;
   description: string;
   contentType: ContentType;
-  content?: string; // For text / description topics
+  content?: string; // For text / theory topics
   videoUrl?: string; // For video topics
+  requiredWatchPercentage?: number; // Default 90% for video topics
+  assignmentInstructions?: string; // For assignment topics
+  submissionInstructions?: string; // For assignment topics
+  referenceAttachmentUrl?: string; // Optional reference file for assignment
+  referenceAttachmentName?: string;
   thumbnail?: string;
   order: number;
   status: 'draft' | 'published';
+}
+
+export type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface AssignmentSubmission {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseName: string;
+  moduleId: string;
+  moduleTitle: string;
+  topicId: string;
+  topicTitle: string;
+  submittedAt: string;
+  status: SubmissionStatus;
+  assignmentInstructions?: string;
+  studentResponseText?: string;
+  uploadedFileUrl?: string;
+  uploadedFileName?: string;
+  adminFeedback?: string;
+  reviewedAt?: string;
 }
 
 export interface CourseModule {
@@ -113,8 +141,10 @@ export const INITIAL_COURSES: Course[] = [
             id: 't-5',
             title: 'Multi-Planar Reconstruction (MPR) Hands-on PACS Exercise',
             description: 'Interactive PACS exercise for coronal, sagittal, and axial MPR reformations.',
-            contentType: 'video',
-            videoUrl: '/autopsy.mp4',
+            contentType: 'assignment',
+            assignmentInstructions: 'Review the provided PMCT dataset for metallic artifact reduction. Perform coronal and sagittal MPR reformations and submit a summary of your findings including Hounsfield unit measurements and artifact mitigation strategy.',
+            submissionInstructions: 'Type your clinical observations and findings in the response field below. Optionally attach a PDF report or annotated screenshot.',
+            referenceAttachmentName: 'MPR_Reconstruction_Guidelines.pdf',
             order: 2,
             status: 'published'
           },

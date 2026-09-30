@@ -26,8 +26,12 @@ type ExamStage = 'intro' | 'taking' | 'confirm_modal' | 'result';
 
 export const FinalExamPage: React.FC = () => {
   const navigate = useNavigate();
-  const { activeCourse } = useCourse();
-  const { getPublishedExamByCourseId, finalExams } = useFinalExams();
+  const { activeCourse, completedTopicIds } = useCourse();
+  const { getPublishedExamByCourseId, finalExams, saveStudentExamResult } = useFinalExams();
+
+  const allTopics = activeCourse?.modules.flatMap((m) => m.topics) || [];
+  const completedTopicsCount = allTopics.filter((t) => Boolean(completedTopicIds[t.id])).length;
+  const courseCompleted = allTopics.length > 0 && completedTopicsCount === allTopics.length;
 
   const publishedExam = getPublishedExamByCourseId(activeCourse?.id) || finalExams.find(e => e.status === 'published');
 
@@ -232,10 +236,19 @@ export const FinalExamPage: React.FC = () => {
     const totalPossibleMarks = publishedExam.totalMarks || 1;
     const calcPercentage = Math.round((earnedMarks / totalPossibleMarks) * 100);
     const passBenchmark = publishedExam.passPercentage || 70;
+    const isPassed = calcPercentage >= passBenchmark;
 
     setScore(earnedMarks);
     setPercentage(calcPercentage);
-    setPassed(calcPercentage >= passBenchmark);
+    setPassed(isPassed);
+
+    saveStudentExamResult({
+      scorePercentage: calcPercentage,
+      earnedMarks,
+      totalMarks: totalPossibleMarks,
+      passed: isPassed
+    });
+
     exitFullscreen();
     setExamStage('result');
   };
@@ -297,10 +310,26 @@ export const FinalExamPage: React.FC = () => {
               </ul>
             </div>
 
+            {!courseCompleted && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-800 font-bold">
+                <div className="flex items-center space-x-2">
+                  <Lock className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>Course Modules Incomplete: You must complete 100% of course topics to unlock and start the Final Examination.</span>
+                </div>
+                <button
+                  onClick={() => navigate('/my-course')}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold transition-colors shrink-0"
+                >
+                  Go to My Course
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-end pt-2">
               <button
                 onClick={handleStartExam}
-                className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-2xl text-sm transition-colors shadow-md inline-flex items-center space-x-2"
+                disabled={!courseCompleted}
+                className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:hover:bg-amber-500 text-slate-950 font-black rounded-2xl text-sm transition-colors shadow-md inline-flex items-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
               >
                 <Maximize2 className="w-4 h-4" />
                 <span>Start Final Exam (Full Screen)</span>

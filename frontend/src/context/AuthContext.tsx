@@ -20,6 +20,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUser: (updatedFields: Partial<User>) => void;
+  uploadAvatar: (file: File) => Promise<string>;
+  removeAvatar: () => Promise<void>;
+  updateProfile: (profileData: { fullName?: string; organization?: string; title?: string }) => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,10 +50,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(res.data.user);
         setStoredUser(res.data.user);
       }
-    } catch {
-      clearAuthToken();
-      setUser(null);
-      setToken(null);
+    } catch (err: any) {
+      // Only clear credentials if backend explicitly rejected with 401 or 403
+      if (err?.status === 401 || err?.status === 403) {
+        clearAuthToken();
+        setUser(null);
+        setToken(null);
+      } else {
+        console.warn('Could not verify session with /auth/me, keeping local session:', err?.message || err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -103,6 +112,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const merged = { ...prev, ...updatedFields };
+      setStoredUser(merged);
+      return merged;
+    });
+  };
+
+  const uploadAvatar = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const res = await api.upload('/auth/avatar', formData);
+    const { user: updatedUser, avatarUrl } = res.data;
+
+    setUser(updatedUser);
+    setStoredUser(updatedUser);
+    return avatarUrl;
+  };
+
+  const removeAvatar = async (): Promise<void> => {
+    const res = await api.delete('/auth/avatar');
+    const { user: updatedUser } = res.data;
+
+    setUser(updatedUser);
+    setStoredUser(updatedUser);
+  };
+
+  const updateProfile = async (profileData: {
+    fullName?: string;
+    organization?: string;
+    title?: string;
+  }): Promise<User> => {
+    const res = await api.put('/auth/profile', profileData);
+    const { user: updatedUser } = res.data;
+
+    setUser(updatedUser);
+    setStoredUser(updatedUser);
+    return updatedUser;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -114,6 +165,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         refreshUser,
+        updateUser,
+        uploadAvatar,
+        removeAvatar,
+        updateProfile,
       }}
     >
       {children}

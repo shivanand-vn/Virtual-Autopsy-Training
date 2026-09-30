@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import https from 'https';
 import { env } from '../config/env.js';
 
 /**
@@ -65,7 +66,8 @@ export async function createBunnyVideo(title: string): Promise<string> {
 }
 
 /**
- * Upload binary video buffer to Bunny Stream
+ * Upload binary video buffer to Bunny Stream using native https.request
+ * Avoids Node.js global fetch (Undici) 5-minute headers timeout on large (70-100MB) video uploads
  */
 export async function uploadBunnyVideoBuffer(videoId: string, videoBuffer: Buffer): Promise<void> {
   const libraryId = env.BUNNY_STREAM_LIBRARY_ID;
@@ -75,17 +77,95 @@ export async function uploadBunnyVideoBuffer(videoId: string, videoBuffer: Buffe
     throw new Error('Bunny Stream Library ID or API Key is missing in environment variables');
   }
 
-  const response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`, {
-    method: 'PUT',
-    headers: {
-      AccessKey: apiKey,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: videoBuffer,
-  });
+  return new Promise((resolve, reject) => {
+    const options: https.RequestOptions = {
+      hostname: 'video.bunnycdn.com',
+      port: 443,
+      path: `/library/${libraryId}/videos/${videoId}`,
+      method: 'PUT',
+      headers: {
+        AccessKey: apiKey,
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': videoBuffer.length,
+      },
+    };
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to upload video stream to Bunny.net: ${errorText}`);
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Failed to upload video stream (HTTP ${res.statusCode}): ${responseBody}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(new Error(`Video upload stream connection error: ${err.message}`));
+    });
+
+    // 30 minutes timeout for large video uploads over broadband
+    req.setTimeout(30 * 60 * 1000, () => {
+      req.destroy(new Error('Video upload timed out after 30 minutes'));
+    });
+
+    // Stream the binary buffer in 256KB chunks to respect socket backpressure
+    const chunkSize = 256 * 1024;
+    let offset = 0;
+
+    function writeChunk() {
+      let ok = true;
+      while (offset < videoBuffer.length && ok) {
+        const nextOffset = Math.min(offset + chunkSize, videoBuffer.length);
+        const chunk = videoBuffer.subarray(offset, nextOffset);
+        offset = nextOffset;
+
+        if (offset < videoBuffer.length) {
+          ok = req.write(chunk);
+        } else {
+          req.end(chunk);
+          return;
+        }
+      }
+
+      if (offset < videoBuffer.length) {
+        req.once('drain', writeChunk);
+      }
+    }
+
+    writeChunk();
+  });
+}
+
+/**
+ * Delete a video entry from Bunny Stream library via REST API
+ */
+export async function deleteBunnyVideo(videoId: string): Promise<boolean> {
+  const libraryId = env.BUNNY_STREAM_LIBRARY_ID;
+  const apiKey = env.BUNNY_STREAM_API_KEY;
+
+  if (!libraryId || !apiKey || !videoId) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`, {
+      method: 'DELETE',
+      headers: {
+        AccessKey: apiKey,
+        Accept: 'application/json',
+      },
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.warn(`Failed to delete Bunny video ${videoId}:`, err);
+    return false;
   }
 }
+

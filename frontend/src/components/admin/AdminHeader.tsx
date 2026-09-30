@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bell, Menu } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface AdminHeaderProps {
   onMenuToggle?: () => void;
@@ -13,6 +14,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   subtitle = 'Dashboard'
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
+  const { user } = useAuth();
+
+  const adminName = user?.fullName || 'System Administrator';
+  const adminInitials = user?.fullName
+    ? user.fullName
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : 'SA';
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
@@ -63,13 +75,22 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         {/* Admin Profile Info Pill */}
         <div className="flex items-center space-x-3 p-1.5 pl-3.5 bg-slate-50 border border-slate-200/80 rounded-full">
           <span className="text-xs font-bold text-[#0A192F] hidden sm:inline-block">
-            System Administrator
+            {adminName}
           </span>
-          <div className="w-8 h-8 rounded-full bg-[#0A192F] text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
-            SA
-          </div>
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={adminName}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-amber-400/60 shadow-xs shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-[#0A192F] text-amber-400 font-bold text-xs flex items-center justify-center shrink-0">
+              {adminInitials}
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
 };
+

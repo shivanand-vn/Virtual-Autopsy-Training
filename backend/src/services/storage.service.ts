@@ -1,5 +1,5 @@
 import { uploadToR2 } from './r2.service.js';
-import { uploadToCloudinary } from './cloudinary.service.js';
+import { uploadToCloudinary, deleteFromCloudinary } from './cloudinary.service.js';
 import { env } from '../config/env.js';
 
 /**
@@ -41,4 +41,15 @@ export async function uploadDocument(
   // 3. Fallback mock URL for local development
   const sanitized = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
   return `/uploads/${folder}/${sanitized}`;
+}
+
+export async function deleteDocument(fileUrlOrKey: string): Promise<boolean> {
+  if (!fileUrlOrKey) return false;
+
+  // 1. If it's a Cloudinary asset or URL
+  if (fileUrlOrKey.includes('cloudinary.com') || (env.CLOUDINARY_CLOUD_NAME && !fileUrlOrKey.startsWith('http'))) {
+    return await deleteFromCloudinary(fileUrlOrKey);
+  }
+
+  return false;
 }

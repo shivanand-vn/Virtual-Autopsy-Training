@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   User,
   Mail,
@@ -10,22 +10,32 @@ import {
   Lock,
   Camera,
   MapPin,
-  FileText
+  FileText,
+  Loader2,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { useAuth } from '../../context/AuthContext';
 import { MOCK_ADMIN } from '../../types/admin';
 
 export const AdminProfilePage: React.FC = () => {
-  const [name, setName] = useState(MOCK_ADMIN.name);
-  const [email, setEmail] = useState(MOCK_ADMIN.email);
-  const [institution, setInstitution] = useState('Virtual Autopsy Training Platform');
-  const [location, setLocation] = useState('Global Administrator');
+  const { user, uploadAvatar, removeAvatar, updateProfile } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [name, setName] = useState(user?.fullName || MOCK_ADMIN.name);
+  const [email, setEmail] = useState(user?.email || MOCK_ADMIN.email);
+  const [institution, setInstitution] = useState(user?.organization || 'Virtual Autopsy Training Platform');
+  const [location, setLocation] = useState(user?.title || 'Global Administrator');
   const [bio, setBio] = useState(
     'Platform Administrator for Virtual Autopsy Global Online Training.'
   );
-  const [avatar, setAvatar] = useState(MOCK_ADMIN.avatar);
 
+  const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Password fields state
@@ -34,10 +44,87 @@ export const AdminProfilePage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      if (user.fullName) setName(user.fullName);
+      if (user.email) setEmail(user.email);
+      if (user.organization) setInstitution(user.organization);
+      if (user.title) setLocation(user.title);
+    }
+  }, [user]);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    e.target.value = '';
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      setErrorMessage('Please select a valid image file (JPEG, PNG, WEBP, or GIF).');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setErrorMessage('Image file size must be less than 8 MB.');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setErrorMessage('');
+      await uploadAvatar(file);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err: any) {
+      console.error('Avatar upload error:', err);
+      setErrorMessage(err.message || 'Failed to upload image.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!user?.avatar) return;
+    if (!window.confirm('Are you sure you want to remove your profile photo?')) return;
+
+    try {
+      setIsRemoving(true);
+      setErrorMessage('');
+      await removeAvatar();
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err: any) {
+      console.error('Avatar removal error:', err);
+      setErrorMessage(err.message || 'Failed to remove photo.');
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3500);
+    if (!name.trim()) {
+      setErrorMessage('Full name cannot be blank.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setErrorMessage('');
+      await updateProfile({
+        fullName: name.trim(),
+        organization: institution.trim(),
+        title: location.trim(),
+      });
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err: any) {
+      console.error('Profile update error:', err);
+      setErrorMessage(err.message || 'Failed to update admin profile.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePasswordUpdate = (e: React.FormEvent) => {
@@ -51,6 +138,13 @@ export const AdminProfilePage: React.FC = () => {
       setConfirmPassword('');
     }, 2000);
   };
+
+  const adminInitials = (name || user?.fullName || 'Admin')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <AdminLayout title="Admin Profile & Security" subtitle="Profile">
@@ -66,31 +160,66 @@ export const AdminProfilePage: React.FC = () => {
           </div>
         )}
 
+        {errorMessage && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage('')}
+              className="text-[11px] text-rose-600 hover:text-rose-800 font-bold underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* Profile Header Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6 text-center sm:text-left">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleAvatarChange}
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+          />
+
           <div className="relative group shrink-0">
-            <img
-              src={avatar}
-              alt={name}
-              className="w-24 h-24 rounded-full object-cover ring-4 ring-amber-400/50 shadow-md"
-            />
-            <button
-              title="Change Profile Photo"
-              onClick={() => {
-                const newPhoto = prompt('Enter image URL for profile photo:', avatar);
-                if (newPhoto) setAvatar(newPhoto);
-              }}
-              className="absolute bottom-0 right-0 p-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full shadow-md transition-transform group-hover:scale-110"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={name}
+                className="w-24 h-24 rounded-full object-cover ring-4 ring-amber-400/50 shadow-md"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-[#0A192F] text-amber-400 font-extrabold text-3xl flex items-center justify-center ring-4 ring-amber-400/50 shadow-md">
+                {adminInitials}
+              </div>
+            )}
+
+            {isUploading ? (
+              <div className="absolute inset-0 rounded-full bg-slate-900/60 backdrop-blur-xs flex items-center justify-center">
+                <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
+              </div>
+            ) : (
+              <button
+                type="button"
+                title="Upload Profile Photo"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || isRemoving}
+                className="absolute bottom-0 right-0 p-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full shadow-md transition-transform group-hover:scale-110 cursor-pointer disabled:opacity-50"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-2xl font-black text-[#0A192F]">{name}</h2>
-                <p className="text-xs font-bold text-amber-700 mt-0.5">{MOCK_ADMIN.role}</p>
+                <p className="text-xs font-bold text-amber-700 mt-0.5">{user?.role || MOCK_ADMIN.role}</p>
               </div>
               <span className="inline-flex items-center space-x-1 text-xs px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-full self-center sm:self-auto">
                 <ShieldCheck className="w-3.5 h-3.5 mr-1" />
@@ -98,8 +227,41 @@ export const AdminProfilePage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed max-w-xl">{bio}</p>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || isRemoving}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                ) : (
+                  <Camera className="w-3.5 h-3.5 text-amber-600" />
+                )}
+                <span>{isUploading ? 'Uploading photo...' : 'Change Photo'}</span>
+              </button>
+
+              {user?.avatar && (
+                <button
+                  type="button"
+                  onClick={handleAvatarRemove}
+                  disabled={isUploading || isRemoving}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isRemoving ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isRemoving ? 'Removing...' : 'Remove Photo'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
+
 
         {/* Editable Form & Security Settings Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -181,10 +343,11 @@ export const AdminProfilePage: React.FC = () => {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3">
                 <button
                   type="submit"
-                  className="inline-flex items-center space-x-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 px-6 py-2.5 rounded-xl shadow-md transition-all active:scale-95"
+                  disabled={isSaving}
+                  className="inline-flex items-center space-x-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 px-6 py-2.5 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Save Profile Changes</span>
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>{isSaving ? 'Saving...' : 'Save Profile Changes'}</span>
                 </button>
               </div>
             </form>

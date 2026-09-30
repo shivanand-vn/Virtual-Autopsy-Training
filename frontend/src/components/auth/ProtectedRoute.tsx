@@ -83,6 +83,18 @@ interface PublicOnlyRouteProps {
 export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({ children }) => {
   const { user, token, isLoading } = useAuth();
   const storedToken = getAuthToken();
+  const storedUser = getStoredUser();
+
+  const activeUser = user || storedUser;
+  const activeToken = token || storedToken;
+
+  // If already authenticated via context or stored credentials, redirect immediately
+  if (activeUser && activeToken) {
+    if (activeUser.role === 'ADMIN') {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
 
   if (isLoading) {
     return (
@@ -95,14 +107,6 @@ export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({ children }) =>
         </div>
       </div>
     );
-  }
-
-  // If already authenticated, redirect to appropriate portal
-  if (user && token && storedToken) {
-    if (user.role === 'ADMIN') {
-      return <Navigate to="/admin/dashboard" replace />;
-    }
-    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

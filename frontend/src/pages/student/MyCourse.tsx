@@ -363,24 +363,46 @@ export const MyCoursePage: React.FC = () => {
                 </div>
 
                 <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                  <img
-                    src="https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"
-                    alt="PMCT DICOM Stream"
-                    className="w-full h-full object-cover opacity-80"
-                  />
+                  {currentTopic.videoUrl ? (
+                    currentTopic.videoUrl.includes('iframe.mediadelivery.net') || currentTopic.videoUrl.includes('/embed/') ? (
+                      <iframe
+                        src={`${currentTopic.videoUrl}${currentTopic.videoUrl.includes('?') ? '&' : '?'}autoplay=false`}
+                        loading="lazy"
+                        className="w-full h-full border-0"
+                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={currentTopic.videoUrl}
+                        controls
+                        className="w-full h-full object-contain bg-black"
+                      >
+                        Your browser does not support HTML5 video playback.
+                      </video>
+                    )
+                  ) : (
+                    <>
+                      <img
+                        src="https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"
+                        alt="PMCT DICOM Stream"
+                        className="w-full h-full object-cover opacity-80"
+                      />
 
-                  <div className="absolute top-4 left-4 space-y-1 text-left font-mono text-[11px] max-w-[90%]">
-                    <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded text-amber-400 font-bold inline-block border border-amber-500/30 truncate max-w-full">
-                      {currentTopic.title.toUpperCase()}
-                    </div>
-                  </div>
+                      <div className="absolute top-4 left-4 space-y-1 text-left font-mono text-[11px] max-w-[90%]">
+                        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded text-amber-400 font-bold inline-block border border-amber-500/30 truncate max-w-full">
+                          {currentTopic.title.toUpperCase()}
+                        </div>
+                      </div>
 
-                  <button
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="w-16 h-16 rounded-full bg-amber-500/90 text-slate-950 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-                  </button>
+                      <button
+                        onClick={() => setIsPlaying(!isPlaying)}
+                        className="w-16 h-16 rounded-full bg-amber-500/90 text-slate-950 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

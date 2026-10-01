@@ -269,17 +269,18 @@ async function main() {
       data: {
         courseId: course.id,
         title: examTitle,
-        description: 'Comprehensive 60-minute board certification assessment covering PMCT trauma, imaging physics, PMCTA contrast interpretation, and legal reporting.',
-        durationMinutes: 60,
-        totalMarks: 50,
-        passPercentage: 75,
+        description: 'Comprehensive accredited fellowship examination covering PMCT trauma, imaging physics, ballistic tracting, and decomposition pathology.',
+        durationMinutes: 45,
+        totalMarks: 60,
+        passPercentage: 70, // Strictly 70% threshold
+        maxAttempts: 3,
         randomizeQuestions: true,
         status: ExamStatus.PUBLISHED,
       },
     });
     console.log(`✅ Created Final Exam: ${exam.title} (ID: ${exam.id})`);
 
-    // Add sample questions with explicit option IDs matching correct answers
+    // --- QUESTION SET 1 (Attempt 1) ---
     const q1 = await prisma.question.create({
       data: {
         type: QuestionType.SINGLE_CHOICE,
@@ -339,15 +340,77 @@ async function main() {
       },
     });
 
-    // Link questions to exam
+    // --- QUESTION SET 2 (Attempt 2) ---
+    const q4 = await prisma.question.create({
+      data: {
+        type: QuestionType.SINGLE_CHOICE,
+        text: 'What is the characteristic appearance of metallic lead bullet fragmentation on PMCT in high-velocity gunshot trauma?',
+        marks: 10,
+        explanation: 'Unjacketed lead bullets fragment upon bone impact, producing a path of radiopaque specks termed a "lead snowstorm".',
+        order: 1,
+        correctAnswer: 'opt-2',
+        options: {
+          create: [
+            { id: 'opt-1', text: 'Homogeneous hypodense fluid tract (-20 HU)', order: 1 },
+            { id: 'opt-2', text: 'Diffuse fine radiopaque high-density flecks along the ballistic wound tract ("lead snowstorm")', order: 2 },
+            { id: 'opt-3', text: 'Single intact sphere without any streak artifact', order: 3 },
+            { id: 'opt-4', text: 'Complete absorption of all radiation without visualization', order: 4 },
+          ],
+        },
+      },
+    });
+
+    const q5 = await prisma.question.create({
+      data: {
+        type: QuestionType.SINGLE_CHOICE,
+        text: 'How can an examiner differentiate post-mortem hypostasis (livor mortis) in the lungs from antemortem aspiration pneumonia on PMCT?',
+        marks: 10,
+        explanation: 'Post-mortem hypostasis produces bilateral dependent ground-glass attenuation and consolidation in dorsal lung segments of a supine body, following gravity.',
+        order: 2,
+        correctAnswer: 'opt-1',
+        options: {
+          create: [
+            { id: 'opt-1', text: 'Hypostasis strictly respects dependent anatomical segments bilaterally in supine positioning', order: 1 },
+            { id: 'opt-2', text: 'Hypostasis displays air bronchograms in non-dependent anterior segments', order: 2 },
+            { id: 'opt-3', text: 'Aspiration pneumonia never produces bilateral changes', order: 3 },
+            { id: 'opt-4', text: 'Hypostasis has negative Hounsfield units (-800 HU)', order: 4 },
+          ],
+        },
+      },
+    });
+
+    // --- QUESTION SET 3 (Attempt 3) ---
+    const q6 = await prisma.question.create({
+      data: {
+        type: QuestionType.SINGLE_CHOICE,
+        text: 'A circular ring fracture encircling the foramen magnum on PMCT is most commonly caused by which mechanical trauma mechanism?',
+        marks: 10,
+        explanation: 'Ring fractures around the foramen magnum result from severe axial loading driving the occipital condyles against the atlas (vertex impact or landing from heights onto feet/buttocks).',
+        order: 1,
+        correctAnswer: 'opt-1',
+        options: {
+          create: [
+            { id: 'opt-1', text: 'Axial force transmission through the spine (falls from height onto feet or vertex impact)', order: 1 },
+            { id: 'opt-2', text: 'Low-velocity lateral cheek abrasion', order: 2 },
+            { id: 'opt-3', text: 'Isolated thermal radiant heat exposure', order: 3 },
+            { id: 'opt-4', text: 'Ante-mortem hypertensive stroke', order: 4 },
+          ],
+        },
+      },
+    });
+
+    // Link questions to exam across Set 1, Set 2, Set 3
     await prisma.examQuestion.createMany({
       data: [
-        { examId: exam.id, questionId: q1.id, order: 1 },
-        { examId: exam.id, questionId: q2.id, order: 2 },
-        { examId: exam.id, questionId: q3.id, order: 3 },
+        { examId: exam.id, questionId: q1.id, order: 1, setNumber: 1 },
+        { examId: exam.id, questionId: q2.id, order: 2, setNumber: 1 },
+        { examId: exam.id, questionId: q3.id, order: 3, setNumber: 1 },
+        { examId: exam.id, questionId: q4.id, order: 1, setNumber: 2 },
+        { examId: exam.id, questionId: q5.id, order: 2, setNumber: 2 },
+        { examId: exam.id, questionId: q6.id, order: 1, setNumber: 3 },
       ],
     });
-    console.log(`  ➕ Linked 3 certification questions to Exam`);
+    console.log(`  ➕ Linked 6 certification questions across Set 1, Set 2, and Set 3 to Final Exam`);
   }
 
   // 6. Automatically enroll sample student in Course with initial progress

@@ -15,3 +15,9 @@ frontend/dist
 .vscode
 .idea
 *.local
+
+# Environment & Secrets
+.env
+.env.*
+env
+

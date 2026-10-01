@@ -46,7 +46,7 @@ export const AdminCourseForm: React.FC = () => {
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [topicTitle, setTopicTitle] = useState('');
   const [topicDescription, setTopicDescription] = useState('');
-  const [topicContentType, setTopicContentType] = useState<ContentType>('description');
+  const [topicContentType, setTopicContentType] = useState<ContentType>('theory');
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
   const [topicThumbnail, setTopicThumbnail] = useState('');
@@ -167,7 +167,7 @@ export const AdminCourseForm: React.FC = () => {
     setEditingTopicId(null);
     setTopicTitle('');
     setTopicDescription('');
-    setTopicContentType('description');
+    setTopicContentType('theory');
     setTopicContent('');
     setTopicVideoUrl('https://example.com/videos/sample-lesson.mp4');
     setTopicThumbnail('');
@@ -212,7 +212,7 @@ export const AdminCourseForm: React.FC = () => {
                   title: topicTitle,
                   description: topicDescription,
                   contentType: topicContentType,
-                  content: topicContentType === 'description' ? topicContent : undefined,
+                  content: topicContentType === 'theory' ? topicContent : undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
                   thumbnail: topicThumbnail || undefined,
                   status: topicStatus
@@ -227,7 +227,7 @@ export const AdminCourseForm: React.FC = () => {
               title: topicTitle,
               description: topicDescription,
               contentType: topicContentType,
-              content: topicContentType === 'description' ? topicContent : undefined,
+              content: topicContentType === 'theory' ? topicContent : undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
               thumbnail: topicThumbnail || undefined,
               order: nextOrder,
@@ -546,7 +546,7 @@ export const AdminCourseForm: React.FC = () => {
                                           ) : (
                                             <>
                                               <FileText className="w-3 h-3 text-slate-500" />
-                                              <span>Description</span>
+                                              <span>Theory</span>
                                             </>
                                           )}
                                         </span>
@@ -743,7 +743,7 @@ export const AdminCourseForm: React.FC = () => {
                       onChange={(e) => setTopicContentType(e.target.value as ContentType)}
                       className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
                     >
-                      <option value="description">Description / Text</option>
+                      <option value="theory">Theory / Reading Lesson</option>
                       <option value="video">Video</option>
                     </select>
                   </div>
@@ -773,9 +773,9 @@ export const AdminCourseForm: React.FC = () => {
                 </div>
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}
-                {topicContentType === 'description' ? (
+                {topicContentType === 'theory' ? (
                   <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Learning Content (Text / Educational Lesson)</label>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Theory Content (Reading Text / Educational Lesson) *</label>
                     <textarea
                       value={topicContent}
                       onChange={(e) => setTopicContent(e.target.value)}

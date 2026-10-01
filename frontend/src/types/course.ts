@@ -1,15 +1,47 @@
-export type ContentType = 'description' | 'video';
+export type ContentType = 'video' | 'theory';
 
 export interface Topic {
   id: string;
   title: string;
   description: string;
   contentType: ContentType;
-  content?: string; // For text / description topics
+  content?: string; // For theory / reading topics
   videoUrl?: string; // For video topics
   thumbnail?: string;
   order: number;
   status: 'draft' | 'published';
+}
+
+export interface ModuleAssignment {
+  id: string;
+  moduleId: string;
+  title: string;
+  description: string;
+  instructions: string;
+  totalMarks: number;
+  dueDate?: string;
+  templateFileName?: string;
+  templateFileUrl?: string;
+  submissionStatus: 'pending' | 'submitted' | 'graded';
+  submittedFileName?: string;
+  submittedFileUrl?: string;
+  submittedAt?: string;
+  score?: number;
+  feedback?: string;
+}
+
+export interface ModuleTest {
+  id: string;
+  moduleId: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  totalQuestions: number;
+  passingScorePercent: number; // Standard 70% passing threshold
+  unlimitedRetakes: boolean; // Always true for module practice tests
+  attemptsCount?: number;
+  bestScorePercent?: number;
+  status?: 'not_attempted' | 'passed' | 'retake_recommended';
 }
 
 export interface CourseModule {
@@ -23,6 +55,8 @@ export interface CourseModule {
   order: number;
   status: 'draft' | 'published';
   topics: Topic[];
+  assignment?: ModuleAssignment;
+  test?: ModuleTest;
 }
 
 export interface Course {
@@ -75,19 +109,44 @@ export const INITIAL_COURSES: Course[] = [
             id: 't-2',
             title: 'Reading Dossier: International Chain of Custody & Admissibility',
             description: 'Legal protocols for digital autopsy admissibility in courtroom proceedings.',
-            contentType: 'description',
+            contentType: 'theory',
+            content: 'Virtual autopsy (PMCT) provides a permanent, tamper-evident digital record. This dossier reviews international chain-of-custody standards, DICOM metadata verification, and admissibility under Daubert/Frye legal frameworks.',
             order: 2,
             status: 'published'
           },
           {
             id: 't-3',
-            title: 'Module 01 Foundational Competency Quiz',
-            description: 'Assessment covering fundamental PMCT concepts.',
-            contentType: 'description',
+            title: 'Theoretical Foundations: Medicolegal Integration & Protocols',
+            description: 'Core concepts governing PMCT deployment in contemporary forensic institutes.',
+            contentType: 'theory',
+            content: 'Comprehensive examination of operational integration: standard scanning protocols, radiation safety in post-mortem suites, and ethical guidelines for non-invasive forensic imaging.',
             order: 3,
             status: 'published'
           }
-        ]
+        ],
+        assignment: {
+          id: 'asgn-mod-1',
+          moduleId: 'mod-1',
+          title: 'Module 01 Case Assignment: Evidentiary Admissibility & Chain-of-Custody Report',
+          description: 'Draft a formal forensic technical statement establishing DICOM metadata integrity and chain-of-custody protocols for PMCT submission in a medicolegal trial.',
+          instructions: 'Review the provided case summary briefing. Complete sections A through D adhering to Daubert/Frye admissibility requirements. Upload your completed report in PDF format (max 10MB).',
+          totalMarks: 100,
+          dueDate: '2026-10-15',
+          templateFileName: 'Forensic_Admissibility_Template_M1.pdf',
+          submissionStatus: 'pending'
+        },
+        test: {
+          id: 'test-mod-1',
+          moduleId: 'mod-1',
+          title: 'Module 01 Foundational Practice Quiz',
+          description: 'Comprehensive self-paced practice quiz assessing PMCT physics, acquisition fundamentals, and medicolegal protocols.',
+          durationMinutes: 20,
+          totalQuestions: 10,
+          passingScorePercent: 70,
+          unlimitedRetakes: true,
+          attemptsCount: 0,
+          status: 'not_attempted'
+        }
       },
       {
         id: 'mod-2',
@@ -120,13 +179,37 @@ export const INITIAL_COURSES: Course[] = [
           },
           {
             id: 't-6',
-            title: 'Module 02 Assessment: MPR Analysis & Artifact Identification',
-            description: 'Evaluation testing artifact recognition and image quality optimization.',
-            contentType: 'description',
+            title: 'PACS Theory: Multi-Planar Orthogonal & Curved Reformations',
+            description: 'Detailed theoretical guide to window widths, window levels, and bone kernel algorithms.',
+            contentType: 'theory',
+            content: 'Multi-planar reformations (MPR) enable orthogonal analysis of complex fracture margins. This theory module outlines optimal window width and level settings for brain, lung, bone, and soft tissue post-mortem analysis.',
             order: 3,
             status: 'published'
           }
-        ]
+        ],
+        assignment: {
+          id: 'asgn-mod-2',
+          moduleId: 'mod-2',
+          title: 'Module 02 Case Assignment: Multi-Planar Orthogonal Reformation Analysis',
+          description: 'Evaluate axial PMCT cross-sections and formulate optimal MPR window width/level protocols for calvarial fracture assessment.',
+          instructions: 'Formulate a windowing guideline sheet for bone kernel vs. soft tissue windowing. Provide sample HU measurements and submit as a PDF case report.',
+          totalMarks: 100,
+          dueDate: '2026-10-22',
+          templateFileName: 'MPR_Reconstruction_Worksheet_M2.pdf',
+          submissionStatus: 'pending'
+        },
+        test: {
+          id: 'test-mod-2',
+          moduleId: 'mod-2',
+          title: 'Module 02 Image Reconstruction & Artifact Quiz',
+          description: 'Practice test covering beam hardening artifacts, dental amalgam scatter reduction, and 3D volume rendering.',
+          durationMinutes: 20,
+          totalQuestions: 10,
+          passingScorePercent: 70,
+          unlimitedRetakes: true,
+          attemptsCount: 0,
+          status: 'not_attempted'
+        }
       },
       {
         id: 'mod-3',
@@ -159,13 +242,37 @@ export const INITIAL_COURSES: Course[] = [
           },
           {
             id: 't-9',
-            title: 'Module 03 Assessment: Traumatology Interpretation',
-            description: 'Trauma analysis exam based on real forensic PMCT case studies.',
-            contentType: 'description',
+            title: 'Traumatology Theory: Beveling, Fracture Propagation & Wound Ballistics',
+            description: 'Forensic pathology principles for discriminating entrance from exit cranial wounds.',
+            contentType: 'theory',
+            content: 'Analysis of internal vs. external beveling in gunshot trauma, distinguishing vital reaction signs on CT, and differentiating ante-mortem blunt force skeletal trauma from post-mortem alterations.',
             order: 3,
             status: 'published'
           }
-        ]
+        ],
+        assignment: {
+          id: 'asgn-mod-3',
+          moduleId: 'mod-3',
+          title: 'Module 03 Case Assignment: Traumatology & Ballistic Defect Mapping',
+          description: 'Perform ballistic wound tract reconstruction and distinguish entrance beveling from exit defect on cranial PMCT.',
+          instructions: 'Using the provided high-resolution orthogonal PMCT slices, map the projectile trajectory vector, evaluate secondary fracture lines, and submit your forensic autopsy addendum.',
+          totalMarks: 100,
+          dueDate: '2026-10-29',
+          templateFileName: 'Ballistic_Traumatology_Report_M3.pdf',
+          submissionStatus: 'pending'
+        },
+        test: {
+          id: 'test-mod-3',
+          moduleId: 'mod-3',
+          title: 'Module 03 Traumatology & Fracture Patterns Quiz',
+          description: 'Self-assessment covering gunshot entrance/exit identification, blunt trauma differentiation, and vital reactions.',
+          durationMinutes: 20,
+          totalQuestions: 10,
+          passingScorePercent: 70,
+          unlimitedRetakes: true,
+          attemptsCount: 0,
+          status: 'not_attempted'
+        }
       },
       {
         id: 'mod-4',
@@ -198,13 +305,37 @@ export const INITIAL_COURSES: Course[] = [
           },
           {
             id: 't-12',
-            title: 'Module 04 Final Competency Examination & Case Review',
-            description: 'Comprehensive final examination covering all 4 core modules.',
-            contentType: 'description',
+            title: 'Decomposition Dynamics & Imaging Pathology Theory',
+            description: 'Theoretical evaluation of fluid sedimentation, putrefactive emphysema, and hypostasis on PMCT.',
+            contentType: 'theory',
+            content: 'Critical guidelines for interpreting intravascular decomposition gas patterns, liver gas sedimentation, and hemoconcentration gradients without misdiagnosing them as ante-mortem pathology.',
             order: 3,
             status: 'published'
           }
-        ]
+        ],
+        assignment: {
+          id: 'asgn-mod-4',
+          moduleId: 'mod-4',
+          title: 'Module 04 Case Assignment: Postmortem Decomposition & Forensic Case Analysis',
+          description: 'Formulate a differential diagnosis differentiating putrefactive intravascular gas from ante-mortem air embolism.',
+          instructions: 'Analyze intravascular gas distribution, organ hypostasis, and fluid sedimentation across thoracic/abdominal PMCT views. Submit your completed differential evaluation report in PDF format.',
+          totalMarks: 100,
+          dueDate: '2026-11-05',
+          templateFileName: 'Decomposition_Artifact_Analysis_M4.pdf',
+          submissionStatus: 'pending'
+        },
+        test: {
+          id: 'test-mod-4',
+          moduleId: 'mod-4',
+          title: 'Module 04 Comprehensive Pathology & Decomposition Quiz',
+          description: 'Evaluate your readiness across all core module competencies, decomposition dynamics, and diagnostic thresholds.',
+          durationMinutes: 20,
+          totalQuestions: 10,
+          passingScorePercent: 70,
+          unlimitedRetakes: true,
+          attemptsCount: 0,
+          status: 'not_attempted'
+        }
       }
     ]
   }

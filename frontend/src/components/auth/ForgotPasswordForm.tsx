@@ -140,6 +140,13 @@ export const ForgotPasswordForm: React.FC = () => {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
+      if (email) {
+        try {
+          localStorage.removeItem(`vat_temp_pwd_${email.toLowerCase().trim()}`);
+        } catch (e) {
+          console.error('Failed to clear temp password flag', e);
+        }
+      }
       setStep(4); // Success state
 
       // Redirect to login after 3 seconds

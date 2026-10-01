@@ -152,7 +152,18 @@ export const AdminExamsPage: React.FC = () => {
                         {getCourseTitle(exam.courseId)}
                       </td>
                       <td className="py-4 px-4 text-center font-bold text-slate-800">
-                        {exam.questions?.length || 0}
+                        <span>
+                          {exam.questionSets
+                            ? (exam.questionSets.set1?.length || 0) +
+                              (exam.questionSets.set2?.length || 0) +
+                              (exam.questionSets.set3?.length || 0)
+                            : exam.questions?.length || 0}
+                        </span>
+                        {exam.questionSets && (
+                          <span className="block text-[10px] text-amber-700 font-extrabold uppercase tracking-wider">
+                            3 Sets
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-center font-bold text-amber-700">
                         {exam.totalMarks || 0} Pts

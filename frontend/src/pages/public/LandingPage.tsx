@@ -101,8 +101,8 @@ export const LandingPage: React.FC = () => {
         ? m.topics.map((t) => ({
           id: t.id,
           title: t.title,
-          duration: t.contentType === 'video' ? 'Video Lesson' : 'Reading Dossier',
-          type: t.contentType === 'video' ? 'video' : 'doc'
+          duration: t.contentType === 'video' ? 'Video Lesson' : 'Theory Lesson',
+          type: t.contentType === 'video' ? 'video' : 'theory'
         }))
         : []
     }))

@@ -9,7 +9,8 @@ import {
   Clock,
   Award,
   FileQuestion,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useFinalExams } from '../../context/FinalExamContext';
@@ -20,6 +21,10 @@ export const AdminExamDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { getFinalExamById, deleteFinalExam, publishFinalExam, unpublishFinalExam } = useFinalExams();
   const { courses } = useCourses();
+
+  const [activeSetTab, setActiveSetTab] = useState<'set1' | 'set2' | 'set3'>('set1');
+  const [uiError, setUiError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const exam = getFinalExamById(examId || '');
 
@@ -42,11 +47,18 @@ export const AdminExamDetailPage: React.FC = () => {
     );
   }
 
-  const [uiError, setUiError] = useState<string | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const course = courses.find(c => c.id === exam.courseId);
   const courseTitle = course ? course.title : exam.courseId;
+
+  // Extract sets
+  const set1 = exam.questionSets?.set1 || exam.questions || [];
+  const set2 = exam.questionSets?.set2 || [];
+  const set3 = exam.questionSets?.set3 || [];
+
+  const activeQuestions =
+    activeSetTab === 'set1' ? set1 : activeSetTab === 'set2' ? set2 : set3;
+
+  const totalQuestionsAllSets = set1.length + set2.length + set3.length;
 
   const handleTogglePublish = () => {
     setUiError(null);
@@ -119,49 +131,47 @@ export const AdminExamDetailPage: React.FC = () => {
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 text-center space-y-4">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full p-6 space-y-4 text-center">
               <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
                 <Trash2 className="w-6 h-6" />
               </div>
-              <div className="space-y-1">
+              <div>
                 <h3 className="font-extrabold text-base text-[#0A192F]">Delete Final Exam?</h3>
-                <p className="text-xs text-slate-500">
-                  Are you sure you want to delete <span className="font-bold text-slate-800">"{exam.title}"</span>? This action cannot be undone.
-                </p>
+                <p className="text-xs text-slate-500 mt-1">This action cannot be undone. All candidate attempts linked to this exam will be affected.</p>
               </div>
-              <div className="flex items-center justify-center space-x-3 pt-2">
+              <div className="flex items-center space-x-2 pt-2">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  className="w-1/2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDelete}
-                  className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
+                  className="w-1/2 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl"
                 >
-                  Delete
+                  Confirm Delete
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Overview Banner Card */}
+        {/* Exam Overview Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 bg-amber-100 text-amber-900 rounded-full border border-amber-300">
-                {courseTitle}
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                Course: {courseTitle}
               </span>
-              <h2 className="text-xl font-extrabold text-[#0A192F] mt-2">{exam.title}</h2>
+              <h2 className="text-2xl font-black text-[#0A192F]">{exam.title}</h2>
               {exam.description && (
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{exam.description}</p>
+                <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">{exam.description}</p>
               )}
             </div>
 
             <span
-              className={`px-3 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+              className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
                 exam.status === 'published'
                   ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                   : 'bg-slate-100 text-slate-600 border border-slate-200'
@@ -174,36 +184,87 @@ export const AdminExamDetailPage: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Duration</p>
-              <p className="text-sm font-extrabold text-slate-800 mt-0.5">{exam.duration || 60} Mins</p>
+              <p className="text-sm font-extrabold text-slate-800 mt-0.5">{exam.duration || 45} Mins</p>
             </div>
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Questions</p>
-              <p className="text-sm font-extrabold text-slate-800 mt-0.5">{exam.questions?.length || 0} Questions</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Questions</p>
+              <p className="text-sm font-extrabold text-slate-800 mt-0.5">{totalQuestionsAllSets} Qs (3 Sets)</p>
             </div>
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Marks</p>
-              <p className="text-sm font-extrabold text-amber-700 mt-0.5">{exam.totalMarks || 0} Pts</p>
+              <p className="text-sm font-extrabold text-amber-700 mt-0.5">{exam.totalMarks || 60} Pts</p>
             </div>
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pass Benchmark</p>
-              <p className="text-sm font-extrabold text-emerald-600 mt-0.5">{exam.passPercentage || 70}%</p>
+              <p className="text-sm font-extrabold text-emerald-600 mt-0.5">Strict 70% Required</p>
             </div>
           </div>
         </div>
 
-        {/* Questions Inspection Section */}
+        {/* Questions Inspection Section with 3-Set Tabs */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
-          <h3 className="font-extrabold text-base text-[#0A192F] border-b border-slate-100 pb-3">
-            Exam Questions ({exam.questions?.length || 0})
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 gap-2">
+            <h3 className="font-extrabold text-base text-[#0A192F] flex items-center space-x-2">
+              <Layers className="w-5 h-5 text-amber-600" />
+              <span>Multi-Set Examination Bank Inspection</span>
+            </h3>
+            <span className="text-xs text-slate-500 font-bold">
+              3-Attempt Dynamic Question Engine
+            </span>
+          </div>
 
-          {!exam.questions || exam.questions.length === 0 ? (
+          {/* 3 TABS */}
+          <div className="flex border-b border-slate-200 gap-2">
+            <button
+              onClick={() => setActiveSetTab('set1')}
+              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
+                activeSetTab === 'set1'
+                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>Question Set 1 (Attempt 1)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                {set1.length} Qs
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveSetTab('set2')}
+              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
+                activeSetTab === 'set2'
+                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>Question Set 2 (Attempt 2)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                {set2.length} Qs
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveSetTab('set3')}
+              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
+                activeSetTab === 'set3'
+                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>Question Set 3 (Attempt 3 - Final)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                {set3.length} Qs
+              </span>
+            </button>
+          </div>
+
+          {activeQuestions.length === 0 ? (
             <p className="text-xs text-slate-500 font-medium text-center py-6">
-              No questions found in this exam.
+              No questions found in this set.
             </p>
           ) : (
-            <div className="space-y-6">
-              {exam.questions.map((q, idx) => (
+            <div className="space-y-5">
+              {activeQuestions.map((q, idx) => (
                 <div
                   key={q.id}
                   className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3"

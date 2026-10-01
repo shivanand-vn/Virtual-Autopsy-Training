@@ -39,15 +39,20 @@ export async function getAllExams(req: Request, res: Response): Promise<void> {
     });
 
     const sanitizedExams = exams.map((exam) => {
-      const questions = exam.examQuestions.map((eq) => {
+      const allQuestions = exam.examQuestions.map((eq) => {
         const q = eq.question;
+        const setNumber = eq.setNumber || 1;
         if (!isAdmin) {
           // Omit correct answers for students
           const { correctAnswer, correctAnswers, explanation, ...safeQuestion } = q;
-          return { ...safeQuestion, order: eq.order };
+          return { ...safeQuestion, order: eq.order, setNumber };
         }
-        return { ...q, order: eq.order };
+        return { ...q, order: eq.order, setNumber };
       });
+
+      const set1 = allQuestions.filter((q) => q.setNumber === 1);
+      const set2 = allQuestions.filter((q) => q.setNumber === 2);
+      const set3 = allQuestions.filter((q) => q.setNumber === 3);
 
       return {
         id: exam.id,
@@ -57,11 +62,17 @@ export async function getAllExams(req: Request, res: Response): Promise<void> {
         description: exam.description,
         duration: exam.durationMinutes,
         totalMarks: exam.totalMarks,
-        passPercentage: exam.passPercentage,
+        passPercentage: exam.passPercentage || 70,
+        maxAttempts: exam.maxAttempts || 3,
         randomizeQuestions: exam.randomizeQuestions,
         status: exam.status.toLowerCase(),
-        questionsCount: questions.length,
-        questions,
+        questionsCount: allQuestions.length,
+        questions: set1.length > 0 ? set1 : allQuestions,
+        questionSets: {
+          set1: set1.length > 0 ? set1 : allQuestions,
+          set2,
+          set3,
+        },
         createdAt: exam.createdAt,
         updatedAt: exam.updatedAt,
       };
@@ -110,15 +121,20 @@ export async function getExamById(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const questions = exam.examQuestions.map((eq) => {
+    const allQuestions = exam.examQuestions.map((eq) => {
       const q = eq.question;
+      const setNumber = eq.setNumber || 1;
       if (!isAdmin) {
         // Redact grading keys for students
         const { correctAnswer, correctAnswers, explanation, ...safeQuestion } = q;
-        return { ...safeQuestion, order: eq.order };
+        return { ...safeQuestion, order: eq.order, setNumber };
       }
-      return { ...q, order: eq.order };
+      return { ...q, order: eq.order, setNumber };
     });
+
+    const set1 = allQuestions.filter((q) => q.setNumber === 1);
+    const set2 = allQuestions.filter((q) => q.setNumber === 2);
+    const set3 = allQuestions.filter((q) => q.setNumber === 3);
 
     sendSuccess(
       res,
@@ -130,10 +146,16 @@ export async function getExamById(req: Request, res: Response): Promise<void> {
         description: exam.description,
         duration: exam.durationMinutes,
         totalMarks: exam.totalMarks,
-        passPercentage: exam.passPercentage,
+        passPercentage: exam.passPercentage || 70,
+        maxAttempts: exam.maxAttempts || 3,
         randomizeQuestions: exam.randomizeQuestions,
         status: exam.status.toLowerCase(),
-        questions,
+        questions: set1.length > 0 ? set1 : allQuestions,
+        questionSets: {
+          set1: set1.length > 0 ? set1 : allQuestions,
+          set2,
+          set3,
+        },
         createdAt: exam.createdAt,
         updatedAt: exam.updatedAt,
       },
@@ -146,66 +168,81 @@ export async function getExamById(req: Request, res: Response): Promise<void> {
 
 export async function createExam(req: Request, res: Response): Promise<void> {
   try {
-    const { courseId, title, description, duration, passPercentage, status, questions } = req.body;
+    const { courseId, title, description, duration, passPercentage, status, questions, questionSets } = req.body;
 
     if (!courseId || !title) {
       sendError(res, 'Course ID and Exam Title are required', 400);
       return;
     }
 
-    const questionsArray = Array.isArray(questions) ? questions : [];
-    const totalMarks = questionsArray.reduce((acc: number, q: any) => acc + (Number(q.marks) || 1), 0);
+    const set1 = questionSets?.set1 || (Array.isArray(questions) ? questions : []);
+    const set2 = questionSets?.set2 || [];
+    const set3 = questionSets?.set3 || [];
+
+    const totalMarks = Math.max(
+      set1.reduce((sum: number, q: any) => sum + (Number(q.marks) || 10), 0),
+      set2.reduce((sum: number, q: any) => sum + (Number(q.marks) || 10), 0),
+      set3.reduce((sum: number, q: any) => sum + (Number(q.marks) || 10), 0),
+      60
+    );
 
     const newExam = await prisma.finalExam.create({
       data: {
         courseId,
         title,
         description: description || null,
-        durationMinutes: duration ? Number(duration) : 60,
-        totalMarks: totalMarks > 0 ? totalMarks : 100,
-        passPercentage: passPercentage ? Number(passPercentage) : 75,
+        durationMinutes: duration ? Number(duration) : 45,
+        totalMarks,
+        passPercentage: 70, // Strictly 70% threshold
+        maxAttempts: 3,
         status: status === 'published' ? ExamStatus.PUBLISHED : ExamStatus.DRAFT,
       },
     });
 
-    // Create and link questions
-    for (let i = 0; i < questionsArray.length; i++) {
-      const q = questionsArray[i];
-      let qType: QuestionType = QuestionType.SINGLE_CHOICE;
-      if (q.type === 'multiple-response') qType = QuestionType.MULTIPLE_RESPONSE;
-      if (q.type === 'true-false-combination') qType = QuestionType.TRUE_FALSE_COMBINATION;
+    const createAndLinkSet = async (questionsList: any[], setNum: number) => {
+      for (let i = 0; i < questionsList.length; i++) {
+        const q = questionsList[i];
+        let qType: QuestionType = QuestionType.SINGLE_CHOICE;
+        if (q.type === 'multiple-response') qType = QuestionType.MULTIPLE_RESPONSE;
+        if (q.type === 'true-false-combination') qType = QuestionType.TRUE_FALSE_COMBINATION;
 
-      const createdQuestion = await prisma.question.create({
-        data: {
-          type: qType,
-          text: q.text,
-          imageUrl: q.image || null,
-          marks: Number(q.marks) || 1,
-          explanation: q.explanation || null,
-          order: i + 1,
-          statement1: q.statements?.statement1 || null,
-          statement2: q.statements?.statement2 || null,
-          correctAnswer: q.correctAnswer || null,
-          correctAnswers: Array.isArray(q.correctAnswers) ? q.correctAnswers : [],
-          options: {
-            create: (q.options || []).map((opt: any, optIdx: number) => ({
-              text: opt.text,
-              order: optIdx + 1,
-            })),
+        const createdQuestion = await prisma.question.create({
+          data: {
+            type: qType,
+            text: q.text,
+            imageUrl: q.image || null,
+            marks: Number(q.marks) || 10,
+            explanation: q.explanation || null,
+            order: i + 1,
+            statement1: q.statements?.statement1 || null,
+            statement2: q.statements?.statement2 || null,
+            correctAnswer: q.correctAnswer || null,
+            correctAnswers: Array.isArray(q.correctAnswers) ? q.correctAnswers : [],
+            options: {
+              create: (q.options || []).map((opt: any, optIdx: number) => ({
+                text: opt.text,
+                order: optIdx + 1,
+              })),
+            },
           },
-        },
-      });
+        });
 
-      await prisma.examQuestion.create({
-        data: {
-          examId: newExam.id,
-          questionId: createdQuestion.id,
-          order: i + 1,
-        },
-      });
-    }
+        await prisma.examQuestion.create({
+          data: {
+            examId: newExam.id,
+            questionId: createdQuestion.id,
+            order: i + 1,
+            setNumber: setNum,
+          },
+        });
+      }
+    };
 
-    sendSuccess(res, newExam, 'Final exam created successfully', 201);
+    await createAndLinkSet(set1, 1);
+    await createAndLinkSet(set2, 2);
+    await createAndLinkSet(set3, 3);
+
+    sendSuccess(res, newExam, 'Final exam created successfully with 3 question sets', 201);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to create final exam', 500);
   }
@@ -214,17 +251,12 @@ export async function createExam(req: Request, res: Response): Promise<void> {
 export async function updateExam(req: Request, res: Response): Promise<void> {
   try {
     const examId = req.params.id as string;
-    const { title, description, duration, passPercentage, status, questions } = req.body;
+    const { title, description, duration, status } = req.body;
 
     const existing = await prisma.finalExam.findUnique({ where: { id: examId } });
     if (!existing) {
       sendError(res, 'Exam not found', 404);
       return;
-    }
-
-    let calculatedTotalMarks: number | undefined;
-    if (Array.isArray(questions)) {
-      calculatedTotalMarks = questions.reduce((acc: number, q: any) => acc + (Number(q.marks) || 1), 0);
     }
 
     const updated = await prisma.finalExam.update({
@@ -233,8 +265,8 @@ export async function updateExam(req: Request, res: Response): Promise<void> {
         ...(title && { title }),
         ...(description !== undefined && { description }),
         ...(duration !== undefined && { durationMinutes: Number(duration) }),
-        ...(passPercentage !== undefined && { passPercentage: Number(passPercentage) }),
-        ...(calculatedTotalMarks !== undefined && { totalMarks: calculatedTotalMarks }),
+        passPercentage: 70, // Strictly 70% threshold
+        maxAttempts: 3,
         ...(status && {
           status: status === 'published' ? ExamStatus.PUBLISHED : ExamStatus.DRAFT,
         }),
@@ -258,7 +290,7 @@ export async function deleteExam(req: Request, res: Response): Promise<void> {
 }
 
 // ==========================================
-// Student Exam Taking & Auto-Grading Engine
+// Student Exam Taking & 3-Attempt Multi-Set Engine
 // ==========================================
 
 export async function startExamAttempt(req: Request, res: Response): Promise<void> {
@@ -283,29 +315,60 @@ export async function startExamAttempt(req: Request, res: Response): Promise<voi
     });
 
     if (!exam || exam.status !== ExamStatus.PUBLISHED) {
-      sendError(res, 'Exam not available', 404);
+      sendError(res, 'Exam not available or not published', 404);
       return;
     }
 
-    // Determine attempt number
-    const previousAttemptsCount = await prisma.examAttempt.count({
+    // Check past attempts
+    const pastAttempts = await prisma.examAttempt.findMany({
       where: { userId, examId },
+      orderBy: { attemptNumber: 'asc' },
     });
+
+    const alreadyPassed = pastAttempts.some((a) => a.passed);
+    if (alreadyPassed) {
+      sendError(res, 'You have already passed this accredited final exam. Further attempts are locked.', 400);
+      return;
+    }
+
+    if (pastAttempts.length >= (exam.maxAttempts || 3)) {
+      sendError(res, 'Maximum 3 attempts limit has been exhausted for this final examination.', 400);
+      return;
+    }
+
+    const currentAttemptNumber = pastAttempts.length + 1;
+    const targetSetNumber = currentAttemptNumber;
+
+    // Filter questions by setNumber
+    let questionsForThisAttempt = exam.examQuestions.filter(
+      (eq) => (eq.setNumber || 1) === targetSetNumber
+    );
+
+    // Fallback if specific set not seeded
+    if (questionsForThisAttempt.length === 0) {
+      questionsForThisAttempt = exam.examQuestions;
+    }
+
+    const setTotalMarks = questionsForThisAttempt.reduce(
+      (sum, eq) => sum + (Number(eq.question.marks) || 10),
+      0
+    );
 
     const attempt = await prisma.examAttempt.create({
       data: {
         userId,
         examId,
-        attemptNumber: previousAttemptsCount + 1,
+        attemptNumber: currentAttemptNumber,
+        setUsed: targetSetNumber,
         startedAt: new Date(),
-        maxScore: exam.totalMarks,
+        maxScore: setTotalMarks || exam.totalMarks,
       },
     });
 
-    // Sanitize questions (remove answer keys)
-    const sanitizedQuestions = exam.examQuestions.map((eq) => {
+    // Sanitize questions (remove answer keys for candidate view)
+    const sanitizedQuestions = questionsForThisAttempt.map((eq) => {
       const { correctAnswer, correctAnswers, explanation, ...safeQ } = eq.question;
-      return { ...safeQ, order: eq.order };
+      return { ...safeQ, order: eq.order, setNumber: eq.setNumber || targetSetNumber };
     });
 
     sendSuccess(
@@ -313,13 +376,15 @@ export async function startExamAttempt(req: Request, res: Response): Promise<voi
       {
         attemptId: attempt.id,
         attemptNumber: attempt.attemptNumber,
+        setUsed: attempt.setUsed,
         startedAt: attempt.startedAt,
         durationMinutes: exam.durationMinutes,
-        totalMarks: exam.totalMarks,
-        passPercentage: exam.passPercentage,
+        totalMarks: attempt.maxScore,
+        passPercentage: 70,
+        maxAttempts: 3,
         questions: sanitizedQuestions,
       },
-      'Exam attempt started'
+      `Exam attempt ${currentAttemptNumber} of 3 started (Question Set ${targetSetNumber})`
     );
   } catch (error: any) {
     sendError(res, error.message || 'Failed to start exam attempt', 500);
@@ -330,7 +395,7 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
   try {
     const attemptId = req.params.attemptId as string;
     const userId = (req as any).user.userId;
-    const { answers, timeSpentSeconds } = req.body;
+    const { answers, timeSpentSeconds, tabSwitchViolations } = req.body;
 
     const attempt = await prisma.examAttempt.findUnique({
       where: { id: attemptId },
@@ -361,12 +426,19 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Auto-Grading Engine
+    // Auto-Grading Engine for the specific set used
     let totalScore = 0;
-    const questions = attempt.exam.examQuestions.map((eq) => eq.question);
+    const setQuestions = attempt.exam.examQuestions.filter(
+      (eq) => (eq.setNumber || 1) === (attempt.setUsed || 1)
+    );
+    const questionsToGrade =
+      setQuestions.length > 0
+        ? setQuestions.map((eq) => eq.question)
+        : attempt.exam.examQuestions.map((eq) => eq.question);
+
     const answersRecord = answers || {};
 
-    questions.forEach((q) => {
+    questionsToGrade.forEach((q) => {
       const studentAns = answersRecord[q.id];
       if (!studentAns) return;
 
@@ -375,7 +447,6 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
           totalScore += q.marks;
         }
       } else if (q.type === QuestionType.MULTIPLE_RESPONSE) {
-        // Multi-select comparison
         const correctSet = new Set(q.correctAnswers || []);
         const studentSet = new Set(Array.isArray(studentAns) ? studentAns : [studentAns]);
 
@@ -385,9 +456,10 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
       }
     });
 
-    const maxScore = attempt.exam.totalMarks || 100;
-    const scorePercentage = (totalScore / maxScore) * 100;
-    const passed = scorePercentage >= (attempt.exam.passPercentage || 75);
+    const maxScore = attempt.maxScore || attempt.exam.totalMarks || 60;
+    const scorePercentage = Math.round((totalScore / maxScore) * 100);
+    const passThreshold = 70; // Strict 70% threshold per specification
+    const passed = scorePercentage >= passThreshold;
 
     // Update attempt record
     const updatedAttempt = await prisma.examAttempt.update({
@@ -396,12 +468,14 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
         completedAt: new Date(),
         timeSpentSeconds: timeSpentSeconds ? Number(timeSpentSeconds) : 0,
         totalScore,
+        percentage: scorePercentage,
         passed,
+        tabSwitchViolations: Number(tabSwitchViolations) || 0,
         answersJson: answersRecord,
       },
     });
 
-    // If passed, issue official certificate
+    // If passed, issue official verifiable certificate
     let certificate = null;
     if (passed) {
       const certCode = `VAT-${new Date().getFullYear()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
@@ -423,11 +497,15 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
       res,
       {
         attemptId: updatedAttempt.id,
+        attemptNumber: updatedAttempt.attemptNumber,
+        setUsed: updatedAttempt.setUsed,
         totalScore,
         maxScore,
-        scorePercentage: Math.round(scorePercentage * 10) / 10,
-        passPercentage: attempt.exam.passPercentage,
+        scorePercentage,
+        passPercentage: passThreshold,
         passed,
+        attemptsRemaining: passed ? 0 : Math.max(0, 3 - updatedAttempt.attemptNumber),
+        isPermanentlyLocked: passed || updatedAttempt.attemptNumber >= 3,
         certificate: certificate
           ? {
               code: certificate.certificateCode,
@@ -448,30 +526,30 @@ export async function submitExamAttempt(req: Request, res: Response): Promise<vo
 export async function verifyCertificate(req: Request, res: Response): Promise<void> {
   try {
     const code = req.params.code as string;
-    const certificate = await prisma.certificate.findUnique({
+    const cert = await prisma.certificate.findUnique({
       where: { certificateCode: code },
       include: {
-        user: { select: { fullName: true, organization: true } },
+        user: { select: { fullName: true, email: true } },
         course: { select: { title: true } },
       },
     });
 
-    if (!certificate || certificate.status !== CertificateStatus.ACTIVE) {
-      sendError(res, 'Certificate not found or revoked', 404);
+    if (!cert) {
+      sendError(res, 'Certificate not found or invalid verification code', 404);
       return;
     }
 
     sendSuccess(
       res,
       {
-        certificateCode: certificate.certificateCode,
-        recipientName: certificate.recipientName,
-        courseTitle: certificate.courseTitle,
-        issueDate: certificate.issueDate,
-        status: certificate.status,
-        verified: true,
+        valid: cert.status === CertificateStatus.ACTIVE,
+        code: cert.certificateCode,
+        recipient: cert.recipientName,
+        course: cert.courseTitle,
+        issueDate: cert.issueDate,
+        status: cert.status,
       },
-      'Certificate verified successfully'
+      'Certificate verified'
     );
   } catch (error: any) {
     sendError(res, error.message || 'Failed to verify certificate', 500);

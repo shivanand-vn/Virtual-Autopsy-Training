@@ -39,7 +39,12 @@ export const DashboardPage: React.FC = () => {
     getModuleStatus,
     isCourseCompleted
   } = useCourse();
-  const { studentExamResult } = useFinalExams();
+  const {
+    getPublishedExamByCourseId,
+    finalExams,
+    getStudentExamHistory,
+    studentExamResult
+  } = useFinalExams();
 
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(
     activeCourse?.modules[0]?.id || null
@@ -90,13 +95,14 @@ export const DashboardPage: React.FC = () => {
     activeModTopics.length > 0 ? Math.round((activeModCompletedCount / activeModTopics.length) * 100) : 0;
   const activeModAssessmentUnlocked = activeModule ? isModuleAssessmentUnlocked(activeModule.id) : false;
 
-  const finalExamUnlocked = courseCompleted;
-  const finalExamSubmitted = Boolean(studentExamResult?.submitted);
-  const finalExamScore = studentExamResult?.scorePercentage ?? 0;
-  const finalExamPassed = Boolean(studentExamResult?.passed);
+  const publishedExam = getPublishedExamByCourseId(activeCourse?.id) || finalExams.find(e => e.status === 'published');
+  const examHistory = publishedExam ? getStudentExamHistory(publishedExam.id) : null;
+  const finalExamUnlocked = courseProgressPercent === 100;
+  const finalExamPassed = Boolean(examHistory?.passed || studentExamResult?.passed);
+  const finalExamSubmitted = Boolean((examHistory && examHistory.attemptsUsed > 0) || studentExamResult?.submitted);
+  const finalExamScore = examHistory?.bestPercentage || studentExamResult?.scorePercentage || 0;
+  const certificateUnlocked = courseCompleted && finalExamPassed;
 
-  // Certificate Unlock Rule: Must have 100% course progress AND submitted final exam AND score >= 70%
-  const certificateUnlocked = courseCompleted && finalExamSubmitted && finalExamPassed;
 
   return (
     <DashboardLayout headerSubtitle="DASHBOARD">
@@ -161,28 +167,40 @@ export const DashboardPage: React.FC = () => {
 
           <div
             onClick={() => navigate('/final-exam')}
-            className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-indigo-400 transition-colors"
+            className={`bg-white p-5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-colors ${
+              finalExamPassed
+                ? 'border-emerald-300 hover:border-emerald-500'
+                : finalExamUnlocked
+                ? 'border-slate-200/80 hover:border-amber-400'
+                : 'border-slate-200/80 hover:border-indigo-400'
+            }`}
           >
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Final Exam</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">
-                {finalExamSubmitted
-                  ? `${finalExamScore}% (${finalExamPassed ? 'PASS' : 'FAIL'})`
+              <h3 className="text-xl font-black text-[#0A192F] mt-1">
+                {finalExamPassed
+                  ? `Passed (${examHistory?.bestPercentage}%)`
+                  : examHistory?.attemptsUsed && examHistory.attemptsUsed >= 3
+                  ? 'Exhausted (3/3)'
                   : finalExamUnlocked
-                    ? 'Available'
-                    : 'Locked'}
+                  ? `Attempt ${Math.min((examHistory?.attemptsUsed || 0) + 1, 3)} of 3`
+                  : 'Locked'}
               </h3>
-              <p className="text-xs text-indigo-600 font-semibold mt-0.5">
-                {finalExamSubmitted
-                  ? finalExamPassed
-                    ? 'Exam Benchmark Passed'
-                    : 'Retake Available (Pass >= 70%)'
+              <p className={`text-xs font-semibold mt-0.5 ${finalExamPassed ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                {finalExamPassed
+                  ? 'Accredited • Certified'
+                  : examHistory?.attemptsUsed && examHistory.attemptsUsed >= 3
+                  ? '3 attempts completed'
                   : finalExamUnlocked
-                    ? 'Ready to take'
-                    : 'Complete course to unlock'}
+                  ? `Set ${Math.min((examHistory?.attemptsUsed || 0) + 1, 3)} ready to take`
+                  : 'Complete course to unlock'}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div
+              className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                finalExamPassed ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
+              }`}
+            >
               <GraduationCap className="w-6 h-6" />
             </div>
           </div>

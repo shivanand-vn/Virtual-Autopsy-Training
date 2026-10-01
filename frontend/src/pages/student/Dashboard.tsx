@@ -20,17 +20,50 @@ import {
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
 import { useFinalExams } from '../../context/FinalExamContext';
+import { useAuth } from '../../context/AuthContext';
 import { RecentDiscussionsWidget } from '../../components/discussions/RecentDiscussionsWidget';
 import { CertificateCard } from '../../components/certificate/CertificateCard';
+import { SecurityNoticeModal } from '../../components/auth/SecurityNoticeModal';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { activeCourse, completedTopicIds, isModuleCompletedByStudent } = useCourse();
-  const { getPublishedExamByCourseId, finalExams, getStudentExamHistory } = useFinalExams();
+  const { user } = useAuth();
+  const {
+    activeCourse,
+    completedTopicIds,
+    isModuleCompletedByStudent,
+    isModuleUnlocked,
+    isTopicUnlocked,
+    isTopicCompleted,
+    isModuleAssessmentUnlocked,
+    getModuleStatus,
+    isCourseCompleted
+  } = useCourse();
+  const {
+    getPublishedExamByCourseId,
+    finalExams,
+    getStudentExamHistory,
+    studentExamResult
+  } = useFinalExams();
 
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(
     activeCourse?.modules[0]?.id || null
   );
+
+  const [showSecurityNotice, setShowSecurityNotice] = useState<boolean>(() => {
+    if (!user || user.role !== 'STUDENT') return false;
+    if (!user.isTemporaryPassword) return false;
+    const dismissedKey = `vat_security_notice_dismissed_${user.email.toLowerCase()}`;
+    return sessionStorage.getItem(dismissedKey) !== 'true';
+  });
+
+  const handleDismissSecurityNotice = () => {
+    if (user?.email) {
+      const dismissedKey = `vat_security_notice_dismissed_${user.email.toLowerCase()}`;
+      sessionStorage.setItem(dismissedKey, 'true');
+    }
+    setShowSecurityNotice(false);
+  };
 
   const toggleModule = (id: string) => {
     setExpandedModuleId(expandedModuleId === id ? null : id);
@@ -65,12 +98,15 @@ export const DashboardPage: React.FC = () => {
   const publishedExam = getPublishedExamByCourseId(activeCourse?.id) || finalExams.find(e => e.status === 'published');
   const examHistory = publishedExam ? getStudentExamHistory(publishedExam.id) : null;
   const finalExamUnlocked = courseProgressPercent === 100;
-  const finalExamPassed = Boolean(examHistory?.passed);
-  const certificateIssued = finalExamPassed || courseProgressPercent === 100;
+  const finalExamPassed = Boolean(examHistory?.passed || studentExamResult?.passed);
+  const finalExamSubmitted = Boolean((examHistory && examHistory.attemptsUsed > 0) || studentExamResult?.submitted);
+  const finalExamScore = examHistory?.bestPercentage || studentExamResult?.scorePercentage || 0;
+  const certificateUnlocked = courseCompleted && finalExamPassed;
 
 
   return (
     <DashboardLayout headerSubtitle="DASHBOARD">
+      <SecurityNoticeModal isOpen={showSecurityNotice} onClose={handleDismissSecurityNotice} />
       <div className="space-y-6 pb-12">
         {/* Welcome Header & Hero Banner */}
         <div className="bg-[#0A192F] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-slate-800">

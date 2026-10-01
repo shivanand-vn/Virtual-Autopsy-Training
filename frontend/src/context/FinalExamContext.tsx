@@ -15,6 +15,16 @@ import {
 
 const LOCAL_STORAGE_KEY = 'virtual_autopsy_final_exams_v3';
 const STUDENT_HISTORY_KEY = 'virtual_autopsy_student_exam_history_v2';
+const RESULT_LOCAL_STORAGE_KEY = 'virtual_autopsy_student_exam_result';
+
+export interface StudentExamResult {
+  submitted: boolean;
+  scorePercentage: number;
+  earnedMarks: number;
+  totalMarks: number;
+  passed: boolean;
+  submittedAt?: string;
+}
 
 const DEFAULT_INITIAL_FINAL_EXAM: FinalExam = {
   id: 'final-exam-c1',

@@ -35,6 +35,7 @@ export const FinalExamPage: React.FC = () => {
     finalExams,
     getStudentExamHistory,
     recordExamAttempt,
+    saveStudentExamResult,
     resetStudentExamHistory,
     getQuestionsForAttempt
   } = useFinalExams();
@@ -279,6 +280,12 @@ export const FinalExamPage: React.FC = () => {
     };
 
     recordExamAttempt(publishedExam.id, attemptRecord);
+    saveStudentExamResult({
+      scorePercentage: calcPercentage,
+      earnedMarks,
+      totalMarks: totalPossibleMarks,
+      passed: isPass
+    });
     exitFullscreen();
     setExamStage('result');
   };

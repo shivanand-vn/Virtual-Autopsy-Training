@@ -1,4 +1,27 @@
-export type ContentType = 'video' | 'theory';
+export type ContentType = 'description' | 'theory' | 'video' | 'assignment';
+
+export type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface AssignmentSubmission {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseName: string;
+  moduleId: string;
+  moduleTitle: string;
+  topicId: string;
+  topicTitle: string;
+  submittedAt: string;
+  status: SubmissionStatus;
+  assignmentInstructions?: string;
+  studentResponseText?: string;
+  uploadedFileUrl?: string;
+  uploadedFileName?: string;
+  adminFeedback?: string;
+  reviewedAt?: string;
+}
 
 export interface Topic {
   id: string;

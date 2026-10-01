@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { type Course, type CourseModule, type Topic, type ContentType, INITIAL_COURSES } from '../types/course';
+import type { AssessmentResult } from '../types/assessment';
+import {
+  type Course,
+  type CourseModule,
+  type Topic,
+  type ContentType,
+  type AssignmentSubmission,
+  type SubmissionStatus,
+  INITIAL_COURSES
+} from '../types/course';
 
 interface CourseContextType {
   courses: Course[];
@@ -25,6 +34,13 @@ interface CourseContextType {
   updateModuleAssignment: (courseId: string, moduleId: string, assignmentData: Partial<import('../types/course').ModuleAssignment>) => void;
   updateModuleTest: (courseId: string, moduleId: string, testData: Partial<import('../types/course').ModuleTest>) => void;
 
+  // Assignment Submissions Operations
+  assignmentSubmissions: AssignmentSubmission[];
+  submitAssignment: (submissionData: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>) => void;
+  updateSubmissionStatus: (submissionId: string, status: SubmissionStatus, adminFeedback?: string) => void;
+  getSubmissionForTopic: (topicId: string, studentId?: string) => AssignmentSubmission | undefined;
+  getPendingSubmissionsCount: () => number;
+
   // Student Progress Operations
   completedTopicIds: Record<string, boolean>; // topicId -> boolean
   assessmentResults: Record<string, AssessmentResult>; // moduleId -> AssessmentResult
@@ -46,6 +62,29 @@ interface CourseContextType {
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'va_lms_courses_v4';
+const TOPICS_LOCAL_STORAGE_KEY = 'va_lms_completed_topic_ids';
+const ASSESSMENTS_LOCAL_STORAGE_KEY = 'va_lms_assessment_results';
+const ASSIGNMENTS_LOCAL_STORAGE_KEY = 'va_lms_assignment_submissions';
+
+const INITIAL_SUBMISSIONS: AssignmentSubmission[] = [
+  {
+    id: 'sub-001',
+    studentId: 'std-001',
+    studentName: 'Dr. Sarah Jenkins',
+    studentEmail: 'sarah.jenkins@hospital.org',
+    courseId: 'crs-va-001',
+    courseName: 'Virtual Autopsy Online Training',
+    moduleId: 'mod-2',
+    moduleTitle: 'PMCT Acquisition Protocols & MPR Reconstruction',
+    topicId: 't-5',
+    topicTitle: 'Multi-Planar Reconstruction (MPR) Hands-on PACS Exercise',
+    submittedAt: '2025-02-28 14:30',
+    status: 'PENDING',
+    assignmentInstructions: 'Review the provided PMCT dataset for metallic artifact reduction. Perform coronal and sagittal MPR reformations and submit a summary of your findings including Hounsfield unit measurements and artifact mitigation strategy.',
+    studentResponseText: 'Observed streak reduction using 120kVp with iterative metal artifact reduction (iMAR). Multiplanar coronal view demonstrates clear petrous apex alignment without beam hardening artifact (+1420 HU max).',
+    uploadedFileName: 'Sarah_Jenkins_MPR_Analysis.pdf'
+  }
+];
 
 const getInitialCourses = (): Course[] => {
   const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -447,6 +486,13 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // STUDENT PROGRESS OPERATIONS
+  const markTopicCompleted = (topicId: string) => {
+    setCompletedTopicIds((prev) => ({
+      ...prev,
+      [topicId]: true
+    }));
+  };
+
   const toggleTopicCompletion = (topicId: string) => {
     setCompletedTopicIds((prev) => ({
       ...prev,
@@ -627,6 +673,12 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
         updateModuleAssignment,
         updateModuleTest,
+
+        assignmentSubmissions,
+        submitAssignment,
+        updateSubmissionStatus,
+        getSubmissionForTopic,
+        getPendingSubmissionsCount,
 
         completedTopicIds,
         assessmentResults,

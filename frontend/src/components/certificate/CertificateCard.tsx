@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, Lock, Download, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
+import { Award, Download, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
 import { useCourse } from '../../context/CourseContext';
 import { useFinalExams } from '../../context/FinalExamContext';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
@@ -128,8 +128,12 @@ export const CertificateCard: React.FC<CertificateCardProps> = ({ className = ''
       {/* OVERLAY LOCKED SCREEN FOR STATES 1, 2, 3, 4 */}
       {!certificateUnlocked && (
         <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center z-10 rounded-3xl">
-          <div className="w-14 h-14 bg-slate-900/90 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center shadow-xl mb-3">
-            <Lock className="w-7 h-7" />
+          <div className="px-5 py-2.5 bg-slate-900/90 border border-amber-500/40 rounded-2xl flex items-center justify-center shadow-xl mb-3">
+            <img
+              src="/logo.png"
+              alt="Virtual Autopsy Global Solutions"
+              className="h-10 sm:h-12 w-auto object-contain"
+            />
           </div>
 
           <span className={`inline-block px-3.5 py-1 font-extrabold text-xs rounded-full uppercase tracking-wider mb-2 shadow-sm ${stateBadgeStyle}`}>

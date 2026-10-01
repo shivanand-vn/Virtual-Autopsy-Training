@@ -7,6 +7,11 @@ export interface Topic {
   contentType: ContentType;
   content?: string; // For theory / reading topics
   videoUrl?: string; // For video topics
+  requiredWatchPercentage?: number; // Default 90% for video topics
+  assignmentInstructions?: string; // For assignment topics
+  submissionInstructions?: string; // For assignment topics
+  referenceAttachmentUrl?: string; // Optional reference file for assignment
+  referenceAttachmentName?: string;
   thumbnail?: string;
   order: number;
   status: 'draft' | 'published';
@@ -172,8 +177,10 @@ export const INITIAL_COURSES: Course[] = [
             id: 't-5',
             title: 'Multi-Planar Reconstruction (MPR) Hands-on PACS Exercise',
             description: 'Interactive PACS exercise for coronal, sagittal, and axial MPR reformations.',
-            contentType: 'video',
-            videoUrl: '/autopsy.mp4',
+            contentType: 'assignment',
+            assignmentInstructions: 'Review the provided PMCT dataset for metallic artifact reduction. Perform coronal and sagittal MPR reformations and submit a summary of your findings including Hounsfield unit measurements and artifact mitigation strategy.',
+            submissionInstructions: 'Type your clinical observations and findings in the response field below. Optionally attach a PDF report or annotated screenshot.',
+            referenceAttachmentName: 'MPR_Reconstruction_Guidelines.pdf',
             order: 2,
             status: 'published'
           },

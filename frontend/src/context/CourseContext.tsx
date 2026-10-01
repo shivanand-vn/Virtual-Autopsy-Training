@@ -27,8 +27,20 @@ interface CourseContextType {
 
   // Student Progress Operations
   completedTopicIds: Record<string, boolean>; // topicId -> boolean
+  assessmentResults: Record<string, AssessmentResult>; // moduleId -> AssessmentResult
+  markTopicCompleted: (topicId: string) => void;
   toggleTopicCompletion: (topicId: string) => void;
+  saveAssessmentResult: (result: AssessmentResult) => void;
+  getAssessmentResult: (moduleId: string) => AssessmentResult | undefined;
+  isTopicCompleted: (topicId: string) => boolean;
+  isModuleTopicsCompleted: (moduleId: string) => boolean;
+  isModuleAssessmentCompleted: (moduleId: string) => boolean;
   isModuleCompletedByStudent: (moduleId: string) => boolean;
+  isModuleUnlocked: (moduleId: string) => boolean;
+  isTopicUnlocked: (moduleId: string, topicId: string) => boolean;
+  isModuleAssessmentUnlocked: (moduleId: string) => boolean;
+  getModuleStatus: (moduleId: string) => 'locked' | 'in_progress' | 'waiting_for_assessment' | 'completed';
+  isCourseCompleted: () => boolean;
 }
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
@@ -70,15 +82,57 @@ const getInitialCourses = (): Course[] => {
 
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [courses, setCourses] = useState<Course[]>(getInitialCourses);
-  
-  // Student completed topic tracking (by topic id)
-  const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>({});
+
+  // Persistent student completed topics (by topic id)
+  const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(TOPICS_LOCAL_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse completedTopicIds from localStorage', e);
+    }
+    return {};
+  });
+
+  // Persistent student module assessment results (by module id)
+  const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>(() => {
+    try {
+      const saved = localStorage.getItem(ASSESSMENTS_LOCAL_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse assessmentResults from localStorage', e);
+    }
+    return {};
+  });
+
+  // Persistent student assignment submissions
+  const [assignmentSubmissions, setAssignmentSubmissions] = useState<AssignmentSubmission[]>(() => {
+    try {
+      const saved = localStorage.getItem(ASSIGNMENTS_LOCAL_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse assignmentSubmissions from localStorage', e);
+    }
+    return INITIAL_SUBMISSIONS;
+  });
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(courses));
   }, [courses]);
 
-  const activeCourse = courses[0];
+  useEffect(() => {
+    localStorage.setItem(TOPICS_LOCAL_STORAGE_KEY, JSON.stringify(completedTopicIds));
+  }, [completedTopicIds]);
+
+  useEffect(() => {
+    localStorage.setItem(ASSESSMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assessmentResults));
+  }, [assessmentResults]);
+
+  useEffect(() => {
+    localStorage.setItem(ASSIGNMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assignmentSubmissions));
+  }, [assignmentSubmissions]);
+
+  const activeCourse = courses[0] || INITIAL_COURSES[0];
 
   const getCourse = (courseId: string) => {
     return courses.find((c) => c.id === courseId);
@@ -400,15 +454,155 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
+  const saveAssessmentResult = (result: AssessmentResult) => {
+    setAssessmentResults((prev) => ({
+      ...prev,
+      [result.moduleId]: result
+    }));
+  };
+
+  const getAssessmentResult = (moduleId: string): AssessmentResult | undefined => {
+    return assessmentResults[moduleId];
+  };
+
+  const isTopicCompleted = (topicId: string): boolean => {
+    return Boolean(completedTopicIds[topicId]);
+  };
+
+  const isModuleTopicsCompleted = (moduleId: string): boolean => {
+    const targetMod = activeCourse.modules.find((m) => m.id === moduleId);
+    if (!targetMod || targetMod.topics.length === 0) return false;
+    return targetMod.topics.every((t) => Boolean(completedTopicIds[t.id]));
+  };
+
+  const isModuleAssessmentCompleted = (moduleId: string): boolean => {
+    return Boolean(assessmentResults[moduleId]?.passed);
+  };
+
   const isModuleCompletedByStudent = (moduleId: string): boolean => {
-    for (const c of courses) {
-      const targetMod = c.modules.find((m) => m.id === moduleId);
-      if (targetMod) {
-        if (targetMod.topics.length === 0) return false;
-        return targetMod.topics.every((t) => Boolean(completedTopicIds[t.id]));
+    return isModuleTopicsCompleted(moduleId) && isModuleAssessmentCompleted(moduleId);
+  };
+
+  // Rule: Module 1 is unlocked. Module N unlocks ONLY after Module N-1 topics AND Module N-1 assessment are completed!
+  const isModuleUnlocked = (moduleId: string): boolean => {
+    const modules = activeCourse.modules || [];
+    const index = modules.findIndex((m) => m.id === moduleId);
+    if (index <= 0) return true; // Module 1 is always unlocked
+
+    const prevMod = modules[index - 1];
+    return isModuleTopicsCompleted(prevMod.id) && isModuleAssessmentCompleted(prevMod.id);
+  };
+
+  // Rule: Inside an unlocked module, Topic 1 is unlocked. Topic N unlocks ONLY after Topic N-1 is completed!
+  const isTopicUnlocked = (moduleId: string, topicId: string): boolean => {
+    if (!isModuleUnlocked(moduleId)) return false;
+
+    const targetMod = activeCourse.modules.find((m) => m.id === moduleId);
+    if (!targetMod) return false;
+
+    const topicIndex = targetMod.topics.findIndex((t) => t.id === topicId);
+    if (topicIndex <= 0) return true; // First topic in unlocked module is unlocked
+
+    const prevTopic = targetMod.topics[topicIndex - 1];
+    return Boolean(completedTopicIds[prevTopic.id]);
+  };
+
+  // Rule: Module Assessment unlocks ONLY after ALL topics in that module are completed!
+  const isModuleAssessmentUnlocked = (moduleId: string): boolean => {
+    return isModuleUnlocked(moduleId) && isModuleTopicsCompleted(moduleId);
+  };
+
+  const getModuleStatus = (
+    moduleId: string
+  ): 'locked' | 'in_progress' | 'waiting_for_assessment' | 'completed' => {
+    if (!isModuleUnlocked(moduleId)) return 'locked';
+    if (!isModuleTopicsCompleted(moduleId)) return 'in_progress';
+    if (!isModuleAssessmentCompleted(moduleId)) return 'waiting_for_assessment';
+    return 'completed';
+  };
+
+  const isCourseCompleted = (): boolean => {
+    const modules = activeCourse.modules || [];
+    if (modules.length === 0) return false;
+    return modules.every((m) => isModuleCompletedByStudent(m.id));
+  };
+
+  // ASSIGNMENT SUBMISSIONS IMPLEMENTATION
+  const submitAssignment = (
+    submissionData: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>
+  ) => {
+    setAssignmentSubmissions((prev) => {
+      const existingIndex = prev.findIndex(
+        (s) => s.topicId === submissionData.topicId && s.studentId === submissionData.studentId
+      );
+      const now = new Date();
+      const formattedDate = `${now.toISOString().split('T')[0]} ${now.toTimeString().slice(0, 5)}`;
+
+      if (existingIndex !== -1) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          ...submissionData,
+          submittedAt: formattedDate,
+          status: 'PENDING',
+          adminFeedback: undefined
+        };
+        return updated;
+      }
+
+      const newSubmission: AssignmentSubmission = {
+        ...submissionData,
+        id: `sub-${Date.now().toString().slice(-4)}`,
+        submittedAt: formattedDate,
+        status: 'PENDING'
+      };
+      return [newSubmission, ...prev];
+    });
+  };
+
+  const updateSubmissionStatus = (
+    submissionId: string,
+    status: SubmissionStatus,
+    adminFeedback?: string
+  ) => {
+    const targetSub = assignmentSubmissions.find((s) => s.id === submissionId);
+    if (targetSub) {
+      if (status === 'APPROVED') {
+        markTopicCompleted(targetSub.topicId);
+      } else if (status === 'REJECTED') {
+        setCompletedTopicIds((prev) => {
+          const next = { ...prev };
+          delete next[targetSub.topicId];
+          return next;
+        });
       }
     }
-    return false;
+
+    setAssignmentSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === submissionId
+          ? {
+              ...s,
+              status,
+              adminFeedback,
+              reviewedAt: new Date().toISOString().split('T')[0]
+            }
+          : s
+      )
+    );
+  };
+
+  const getSubmissionForTopic = (
+    topicId: string,
+    studentId = 'std-001'
+  ): AssignmentSubmission | undefined => {
+    return assignmentSubmissions.find(
+      (s) => s.topicId === topicId && s.studentId === studentId
+    );
+  };
+
+  const getPendingSubmissionsCount = (): number => {
+    return assignmentSubmissions.filter((s) => s.status === 'PENDING').length;
   };
 
   return (
@@ -435,8 +629,20 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateModuleTest,
 
         completedTopicIds,
+        assessmentResults,
+        markTopicCompleted,
         toggleTopicCompletion,
-        isModuleCompletedByStudent
+        saveAssessmentResult,
+        getAssessmentResult,
+        isTopicCompleted,
+        isModuleTopicsCompleted,
+        isModuleAssessmentCompleted,
+        isModuleCompletedByStudent,
+        isModuleUnlocked,
+        isTopicUnlocked,
+        isModuleAssessmentUnlocked,
+        getModuleStatus,
+        isCourseCompleted
       }}
     >
       {children}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -8,13 +8,9 @@ import {
   Play,
   Pause,
   FileText,
-  Download,
   BookOpen,
   Save,
   Shield,
-  Layers,
-  Sparkles,
-  HelpCircle,
   ArrowRight,
   ChevronDown,
   ChevronUp,
@@ -67,10 +63,11 @@ export const MyCoursePage: React.FC = () => {
   const modules = activeCourse.modules;
 
   // 1. DYNAMIC MODULE SELECTION
-  const currentModule =
-    modules.find((m) => m.id === paramModuleId) ||
-    modules.find((m) => m.status === 'published') ||
-    modules[0];
+  let currentModule = modules.find((m) => m.id === paramModuleId);
+  if (!currentModule) {
+    // Default to first unlocked module that is incomplete or waiting for assessment
+    currentModule = modules.find((m) => isModuleUnlocked(m.id) && getModuleStatus(m.id) !== 'completed') || modules[0];
+  }
 
   const [activeSection, setActiveSection] = useState<'topic' | 'assignment' | 'test'>(
     paramLessonId === 'assignment' ? 'assignment' : paramLessonId === 'test' ? 'test' : 'topic'
@@ -79,10 +76,6 @@ export const MyCoursePage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCurriculumDrawer, setShowCurriculumDrawer] = useState(false);
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(currentModule.id);
-  const [clinicalNotes, setClinicalNotes] = useState(
-    `At 14:12 timestamp: Observed sharp density gradient along petrous temporal ridge (+1450 HU) consistent with longitudinal fracture line. Note differential hypodensity representing extradural hematoma along middle cranial fossa.`
-  );
-  const [notesSaved, setNotesSaved] = useState(true);
 
   // File Upload State for Assignment
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -99,13 +92,56 @@ export const MyCoursePage: React.FC = () => {
       currentTopicIndex = idx;
     }
   } else {
-    const nonCompIdx = currentModule.topics.findIndex((t) => !completedTopicIds[t.id]);
-    if (nonCompIdx !== -1) {
-      currentTopicIndex = nonCompIdx;
+    // Find first unlocked incomplete topic in current module
+    const firstIncomplete = currentModule.topics.findIndex((t) => !isTopicCompleted(t.id));
+    if (firstIncomplete !== -1) {
+      currentTopicIndex = firstIncomplete;
     }
   }
 
   const currentTopic = currentModule.topics[currentTopicIndex] || currentModule.topics[0];
+
+  const currentModuleUnlocked = isModuleUnlocked(currentModule.id);
+  const currentTopicUnlocked = currentModuleUnlocked && isTopicUnlocked(currentModule.id, currentTopic.id);
+  const currentTopicIsCompleted = isTopicCompleted(currentTopic.id);
+  const currentSubmission = getSubmissionForTopic(currentTopic.id);
+
+  // Sync student assignment inputs with existing submission state
+  useEffect(() => {
+    if (currentSubmission) {
+      setStudentResponseText(currentSubmission.studentResponseText || '');
+      setUploadedFileName(currentSubmission.uploadedFileName || null);
+    } else {
+      setStudentResponseText('');
+      setUploadedFileName(null);
+    }
+    setAssignmentError(null);
+  }, [currentTopic.id, currentSubmission?.id, currentSubmission?.status]);
+
+  const handleStudentAssignmentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentResponseText.trim() && !uploadedFileName) {
+      setAssignmentError('Please write a text response or attach a file before submitting.');
+      return;
+    }
+
+    submitAssignment({
+      studentId: 'std-001',
+      studentName: 'Dr. Sarah Jenkins',
+      studentEmail: 'sarah.jenkins@hospital.org',
+      courseId: activeCourse.id,
+      courseName: activeCourse.name,
+      moduleId: currentModule.id,
+      moduleTitle: currentModule.title,
+      topicId: currentTopic.id,
+      topicTitle: currentTopic.title,
+      assignmentInstructions: currentTopic.assignmentInstructions || currentTopic.description,
+      studentResponseText: studentResponseText.trim() || undefined,
+      uploadedFileName: uploadedFileName || undefined
+    });
+
+    setAssignmentError(null);
+  };
 
   // Formatted 2-digit module number
   const formattedModuleNumber =
@@ -149,10 +185,11 @@ export const MyCoursePage: React.FC = () => {
       }
     } else if (currentTopicIndex > 0) {
       const prevTopic = currentModule.topics[currentTopicIndex - 1];
-      goToTopic(currentModule.id, prevTopic.id);
+      navigate(`/my-course/${currentModule.id}/${prevTopic.id}`);
     }
   };
 
+  // Next Button
   const handleNext = () => {
     if (activeSection === 'topic') {
       if (currentTopicIndex < totalTopics - 1) {
@@ -275,12 +312,18 @@ export const MyCoursePage: React.FC = () => {
             ) : activeSection === 'assignment' ? (
               <button
                 onClick={handleNext}
-                className="inline-flex items-center space-x-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                disabled={!currentTopicIsCompleted}
+                className={`inline-flex items-center space-x-1 text-xs font-bold px-3 py-2 rounded-xl transition-colors ${
+                  currentTopicIsCompleted
+                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer'
+                    : 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-200/50'
+                }`}
+                title={!currentTopicIsCompleted ? 'Complete current topic to continue' : ''}
               >
                 <span>Next: Module Test</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
-            ) : isCurrentModuleUnlocked ? (
+            ) : isModuleAssessmentUnlocked(currentModule.id) ? (
               <button
                 onClick={() => navigate(`/assessment/${currentModule.id}`)}
                 className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-md transition-all cursor-pointer"
@@ -578,7 +621,6 @@ export const MyCoursePage: React.FC = () => {
                       {currentModule.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending Submission'}
                     </span>
                   </div>
-                </div>
 
                 {/* Case Scenario & Instructions */}
                 <div className="space-y-4">
@@ -613,7 +655,18 @@ export const MyCoursePage: React.FC = () => {
                       </p>
                       <p className="text-[11px] text-amber-800/80">Forensic reporting worksheet and rubric guide</p>
                     </div>
-                  </div>
+                  ) : currentSubmission?.status === 'APPROVED' ? (
+                    /* STATE: APPROVED */
+                    <div className="space-y-4 pt-2">
+                      <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl space-y-2">
+                        <div className="flex items-center space-x-2 text-emerald-900 text-xs font-extrabold">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <span>✓ Assignment Approved by Admin! Topic Completed.</span>
+                        </div>
+                        <p className="text-xs text-emerald-800 leading-relaxed">
+                          Great job! Your assignment submission has passed evaluation. You may now continue to the next lesson or assessment.
+                        </p>
+                      </div>
 
                   <button
                     type="button"
@@ -818,31 +871,51 @@ export const MyCoursePage: React.FC = () => {
                   <h3 className="font-extrabold text-base text-[#0A192F]">Course Curriculum Modules</h3>
                   <p className="text-xs text-slate-500">Structured into Learning Topics, Module Assignment, and Practice Quiz.</p>
                 </div>
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                  {modules.length} Modules Total
-                </span>
-              </div>
+              ) : currentTopic.contentType === 'description' || currentTopic.contentType === 'theory' ? (
+                /* Theory / Text Lesson Surface */
+                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+                  <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
+                    <FileText className="w-4 h-4 text-amber-500" />
+                    <span>Educational Theory Content</span>
+                  </div>
 
-              <div className="space-y-4">
-                {modules.map((mod) => {
-                  const unlocked = isModuleCompletedByStudent(mod.id);
-                  const isSelected = mod.id === currentModule.id;
-                  const isExpanded = expandedModuleId === mod.id;
-                  const compCount = mod.topics.filter((t) => completedTopicIds[t.id]).length;
-                  const totalCount = mod.topics.length;
-                  const progPercent = totalCount > 0 ? Math.round((compCount / totalCount) * 100) : 0;
-                  const incompleteCount = totalCount - compCount;
-                  const modPaddedNum = mod.moduleNumber < 10 ? `0${mod.moduleNumber}` : `${mod.moduleNumber}`;
+                  <h3 className="text-lg font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">{currentTopic.description}</p>
 
-                  return (
-                    <div
-                      key={mod.id}
-                      className={`border rounded-2xl transition-all overflow-hidden ${
-                        isSelected
-                          ? 'border-amber-500 ring-2 ring-amber-400/20 bg-amber-50/10'
-                          : unlocked
-                          ? 'border-emerald-300 bg-emerald-50/10'
-                          : 'border-slate-200 bg-white'
+                  <div className="pt-4 border-t border-slate-100 text-xs text-slate-800 leading-relaxed space-y-4 font-normal">
+                    <p className="text-sm text-slate-700 font-serif leading-loose">
+                      {currentTopic.content ||
+                        'Post-mortem computed tomography (PMCT) represents a revolutionary advancement in forensic pathology. Unlike conventional invasive autopsies, PMCT allows multiplanar volumetric imaging of postmortem structures prior to dissection. It preserves spatial geometry, detects gas embolisms, locates radiopaque ballistic fragments, and maps traumatic bone fracture patterns with millimeter precision.'}
+                    </p>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Key clinical parameters include volumetric multi-planar reformations (MPR), Hounsfield Unit (HU) density mapping across soft tissue vs bone windows, and standardized chain-of-custody documentation required for courtroom admissibility.
+                    </p>
+
+                    {/* Bottom Sentinel Element for Scroll Endpoint Detection */}
+                    <div ref={bottomSentinelRef} className="h-4 w-full my-2" />
+                  </div>
+
+                  {/* CONTENT ENDPOINT REACHED BANNER & COMPLETE & CONTINUE BUTTON */}
+                  <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {hasReachedEnd || currentTopicIsCompleted ? (
+                      <div className="flex items-center space-x-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3.5 py-2 rounded-xl">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>✓ You have reached the end of this topic.</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl">
+                        <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span>Scroll to the end of the lesson content to complete.</span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleCompleteAndContinue}
+                      disabled={!hasReachedEnd && !currentTopicIsCompleted}
+                      className={`w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-xl font-black text-xs transition-all shadow-md ${
+                        hasReachedEnd || currentTopicIsCompleted
+                          ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-amber-500/20'
+                          : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                       }`}
                     >
                       {/* Module Header Bar */}
@@ -1037,12 +1110,11 @@ export const MyCoursePage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
 
           {/* Right Column Curriculum Progress & Clinical Notes */}
           <div className="space-y-6">
@@ -1145,7 +1217,7 @@ export const MyCoursePage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );

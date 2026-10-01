@@ -49,6 +49,10 @@ export const AdminCourseForm: React.FC = () => {
   const [topicContentType, setTopicContentType] = useState<ContentType>('theory');
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
+  const [requiredWatchPercentage, setRequiredWatchPercentage] = useState<number>(90);
+  const [assignmentInstructions, setAssignmentInstructions] = useState('');
+  const [submissionInstructions, setSubmissionInstructions] = useState('');
+  const [referenceAttachmentName, setReferenceAttachmentName] = useState('');
   const [topicThumbnail, setTopicThumbnail] = useState('');
   const [topicStatus, setTopicStatus] = useState<'draft' | 'published'>('published');
   const [videoSourceMode, setVideoSourceMode] = useState<'url' | 'file'>('url');
@@ -170,6 +174,10 @@ export const AdminCourseForm: React.FC = () => {
     setTopicContentType('theory');
     setTopicContent('');
     setTopicVideoUrl('https://example.com/videos/sample-lesson.mp4');
+    setRequiredWatchPercentage(90);
+    setAssignmentInstructions('');
+    setSubmissionInstructions('');
+    setReferenceAttachmentName('');
     setTopicThumbnail('');
     setTopicStatus('published');
     setVideoSourceMode('url');
@@ -185,6 +193,10 @@ export const AdminCourseForm: React.FC = () => {
     setTopicContentType(top.contentType);
     setTopicContent(top.content || '');
     setTopicVideoUrl(top.videoUrl || '');
+    setRequiredWatchPercentage(top.requiredWatchPercentage || 90);
+    setAssignmentInstructions(top.assignmentInstructions || '');
+    setSubmissionInstructions(top.submissionInstructions || '');
+    setReferenceAttachmentName(top.referenceAttachmentName || '');
     setTopicThumbnail(top.thumbnail || '');
     setTopicStatus(top.status || 'published');
     if (top.videoUrl && top.videoUrl.startsWith('data:video')) {
@@ -214,6 +226,10 @@ export const AdminCourseForm: React.FC = () => {
                   contentType: topicContentType,
                   content: topicContentType === 'theory' ? topicContent : undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+                  requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
+                  assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
+                  submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
+                  referenceAttachmentName: topicContentType === 'assignment' ? referenceAttachmentName : undefined,
                   thumbnail: topicThumbnail || undefined,
                   status: topicStatus
                 }
@@ -229,6 +245,10 @@ export const AdminCourseForm: React.FC = () => {
               contentType: topicContentType,
               content: topicContentType === 'theory' ? topicContent : undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+              requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
+              assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
+              submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
+              referenceAttachmentName: topicContentType === 'assignment' ? referenceAttachmentName : undefined,
               thumbnail: topicThumbnail || undefined,
               order: nextOrder,
               status: topicStatus
@@ -745,6 +765,7 @@ export const AdminCourseForm: React.FC = () => {
                     >
                       <option value="theory">Theory / Reading Lesson</option>
                       <option value="video">Video</option>
+                      <option value="assignment">Assignment</option>
                     </select>
                   </div>
 
@@ -784,7 +805,7 @@ export const AdminCourseForm: React.FC = () => {
                       className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed font-medium"
                     />
                   </div>
-                ) : (
+                ) : topicContentType === 'video' ? (
                   <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider">Video Source *</label>
@@ -864,6 +885,20 @@ export const AdminCourseForm: React.FC = () => {
                       </div>
                     )}
 
+                    <div>
+                      <label className="block text-xs font-bold text-[#0A192F] mb-1">Required Watch Percentage (%) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={requiredWatchPercentage}
+                        onChange={(e) => setRequiredWatchPercentage(Number(e.target.value))}
+                        placeholder="90"
+                        className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <span className="text-[10px] text-slate-400">Student must watch this percentage before topic completes. Default: 90%</span>
+                    </div>
+
                     {/* VIDEO PREVIEW PLAYER */}
                     {topicVideoUrl ? (
                       <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
@@ -881,6 +916,47 @@ export const AdminCourseForm: React.FC = () => {
                         <span>Video Player Preview</span>
                       </div>
                     )}
+                  </div>
+                ) : (
+                  /* ASSIGNMENT TOPIC INPUTS */
+                  <div className="space-y-3.5 p-4 bg-amber-50/50 rounded-2xl border border-amber-200">
+                    <div className="text-xs font-extrabold text-amber-900 uppercase tracking-wider border-b border-amber-200/80 pb-2">
+                      Assignment Details & Instructions
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#0A192F] mb-1">Assignment Instructions / Question *</label>
+                      <textarea
+                        rows={4}
+                        required
+                        value={assignmentInstructions}
+                        onChange={(e) => setAssignmentInstructions(e.target.value)}
+                        placeholder="Detail the case analysis task or exercise questions student must answer..."
+                        className="w-full text-xs p-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#0A192F] mb-1">Submission Guidelines / Instructions</label>
+                      <input
+                        type="text"
+                        value={submissionInstructions}
+                        onChange={(e) => setSubmissionInstructions(e.target.value)}
+                        placeholder="e.g. Upload your findings PDF or type summary text below..."
+                        className="w-full text-xs p-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#0A192F] mb-1">Optional Reference Attachment File Name</label>
+                      <input
+                        type="text"
+                        value={referenceAttachmentName}
+                        onChange={(e) => setReferenceAttachmentName(e.target.value)}
+                        placeholder="e.g. Case_Dataset_Reference.pdf"
+                        className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono"
+                      />
+                    </div>
                   </div>
                 )}
 

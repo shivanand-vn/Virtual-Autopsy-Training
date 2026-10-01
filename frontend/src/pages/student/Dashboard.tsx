@@ -21,6 +21,7 @@ import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
 import { useFinalExams } from '../../context/FinalExamContext';
 import { RecentDiscussionsWidget } from '../../components/discussions/RecentDiscussionsWidget';
+import { CertificateCard } from '../../components/certificate/CertificateCard';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,30 +36,31 @@ export const DashboardPage: React.FC = () => {
     setExpandedModuleId(expandedModuleId === id ? null : id);
   };
 
-  // DYNAMIC COMPUTATION FROM SHARED COURSE STATE
+  // DYNAMIC COMPUTATION FROM SHARED COURSE & FINAL EXAM STATE
   const modules = activeCourse?.modules || [];
   const allTopics = modules.flatMap((m) => m.topics);
   const completedTopicsCount = allTopics.filter((t) => Boolean(completedTopicIds[t.id])).length;
   const courseProgressPercent =
     allTopics.length > 0 ? Math.round((completedTopicsCount / allTopics.length) * 100) : 0;
+  const courseCompleted = isCourseCompleted();
 
-  const completedModulesCount = modules.filter((m) => isModuleCompletedByStudent(m.id)).length;
+  const completedModulesCount = modules.filter((m) => getModuleStatus(m.id) === 'completed').length;
   const totalModulesCount = modules.length;
 
   const cmeCreditsEarned = modules
-    .filter((m) => isModuleCompletedByStudent(m.id))
+    .filter((m) => getModuleStatus(m.id) === 'completed')
     .reduce((acc, m) => acc + (m.cmeCredits || 0), 0);
   const cmeCreditsTotal = modules.reduce((acc, m) => acc + (m.cmeCredits || 0), 0);
 
-  // Active module is the first incomplete module or the last one if all complete
+  // Active module is the first unlocked incomplete module or the last one
   const activeModule =
-    modules.find((m) => !isModuleCompletedByStudent(m.id)) || modules[modules.length - 1] || null;
+    modules.find((m) => isModuleUnlocked(m.id) && getModuleStatus(m.id) !== 'completed') || modules[0];
 
   const activeModTopics = activeModule?.topics || [];
   const activeModCompletedCount = activeModTopics.filter((t) => Boolean(completedTopicIds[t.id])).length;
   const activeModProgressPercent =
     activeModTopics.length > 0 ? Math.round((activeModCompletedCount / activeModTopics.length) * 100) : 0;
-  const activeModUnlocked = activeModule ? isModuleCompletedByStudent(activeModule.id) : false;
+  const activeModAssessmentUnlocked = activeModule ? isModuleAssessmentUnlocked(activeModule.id) : false;
 
   const publishedExam = getPublishedExamByCourseId(activeCourse?.id) || finalExams.find(e => e.status === 'published');
   const examHistory = publishedExam ? getStudentExamHistory(publishedExam.id) : null;
@@ -173,14 +175,20 @@ export const DashboardPage: React.FC = () => {
           >
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Certificate Status</p>
-              <h3 className="text-lg font-black text-amber-600 mt-1">
-                {certificateIssued ? 'Issued' : 'Not Available Yet'}
+              <h3 className={`text-lg font-black mt-1 ${certificateUnlocked ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {certificateUnlocked ? 'Unlocked' : 'Locked'}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {certificateIssued ? 'Download Available' : 'Eligible at 100%'}
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {certificateUnlocked
+                  ? 'Download Available'
+                  : courseProgressPercent < 100
+                    ? `Course: ${courseProgressPercent}%`
+                    : !finalExamSubmitted
+                      ? 'Exam Pending'
+                      : `Exam: ${finalExamScore}% (<70%)`}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${certificateUnlocked ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
               <Award className="w-6 h-6" />
             </div>
           </div>
@@ -229,7 +237,7 @@ export const DashboardPage: React.FC = () => {
                 <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-[#0A192F]">Assessment:</span>
-                    {activeModUnlocked ? (
+                    {activeModAssessmentUnlocked ? (
                       <span className="text-emerald-700 font-bold flex items-center space-x-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Assessment Available</span>
@@ -237,12 +245,12 @@ export const DashboardPage: React.FC = () => {
                     ) : (
                       <span className="text-slate-500 flex items-center space-x-1">
                         <Lock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Assessment Locked (Complete all topics to unlock)</span>
+                        <span>Assessment Locked (Complete all topics in module first)</span>
                       </span>
                     )}
                   </div>
 
-                  {activeModUnlocked ? (
+                  {activeModAssessmentUnlocked ? (
                     <button
                       onClick={() => navigate(`/assessment/${activeModule.id}`)}
                       className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
@@ -290,7 +298,8 @@ export const DashboardPage: React.FC = () => {
               <div className="space-y-3">
                 {modules.map((mod) => {
                   const isExpanded = expandedModuleId === mod.id;
-                  const modUnlocked = isModuleCompletedByStudent(mod.id);
+                  const modStatus = getModuleStatus(mod.id);
+                  const assessmentUnlocked = isModuleAssessmentUnlocked(mod.id);
                   const modTopics = mod.topics || [];
                   const modDoneTopics = modTopics.filter((t) => Boolean(completedTopicIds[t.id])).length;
 
@@ -298,11 +307,13 @@ export const DashboardPage: React.FC = () => {
                     <div
                       key={mod.id}
                       className={`border rounded-2xl transition-all overflow-hidden ${
-                        modUnlocked
+                        modStatus === 'completed'
                           ? 'border-emerald-300 bg-emerald-50/10'
-                          : modDoneTopics > 0
+                          : modStatus === 'waiting_for_assessment'
+                          ? 'border-sky-400 bg-sky-50/20'
+                          : modStatus === 'in_progress'
                           ? 'border-amber-400 bg-amber-50/20'
-                          : 'border-slate-100 bg-slate-50/50'
+                          : 'border-slate-200 bg-slate-50/50'
                       }`}
                     >
                       <div
@@ -312,10 +323,10 @@ export const DashboardPage: React.FC = () => {
                         <div className="flex items-center space-x-3.5 min-w-0">
                           <div
                             className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
-                              modUnlocked
+                              modStatus === 'completed'
                                 ? 'bg-emerald-500 text-white'
-                                : modDoneTopics > 0
-                                ? 'bg-amber-500 text-slate-950'
+                                : modStatus === 'in_progress' || modStatus === 'waiting_for_assessment'
+                                ? 'bg-amber-500 text-slate-950 font-extrabold'
                                 : 'bg-slate-200 text-slate-500'
                             }`}
                           >
@@ -336,7 +347,11 @@ export const DashboardPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center space-x-3 shrink-0">
-                          {modUnlocked ? (
+                          {modStatus === 'completed' ? (
+                            <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              ✓ Completed
+                            </span>
+                          ) : assessmentUnlocked ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -377,24 +392,21 @@ export const DashboardPage: React.FC = () => {
                                 >
                                   <div className="flex items-center space-x-2.5">
                                     <PlayCircle
-                                      className={`w-4 h-4 ${
-                                        isCompleted ? 'text-emerald-500' : 'text-slate-300'
-                                      }`}
+                                      className={`w-4 h-4 ${isCompleted ? 'text-emerald-500' : 'text-slate-300'
+                                        }`}
                                     />
                                     <span
-                                      className={`font-medium ${
-                                        isCompleted ? 'text-slate-700' : 'text-slate-800 font-bold'
-                                      }`}
+                                      className={`font-medium ${isCompleted ? 'text-slate-700' : 'text-slate-800 font-bold'
+                                        }`}
                                     >
                                       {topicIdx + 1}. {topic.title}
                                     </span>
                                   </div>
                                   <span
-                                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                      isCompleted
+                                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isCompleted
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : 'bg-slate-100 text-slate-500'
-                                    }`}
+                                      }`}
                                   >
                                     {isCompleted ? 'Completed' : 'Pending'}
                                   </span>
@@ -408,6 +420,20 @@ export const DashboardPage: React.FC = () => {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Certificate Progression Widget Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="font-extrabold text-base text-[#0A192F]">Certificate Progression</h3>
+                <button
+                  onClick={() => navigate('/certificate')}
+                  className="text-xs text-amber-700 font-bold hover:underline"
+                >
+                  View Full Certificate →
+                </button>
+              </div>
+              <CertificateCard showDetails={false} />
             </div>
           </div>
 

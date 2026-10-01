@@ -33,6 +33,9 @@ const DEFAULT_INITIAL_FINAL_EXAM: FinalExam = {
 
 interface FinalExamContextType {
   finalExams: FinalExam[];
+  studentExamResult: StudentExamResult | null;
+  saveStudentExamResult: (result: Omit<StudentExamResult, 'submitted'>) => void;
+  resetStudentExamResult: () => void;
   createFinalExam: (exam: Omit<FinalExam, 'id' | 'createdAt' | 'updatedAt' | 'totalMarks'> & { totalMarks?: number }) => FinalExam;
   updateFinalExam: (id: string, exam: Partial<FinalExam>) => void;
   deleteFinalExam: (id: string) => void;
@@ -83,6 +86,41 @@ export const FinalExamProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     return {};
   });
+
+  const [studentExamResult, setStudentExamResult] = useState<StudentExamResult | null>(() => {
+    try {
+      const stored = localStorage.getItem(RESULT_LOCAL_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load student exam result from localStorage', e);
+    }
+    return null;
+  });
+
+  const saveStudentExamResult = (result: Omit<StudentExamResult, 'submitted'>) => {
+    const newResult: StudentExamResult = {
+      ...result,
+      submitted: true,
+      submittedAt: new Date().toISOString()
+    };
+    setStudentExamResult(newResult);
+    try {
+      localStorage.setItem(RESULT_LOCAL_STORAGE_KEY, JSON.stringify(newResult));
+    } catch (e) {
+      console.error('Failed to save student exam result to localStorage', e);
+    }
+  };
+
+  const resetStudentExamResult = () => {
+    setStudentExamResult(null);
+    try {
+      localStorage.removeItem(RESULT_LOCAL_STORAGE_KEY);
+    } catch (e) {
+      console.error('Failed to remove student exam result from localStorage', e);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -314,6 +352,9 @@ export const FinalExamProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <FinalExamContext.Provider
       value={{
         finalExams,
+        studentExamResult,
+        saveStudentExamResult,
+        resetStudentExamResult,
         createFinalExam,
         updateFinalExam,
         deleteFinalExam,

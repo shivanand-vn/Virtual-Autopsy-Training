@@ -122,7 +122,7 @@ export const AdminQuestionBankList: React.FC = () => {
             className="inline-flex items-center justify-center space-x-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Question</span>
+            <span>Add Question</span>
           </button>
         </div>
 

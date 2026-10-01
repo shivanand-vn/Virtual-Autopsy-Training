@@ -516,7 +516,7 @@ export const AdminQuestionForm: React.FC = () => {
                   className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
                 >
                   <Plus className="w-4 h-4 text-amber-600" />
-                  <span>+ Add Option</span>
+                  <span>Add Option</span>
                 </button>
               </div>
             )}

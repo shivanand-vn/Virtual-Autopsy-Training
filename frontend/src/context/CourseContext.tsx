@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { type Course, type CourseModule, type Topic, type ContentType, type AssignmentSubmission, type SubmissionStatus, INITIAL_COURSES } from '../types/course';
 import type { AssessmentResult } from '../types/assessment';
+import {
+  type Course,
+  type CourseModule,
+  type Topic,
+  type ContentType,
+  type AssignmentSubmission,
+  type SubmissionStatus,
+  INITIAL_COURSES
+} from '../types/course';
 import { api } from '../lib/api';
 
 export interface CourseContextType {
@@ -25,6 +33,10 @@ export interface CourseContextType {
   deleteTopic: (courseId: string, moduleId: string, topicId: string) => Promise<void>;
   reorderTopics: (courseId: string, moduleId: string, topicId: string, direction: 'up' | 'down') => void;
 
+  // Module Assignment & Test Operations
+  updateModuleAssignment: (courseId: string, moduleId: string, assignmentData: Partial<import('../types/course').ModuleAssignment>) => void;
+  updateModuleTest: (courseId: string, moduleId: string, testData: Partial<import('../types/course').ModuleTest>) => void;
+
   // Assignment Submissions Operations
   assignmentSubmissions: AssignmentSubmission[];
   submitAssignment: (submissionData: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>) => void;
@@ -32,7 +44,7 @@ export interface CourseContextType {
   getSubmissionForTopic: (topicId: string, studentId?: string) => AssignmentSubmission | undefined;
   getPendingSubmissionsCount: () => number;
 
-  // Student Progress & Strict Sequential Gating Operations
+  // Student Progress Operations
   completedTopicIds: Record<string, boolean>; // topicId -> boolean
   assessmentResults: Record<string, AssessmentResult>; // moduleId -> AssessmentResult
   markTopicCompleted: (topicId: string) => void;
@@ -52,7 +64,7 @@ export interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'va_lms_courses';
+const LOCAL_STORAGE_KEY = 'va_lms_courses_v4';
 const TOPICS_LOCAL_STORAGE_KEY = 'va_lms_completed_topic_ids';
 const ASSESSMENTS_LOCAL_STORAGE_KEY = 'va_lms_assessment_results';
 const ASSIGNMENTS_LOCAL_STORAGE_KEY = 'va_lms_assignment_submissions';
@@ -99,7 +111,26 @@ const getInitialCourses = (): Course[] => {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return sanitizeCoursesForStorage(parsed);
+        const defaultCourse = INITIAL_COURSES[0];
+        const sanitized = sanitizeCoursesForStorage(parsed);
+        return sanitized.map((course: Course) => ({
+          ...course,
+          modules: (course.modules || []).map((mod: CourseModule) => {
+            const fallbackMod = defaultCourse?.modules?.find((dm) => dm.id === mod.id);
+            return {
+              ...mod,
+              assignment: mod.assignment || fallbackMod?.assignment,
+              test: mod.test || fallbackMod?.test,
+              // Strictly keep only true educational lessons (filter out any legacy quiz/assessment topics)
+              topics: (mod.topics || [])
+                .filter((t: Topic) => !t.title.toLowerCase().includes('quiz') && !t.title.toLowerCase().includes('competency quiz') && !t.title.toLowerCase().includes('assessment:'))
+                .map((t: Topic) => ({
+                  ...t,
+                  contentType: (t.contentType === 'video' ? 'video' : 'theory') as ContentType
+                }))
+            };
+          })
+        }));
       }
     }
   } catch (e) {
@@ -724,7 +755,81 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
   };
 
-  // STUDENT PROGRESS & STRICT SEQUENTIAL GATING OPERATIONS
+  // MODULE ASSIGNMENT & TEST OPERATIONS
+  const updateModuleAssignment = (
+    courseId: string,
+    moduleId: string,
+    assignmentData: Partial<import('../types/course').ModuleAssignment>
+  ) => {
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id === courseId) {
+          const updatedModules = c.modules.map((m) => {
+            if (m.id === moduleId) {
+              const currentAssignment = m.assignment || {
+                id: `asgn-${moduleId}`,
+                moduleId,
+                title: 'Module Assignment',
+                description: '',
+                instructions: '',
+                totalMarks: 100,
+                submissionStatus: 'pending' as const
+              };
+              return {
+                ...m,
+                assignment: {
+                  ...currentAssignment,
+                  ...assignmentData
+                }
+              };
+            }
+            return m;
+          });
+          return { ...c, modules: updatedModules };
+        }
+        return c;
+      })
+    );
+  };
+
+  const updateModuleTest = (
+    courseId: string,
+    moduleId: string,
+    testData: Partial<import('../types/course').ModuleTest>
+  ) => {
+    setCourses((prev) =>
+      prev.map((c) => {
+        if (c.id === courseId) {
+          const updatedModules = c.modules.map((m) => {
+            if (m.id === moduleId) {
+              const currentTest = m.test || {
+                id: `test-${moduleId}`,
+                moduleId,
+                title: 'Module Practice Quiz',
+                description: '',
+                durationMinutes: 20,
+                totalQuestions: 10,
+                passingScorePercent: 70,
+                unlimitedRetakes: true
+              };
+              return {
+                ...m,
+                test: {
+                  ...currentTest,
+                  ...testData
+                }
+              };
+            }
+            return m;
+          });
+          return { ...c, modules: updatedModules };
+        }
+        return c;
+      })
+    );
+  };
+
+  // STUDENT PROGRESS OPERATIONS
   const markTopicCompleted = (topicId: string) => {
     setCompletedTopicIds((prev) => ({
       ...prev,
@@ -911,6 +1016,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateTopic,
         deleteTopic,
         reorderTopics,
+
+        updateModuleAssignment,
+        updateModuleTest,
 
         assignmentSubmissions,
         submitAssignment,

@@ -52,7 +52,7 @@ export const AdminCourseForm: React.FC = () => {
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [topicTitle, setTopicTitle] = useState('');
   const [topicDescription, setTopicDescription] = useState('');
-  const [topicContentType, setTopicContentType] = useState<ContentType>('description');
+  const [topicContentType, setTopicContentType] = useState<ContentType>('theory');
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
   const [topicBunnyVideoId, setTopicBunnyVideoId] = useState<string | null>(null);
@@ -394,7 +394,7 @@ export const AdminCourseForm: React.FC = () => {
     setEditingTopicId(null);
     setTopicTitle('');
     setTopicDescription('');
-    setTopicContentType('description');
+    setTopicContentType('theory');
     setTopicContent('');
     setTopicVideoUrl('');
     setRequiredWatchPercentage(90);
@@ -485,7 +485,7 @@ export const AdminCourseForm: React.FC = () => {
                   title: topicTitle,
                   description: topicDescription,
                   contentType: topicContentType,
-                  content: topicContentType === 'description' || topicContentType === 'theory' ? topicContent : undefined,
+                  content: topicContentType === 'theory' ? topicContent : undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
                   bunnyVideoId: extractedBunnyId,
                   requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
@@ -505,7 +505,7 @@ export const AdminCourseForm: React.FC = () => {
               title: topicTitle,
               description: topicDescription,
               contentType: topicContentType,
-              content: topicContentType === 'description' || topicContentType === 'theory' ? topicContent : undefined,
+              content: topicContentType === 'theory' ? topicContent : undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
               bunnyVideoId: extractedBunnyId,
               requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
@@ -962,7 +962,7 @@ export const AdminCourseForm: React.FC = () => {
                                           ) : (
                                             <>
                                               <FileText className="w-3 h-3 text-slate-500" />
-                                              <span>Description</span>
+                                              <span>Theory</span>
                                             </>
                                           )}
                                         </span>
@@ -1161,10 +1161,8 @@ export const AdminCourseForm: React.FC = () => {
                       onChange={(e) => setTopicContentType(e.target.value as ContentType)}
                       className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
                     >
-                      <option value="theory">Theory / Text</option>
-                      <option value="description">Description (Theory)</option>
-                      <option value="video">Video</option>
-                      <option value="assignment">Assignment</option>
+                      <option value="theory">Theory / Reading Lesson</option>
+                      <option value="video">Video Lesson</option>
                     </select>
                   </div>
 
@@ -1325,9 +1323,9 @@ export const AdminCourseForm: React.FC = () => {
                 </div>
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}
-                {topicContentType === 'description' || topicContentType === 'theory' ? (
+                {topicContentType === 'theory' ? (
                   <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Learning Content (Text / Educational Lesson)</label>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Theory Content (Reading Text / Educational Lesson) *</label>
                     <textarea
                       value={topicContent}
                       onChange={(e) => setTopicContent(e.target.value)}

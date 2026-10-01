@@ -155,6 +155,14 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       const response = await api.post('/payments/complete-registration', payload);
       const { credentials, payment } = response.data;
 
+      if (credentials?.email) {
+        try {
+          localStorage.setItem(`vat_temp_pwd_${credentials.email.toLowerCase().trim()}`, 'true');
+        } catch (e) {
+          console.error('Failed to store temp password flag', e);
+        }
+      }
+
       setDemoCredential({
         email: credentials.email,
         temporaryPassword: credentials.temporaryPassword,

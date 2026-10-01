@@ -15,7 +15,9 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  FileCheck,
+  Award
 } from 'lucide-react';
 
 export const AdminCourseDetail: React.FC = () => {
@@ -185,50 +187,128 @@ export const AdminCourseDetail: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Topics Drawer */}
+                    {/* 3-Tier Module Architecture Drawer */}
                     {isExpanded && (
-                      <div className="p-4 border-t border-slate-100 space-y-3 bg-white">
+                      <div className="p-5 border-t border-slate-100 space-y-5 bg-white">
                         <p className="text-xs text-slate-600 mb-2">{mod.description}</p>
 
+                        {/* Tier 1: Learning Topics */}
                         <div className="space-y-2">
-                          {mod.topics.map((top, idx) => (
-                            <div
-                              key={top.id}
-                              className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2.5">
-                                  <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center shrink-0">
-                                    {idx + 1}
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A192F] flex items-center space-x-1.5">
+                              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center">1</span>
+                              <span>Educational Topics ({mod.topics.length} Lessons)</span>
+                            </span>
+                            <span className="text-[11px] text-slate-400">Video & Theory Lessons Only</span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {mod.topics.map((top, idx) => (
+                              <div
+                                key={top.id}
+                                className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2.5">
+                                    <span className="w-5 h-5 rounded-md bg-white border border-slate-300 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="font-extrabold text-slate-900">{top.title}</span>
+                                  </div>
+
+                                  <span className="inline-flex items-center space-x-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-white border border-slate-200 text-slate-700">
+                                    {top.contentType === 'video' ? (
+                                      <>
+                                        <Video className="w-3 h-3 text-amber-600" />
+                                        <span>Video Lesson</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileText className="w-3 h-3 text-slate-500" />
+                                        <span>Theory Lesson</span>
+                                      </>
+                                    )}
                                   </span>
-                                  <span className="font-extrabold text-slate-900">{top.title}</span>
                                 </div>
 
-                                <span className="inline-flex items-center space-x-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-white border border-slate-200 text-slate-700">
-                                  {top.contentType === 'video' ? (
-                                    <>
-                                      <Video className="w-3 h-3 text-amber-600" />
-                                      <span>Video Lesson</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FileText className="w-3 h-3 text-slate-500" />
-                                      <span>Text / Description Lesson</span>
-                                    </>
-                                  )}
+                                <p className="text-[11px] text-slate-600 leading-relaxed pl-7">{top.description}</p>
+
+                                {top.content && (
+                                  <div className="ml-7 p-3 bg-white rounded-lg border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                                    <strong className="text-[10px] text-slate-400 uppercase block mb-1">Learning Content Preview:</strong>
+                                    {top.content}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Tier 2: Module Assignment */}
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A192F] flex items-center space-x-1.5">
+                            <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center">2</span>
+                            <span>Module Assignment (Case Evaluation)</span>
+                          </span>
+
+                          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <FileCheck className="w-4 h-4 text-amber-600" />
+                                <span className="font-extrabold text-slate-900">
+                                  {mod.assignment?.title || 'Medicolegal Case Study Report'}
                                 </span>
                               </div>
-
-                              <p className="text-[11px] text-slate-600 leading-relaxed pl-7">{top.description}</p>
-
-                              {top.content && (
-                                <div className="ml-7 p-3 bg-white rounded-lg border border-slate-200/80 text-[11px] text-slate-700 font-medium">
-                                  <strong className="text-[10px] text-slate-400 uppercase block mb-1">Learning Content Preview:</strong>
-                                  {top.content}
-                                </div>
-                              )}
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-900">
+                                100 Marks • Required
+                              </span>
                             </div>
-                          ))}
+
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {mod.assignment?.description || 'Comprehensive case analysis and PDF submission.'}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1 font-medium">
+                              <span>📄 Worksheet: {mod.assignment?.templateFileName || 'Assignment_Case_Briefing.pdf'}</span>
+                              <span>•</span>
+                              <span>Submission Status: {mod.assignment?.submissionStatus || 'pending'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tier 3: Module Test */}
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A192F] flex items-center space-x-1.5">
+                              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-900 font-bold text-[10px] flex items-center justify-center">3</span>
+                              <span>Module Test (Practice Quiz)</span>
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              Unlimited Retakes
+                            </span>
+                          </div>
+
+                          <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/30 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Award className="w-4 h-4 text-emerald-600" />
+                                <span className="font-extrabold text-slate-900">
+                                  {mod.test?.title || `Module ${mod.moduleNumber} Practice Quiz`}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-600">
+                                {mod.test?.totalQuestions || 5} Questions • {mod.test?.durationMinutes || 20} Mins
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {mod.test?.description || 'Formative assessment testing module core competencies with unlimited practice retakes.'}
+                            </p>
+
+                            <div className="text-[11px] text-emerald-800 font-medium">
+                              ✓ Passing Score: {mod.test?.passingScorePercent || 70}% • Students can retake freely for mastery.
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}

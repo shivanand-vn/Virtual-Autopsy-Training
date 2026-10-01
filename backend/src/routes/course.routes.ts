@@ -13,6 +13,7 @@ import {
   updateTopic,
   deleteTopic,
   getVideoStreamToken,
+  getVideoStreamTokenByVideoId,
   updateProgress,
   uploadCourseMediaHandler,
   deleteCourseMediaHandler,
@@ -24,6 +25,7 @@ const router = Router();
 // Public / Learner Course Access
 router.get('/', optionalAuth, getAllCourses);
 router.get('/:id', optionalAuth, getCourseById);
+router.get('/stream-token/:videoId', optionalAuth, getVideoStreamTokenByVideoId);
 
 // Admin Course CRUD
 router.post('/', requireAuth, requireRole('ADMIN'), createCourse);

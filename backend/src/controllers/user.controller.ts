@@ -28,11 +28,14 @@ export async function getAllUsers(req: AuthRequest, res: Response): Promise<void
     }
 
     if (role && role !== 'all') {
-      if (role.toUpperCase() === 'ADMIN') {
-        where.role = 'ADMIN';
-      } else if (role.toUpperCase() === 'STUDENT') {
+      if (role.toUpperCase() === 'STUDENT') {
         where.role = 'STUDENT';
+      } else if (role.toUpperCase() === 'ADMIN') {
+        where.role = 'ADMIN';
       }
+    } else {
+      // Do not display Admins in the user management section
+      where.role = { not: 'ADMIN' };
     }
 
     if (status && status !== 'all') {

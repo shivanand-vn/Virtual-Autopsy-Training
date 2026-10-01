@@ -55,9 +55,7 @@ export interface UserRecord {
 }
 
 export const mapBackendUserToRecord = (bu: any): UserRecord => {
-  const roleName = bu.role === 'ADMIN'
-    ? 'Faculty / Admin'
-    : (bu.title?.toLowerCase().includes('pathologist') || bu.application?.professionalRole?.toLowerCase().includes('pathologist'))
+  const roleName = (bu.title?.toLowerCase().includes('pathologist') || bu.application?.professionalRole?.toLowerCase().includes('pathologist'))
     ? 'Pathologist'
     : 'Fellow / Student';
 
@@ -124,7 +122,8 @@ export const AdminUsersPage: React.FC = () => {
     try {
       const res = await api.get('/users');
       if (res && res.data && Array.isArray(res.data.users)) {
-        const mapped = res.data.users.map(mapBackendUserToRecord);
+        const studentOnly = res.data.users.filter((u: any) => u.role !== 'ADMIN');
+        const mapped = studentOnly.map(mapBackendUserToRecord);
         setUsers(mapped);
       } else {
         setUsers([]);
@@ -255,7 +254,7 @@ export const AdminUsersPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
-            {['all', 'Fellow / Student', 'Pathologist', 'Faculty / Admin'].map((role) => (
+            {['all', 'Fellow / Student', 'Pathologist'].map((role) => (
               <button
                 key={role}
                 onClick={() => setRoleFilter(role)}

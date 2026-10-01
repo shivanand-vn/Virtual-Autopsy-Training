@@ -109,12 +109,29 @@ export const api = {
   upload: <T = any>(
     url: string,
     formData: FormData,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal
   ): Promise<ApiResponse<T>> => {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new DOMException('Upload aborted by user', 'AbortError'));
+        return;
+      }
+
       const token = getAuthToken();
       const endpoint = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
       const xhr = new XMLHttpRequest();
+
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          try {
+            xhr.abort();
+          } catch {
+            // ignore
+          }
+          reject(new DOMException('Upload aborted by user', 'AbortError'));
+        });
+      }
 
       xhr.open('POST', endpoint, true);
       xhr.withCredentials = true;
@@ -151,6 +168,10 @@ export const api = {
         } catch {
           reject(new Error('Invalid server response'));
         }
+      };
+
+      xhr.onabort = () => {
+        reject(new DOMException('Upload aborted by user', 'AbortError'));
       };
 
       xhr.onerror = () => {

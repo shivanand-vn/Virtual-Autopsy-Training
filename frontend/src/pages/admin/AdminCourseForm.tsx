@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
@@ -20,6 +20,7 @@ import {
   PlayCircle,
   Upload,
   Loader2,
+  Shield,
   Image as ImageIcon
 } from 'lucide-react';
 
@@ -54,6 +55,7 @@ export const AdminCourseForm: React.FC = () => {
   const [topicContentType, setTopicContentType] = useState<ContentType>('description');
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
+  const [topicBunnyVideoId, setTopicBunnyVideoId] = useState<string | null>(null);
   const [requiredWatchPercentage, setRequiredWatchPercentage] = useState<number>(90);
   const [assignmentInstructions, setAssignmentInstructions] = useState('');
   const [submissionInstructions, setSubmissionInstructions] = useState('');
@@ -67,6 +69,7 @@ export const AdminCourseForm: React.FC = () => {
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState<number>(0);
   const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
+  const videoUploadAbortControllerRef = useRef<AbortController | null>(null);
 
   // Thumbnail Source & Upload State
   const [thumbnailSourceMode, setThumbnailSourceMode] = useState<'url' | 'file'>('url');
@@ -75,10 +78,31 @@ export const AdminCourseForm: React.FC = () => {
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState<number>(0);
   const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
+  const thumbnailUploadAbortControllerRef = useRef<AbortController | null>(null);
+
   const [isDeletingThumbnail, setIsDeletingThumbnail] = useState(false);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
-
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Auto-sign Bunny video URLs if an unsigned embed URL is present
+  useEffect(() => {
+    if (topicVideoUrl && topicVideoUrl.includes('iframe.mediadelivery.net') && !topicVideoUrl.includes('token=')) {
+      const match = topicVideoUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
+      if (match && match[1]) {
+        const videoId = match[1];
+        setTopicBunnyVideoId(videoId);
+        api.get<{ embedUrl: string }>(`/courses/stream-token/${videoId}`)
+          .then((res) => {
+            if (res?.data?.embedUrl) {
+              setTopicVideoUrl(res.data.embedUrl);
+            }
+          })
+          .catch((err) => {
+            console.warn('Could not auto-sign stream embed URL:', err);
+          });
+      }
+    }
+  }, [topicVideoUrl]);
 
   const handleVideoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,6 +121,9 @@ export const AdminCourseForm: React.FC = () => {
       return;
     }
 
+    const abortController = new AbortController();
+    videoUploadAbortControllerRef.current = abortController;
+
     setUploadedVideoFileName(file.name);
     setIsUploadingVideo(true);
     setVideoUploadProgress(0);
@@ -106,26 +133,35 @@ export const AdminCourseForm: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.upload<{ url: string; fileName: string }>(
+      const response = await api.upload<{ url: string; fileName: string; bunnyVideoId?: string }>(
         '/courses/upload-media',
         formData,
-        (percent) => setVideoUploadProgress(percent)
+        (percent) => setVideoUploadProgress(percent),
+        abortController.signal
       );
       if (response && response.data && response.data.url) {
         setTopicVideoUrl(response.data.url);
+        if (response.data.bunnyVideoId) {
+          setTopicBunnyVideoId(response.data.bunnyVideoId);
+        }
         setVideoUploadProgress(100);
       } else {
-        throw new Error(response?.message || 'Failed to upload video to cloud storage.');
+        throw new Error(response?.message || 'Failed to upload video.');
       }
     } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('Video upload was cancelled by user.');
+        return;
+      }
       console.error('Video upload failed:', err);
       const rawMsg = err.data?.message || err.message || '';
       const msg = rawMsg.toLowerCase().includes('fetch failed') || rawMsg.toLowerCase().includes('timeout')
         ? 'Video upload connection timed out or was interrupted. Please check network connection and try again.'
-        : (rawMsg || 'Failed to upload video to cloud storage. Please check connection and try again.');
+        : (rawMsg || 'Failed to upload video. Please check connection and try again.');
       setVideoUploadError(msg);
     } finally {
       setIsUploadingVideo(false);
+      videoUploadAbortControllerRef.current = null;
     }
   };
 
@@ -146,6 +182,9 @@ export const AdminCourseForm: React.FC = () => {
       return;
     }
 
+    const abortController = new AbortController();
+    thumbnailUploadAbortControllerRef.current = abortController;
+
     const localUrl = URL.createObjectURL(file);
     setThumbnailLocalPreview(localUrl);
     setUploadedThumbnailFileName(file.name);
@@ -160,24 +199,46 @@ export const AdminCourseForm: React.FC = () => {
       const response = await api.upload<{ url: string; fileName: string }>(
         '/courses/upload-media',
         formData,
-        (percent) => setThumbnailUploadProgress(percent)
+        (percent) => setThumbnailUploadProgress(percent),
+        abortController.signal
       );
       if (response && response.data && response.data.url) {
         setTopicThumbnail(response.data.url);
         setThumbnailUploadProgress(100);
       } else {
-        throw new Error(response?.message || 'Failed to upload thumbnail to cloud storage.');
+        throw new Error(response?.message || 'Failed to upload thumbnail image.');
       }
     } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('Thumbnail upload was cancelled by user.');
+        return;
+      }
       console.error('Thumbnail upload failed:', err);
-      const msg = err.data?.message || err.message || 'Failed to upload thumbnail image to cloud storage.';
+      const msg = err.data?.message || err.message || 'Failed to upload thumbnail image. Please try again.';
       setThumbnailUploadError(msg);
     } finally {
       setIsUploadingThumbnail(false);
+      thumbnailUploadAbortControllerRef.current = null;
     }
   };
 
   const handleRemoveThumbnail = async () => {
+    // 1. If currently uploading, cancel the upload so it is NOT uploaded
+    if (isUploadingThumbnail && thumbnailUploadAbortControllerRef.current) {
+      thumbnailUploadAbortControllerRef.current.abort();
+      thumbnailUploadAbortControllerRef.current = null;
+      setIsUploadingThumbnail(false);
+      setThumbnailUploadProgress(0);
+      if (thumbnailLocalPreview) {
+        URL.revokeObjectURL(thumbnailLocalPreview);
+        setThumbnailLocalPreview(null);
+      }
+      setUploadedThumbnailFileName(null);
+      setThumbnailUploadError(null);
+      return;
+    }
+
+    // 2. If already uploaded, delete it from storage
     if (thumbnailLocalPreview) {
       URL.revokeObjectURL(thumbnailLocalPreview);
       setThumbnailLocalPreview(null);
@@ -191,7 +252,7 @@ export const AdminCourseForm: React.FC = () => {
       try {
         await api.post('/courses/delete-media', { url: urlToDelete, provider: 'cloudinary' });
       } catch (err) {
-        console.warn('Failed to delete thumbnail from cloud storage:', err);
+        console.warn('Failed to delete thumbnail from storage:', err);
       } finally {
         setIsDeletingThumbnail(false);
       }
@@ -199,16 +260,34 @@ export const AdminCourseForm: React.FC = () => {
   };
 
   const handleRemoveVideo = async () => {
+    // 1. If currently uploading, abort so it is NOT uploaded
+    if (isUploadingVideo && videoUploadAbortControllerRef.current) {
+      videoUploadAbortControllerRef.current.abort();
+      videoUploadAbortControllerRef.current = null;
+      setIsUploadingVideo(false);
+      setVideoUploadProgress(0);
+      setUploadedVideoFileName(null);
+      setVideoUploadError(null);
+      return;
+    }
+
+    // 2. If already uploaded, delete from storage
     const urlToDelete = topicVideoUrl;
+    const bunnyIdToDelete = topicBunnyVideoId;
     setTopicVideoUrl('');
+    setTopicBunnyVideoId(null);
     setUploadedVideoFileName(null);
     setVideoUploadError(null);
-    if (urlToDelete && urlToDelete.startsWith('http')) {
+    if ((urlToDelete && urlToDelete.startsWith('http')) || bunnyIdToDelete) {
       setIsDeletingVideo(true);
       try {
-        await api.post('/courses/delete-media', { url: urlToDelete });
+        await api.post('/courses/delete-media', {
+          url: urlToDelete,
+          bunnyVideoId: bunnyIdToDelete,
+          provider: 'bunny',
+        });
       } catch (err) {
-        console.warn('Failed to delete video from cloud storage:', err);
+        console.warn('Failed to delete video from storage:', err);
       } finally {
         setIsDeletingVideo(false);
       }
@@ -338,6 +417,7 @@ export const AdminCourseForm: React.FC = () => {
     setIsUploadingThumbnail(false);
     setThumbnailUploadProgress(0);
     setThumbnailUploadError(null);
+    setTopicBunnyVideoId(null);
     setShowTopicModal(true);
   };
 
@@ -353,6 +433,7 @@ export const AdminCourseForm: React.FC = () => {
     setTopicContentType(top.contentType);
     setTopicContent(top.content || '');
     setTopicVideoUrl(top.videoUrl || '');
+    setTopicBunnyVideoId(top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null);
     setRequiredWatchPercentage(top.requiredWatchPercentage || 90);
     setAssignmentInstructions(top.assignmentInstructions || '');
     setSubmissionInstructions(top.submissionInstructions || '');
@@ -391,6 +472,8 @@ export const AdminCourseForm: React.FC = () => {
     if (!topicTitle.trim() || !targetModuleIdForTopic) return;
     if (isUploadingVideo || isUploadingThumbnail) return;
 
+    const extractedBunnyId = topicContentType === 'video' ? (topicBunnyVideoId || (topicVideoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || undefined) : undefined;
+
     setModules((prev) =>
       prev.map((m) => {
         if (m.id === targetModuleIdForTopic) {
@@ -404,6 +487,7 @@ export const AdminCourseForm: React.FC = () => {
                   contentType: topicContentType,
                   content: topicContentType === 'description' || topicContentType === 'theory' ? topicContent : undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+                  bunnyVideoId: extractedBunnyId,
                   requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
                   assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
                   submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
@@ -423,6 +507,7 @@ export const AdminCourseForm: React.FC = () => {
               contentType: topicContentType,
               content: topicContentType === 'description' || topicContentType === 'theory' ? topicContent : undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+              bunnyVideoId: extractedBunnyId,
               requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
               assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
               submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
@@ -442,6 +527,25 @@ export const AdminCourseForm: React.FC = () => {
   };
 
   const handleDeleteTopic = (modId: string, topicId: string) => {
+    // Delete associated media from cloud storage if uploaded
+    const targetModule = modules.find((m) => m.id === modId);
+    const targetTopic = targetModule?.topics.find((t) => t.id === topicId);
+    if (targetTopic) {
+      if (targetTopic.videoUrl || targetTopic.bunnyVideoId) {
+        api.post('/courses/delete-media', {
+          url: targetTopic.videoUrl,
+          bunnyVideoId: targetTopic.bunnyVideoId,
+          provider: 'bunny',
+        }).catch((err) => console.warn('Failed to delete video on topic delete:', err));
+      }
+      if (targetTopic.thumbnail && targetTopic.thumbnail.includes('cloudinary')) {
+        api.post('/courses/delete-media', {
+          url: targetTopic.thumbnail,
+          provider: 'cloudinary',
+        }).catch((err) => console.warn('Failed to delete thumbnail on topic delete:', err));
+      }
+    }
+
     setModules((prev) =>
       prev.map((m) => {
         if (m.id === modId) {
@@ -569,6 +673,7 @@ export const AdminCourseForm: React.FC = () => {
           // Create or update topics
           for (let topIdx = 0; topIdx < mod.topics.length; topIdx++) {
             const top = mod.topics[topIdx];
+            const extractedBunnyId = top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
             if (top.id.startsWith('t-')) {
               // New Topic -> Create in DB
               await api.post(`/courses/modules/${activeModId}/topics`, {
@@ -576,6 +681,7 @@ export const AdminCourseForm: React.FC = () => {
                 description: top.description || null,
                 type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
                 videoUrl: top.videoUrl || null,
+                bunnyVideoId: extractedBunnyId,
                 content: top.content || null,
                 status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
               });
@@ -586,6 +692,7 @@ export const AdminCourseForm: React.FC = () => {
                 description: top.description || null,
                 type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
                 videoUrl: top.videoUrl || null,
+                bunnyVideoId: extractedBunnyId,
                 content: top.content || null,
                 order: topIdx + 1,
                 status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
@@ -1290,13 +1397,22 @@ export const AdminCourseForm: React.FC = () => {
                                 <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
                                 <span>
                                   {videoUploadProgress < 100
-                                    ? `Step 1/2: Uploading video file (${videoUploadProgress}%)...`
-                                    : 'Step 2/2: Transferring video to streaming cloud...'}
+                                    ? `Uploading video file (${videoUploadProgress}%)...`
+                                    : 'Processing video...'}
                                 </span>
                               </div>
-                              <span className="font-mono text-xs font-black text-amber-700">
-                                {videoUploadProgress < 100 ? `${videoUploadProgress}%` : 'Transferring...'}
-                              </span>
+                              <div className="flex items-center space-x-3">
+                                <span className="font-mono text-xs font-black text-amber-700">
+                                  {videoUploadProgress < 100 ? `${videoUploadProgress}%` : 'Processing...'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveVideo}
+                                  className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
                             </div>
 
                             <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
@@ -1311,16 +1427,10 @@ export const AdminCourseForm: React.FC = () => {
                             </div>
 
                             <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-slate-100">
-                              {videoUploadProgress < 100 ? (
-                                <span>Sending video file to server. Please keep this modal open.</span>
-                              ) : (
-                                <span className="text-amber-800 font-semibold flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                                  Transferring to streaming CDN... You can save the topic as soon as this transfer finishes.
-                                </span>
-                              )}
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                {videoUploadProgress < 100 ? 'Stage 1 of 2' : 'Stage 2 of 2'}
+                              <span>
+                                {videoUploadProgress < 100
+                                  ? 'Transferring video file. Click Cancel anytime to abort.'
+                                  : 'Finalizing secure upload. Almost done...'}
                               </span>
                             </div>
                           </div>
@@ -1332,7 +1442,7 @@ export const AdminCourseForm: React.FC = () => {
                                 <p className="text-xs font-bold text-slate-800 truncate">{uploadedVideoFileName || 'Video Lesson'}</p>
                                 <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
                                   <CheckCircle2 className="w-3 h-3 mr-1" />
-                                  Uploaded successfully (DRM Protected)
+                                  Video linked successfully (DRM Protected)
                                 </p>
                               </div>
                             </div>
@@ -1375,42 +1485,83 @@ export const AdminCourseForm: React.FC = () => {
                       <span className="text-[10px] text-slate-400">Student must watch this percentage before topic completes. Default: 90%</span>
                     </div>
 
-                    {/* VIDEO PREVIEW PLAYER (SUPPORTS EMBED IFRAME & HTML5 VIDEO) */}
-                    {topicVideoUrl ? (
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-slate-500">Video Player Preview</label>
-                        <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
-                          {topicVideoUrl.includes('iframe.mediadelivery.net') || topicVideoUrl.includes('/embed/') ? (
-                            <iframe
-                              src={topicVideoUrl}
-                              loading="lazy"
-                              className="w-full aspect-video border-0"
-                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                              allowFullScreen
-                            />
-                          ) : (
-                            <video
-                              src={topicVideoUrl}
-                              controls
-                              className="w-full max-h-48 object-contain bg-black"
-                            >
-                              Your browser does not support HTML5 video playback.
-                            </video>
-                          )}
+                    {/* VIDEO PREVIEW PLAYER (MATCHING STUDENT PLAYER EXPERIENCE) */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">Video Player Preview</label>
+                        {topicVideoUrl && (
+                          <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live DRM Stream
+                          </span>
+                        )}
+                      </div>
+
+                      {topicVideoUrl ? (
+                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800 relative group space-y-0">
+                          {/* DRM Status Chrome Bar matching MyCourse */}
+                          <div className="bg-slate-900/95 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center space-x-2 text-emerald-400 font-bold truncate">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
+                              <span>SECURE DRM STREAM ({requiredWatchPercentage || 90}% WATCH REQUIRED)</span>
+                              <span className="text-slate-500 hidden sm:inline">• 256-BIT DICOM-RT ENCRYPTED</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 text-slate-400 shrink-0">
+                              <Shield className="w-3 h-3 text-amber-400" />
+                              <span>PREVIEW MODE</span>
+                            </div>
+                          </div>
+
+                          {/* Responsive 16:9 Black Screen Container */}
+                          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                            {topicVideoUrl.includes('iframe.mediadelivery.net') || topicVideoUrl.includes('/embed/') ? (
+                              <iframe
+                                src={`${topicVideoUrl}${topicVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
+                                loading="lazy"
+                                className="w-full h-full border-0"
+                                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                allowFullScreen
+                              />
+                            ) : (
+                              <video
+                                src={topicVideoUrl}
+                                controls
+                                className="w-full h-full object-contain bg-black"
+                              >
+                                Your browser does not support HTML5 video playback.
+                              </video>
+                            )}
+                          </div>
                         </div>
+                      ) : (
+                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800">
+                          <div className="bg-slate-900/90 text-[10px] uppercase font-mono tracking-widest text-slate-500 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center space-x-2 text-slate-400 font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-1" />
+                              <span>DRM STREAM PLAYER PREVIEW</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 text-slate-500">
+                              <Shield className="w-3 h-3 text-slate-600" />
+                              <span>STANDBY</span>
+                            </div>
+                          </div>
+                          <div className="aspect-video bg-slate-950 flex flex-col items-center justify-center text-slate-500 text-xs font-mono p-6 text-center space-y-2">
+                            <PlayCircle className="w-10 h-10 text-slate-700" />
+                            <span className="text-slate-300 font-sans text-xs font-semibold">No video linked yet</span>
+                            <span className="text-[11px] text-slate-500 font-sans">Upload a video file or enter a stream URL above to preview the secure player</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {topicVideoUrl && (
                         <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           <span>
-                            <strong>Stream linked:</strong> Cloud transcoding runs in the background. You can save and publish your topic right away — no need to wait for transcoding.
+                            <strong>Stream ready:</strong> Video is linked securely. You can save and publish your topic right away.
                           </span>
                         </p>
-                      </div>
-                    ) : (
-                      <div className="aspect-video bg-slate-950 rounded-xl flex items-center justify-center text-amber-400 text-xs font-mono border border-slate-800">
-                        <PlayCircle className="w-8 h-8 mr-2 text-amber-500" />
-                        <span>Video Player Preview</span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ) : (
                   /* ASSIGNMENT TOPIC INPUTS */

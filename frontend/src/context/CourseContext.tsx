@@ -143,6 +143,7 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
         contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : 'description') as ContentType,
         content: r.content || '',
         videoUrl: r.videoUrl || '',
+        bunnyVideoId: r.bunnyVideoId || (r.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]),
         thumbnail: r.thumbnail || '',
         order: r.order || (rIdx + 1),
         status: (r.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
@@ -558,6 +559,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       description: topicData.description || null,
       type: topicData.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
       videoUrl: topicData.videoUrl || null,
+      bunnyVideoId: topicData.bunnyVideoId || (topicData.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null,
       content: topicData.content || null,
       status: topicData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
     };
@@ -574,6 +576,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         contentType: (bRes.type === 'VIDEO_STREAM' ? 'video' : 'description') as ContentType,
         content: bRes.content || '',
         videoUrl: bRes.videoUrl || '',
+        bunnyVideoId: bRes.bunnyVideoId || payload.bunnyVideoId || undefined,
         thumbnail: topicData.thumbnail || '',
         order: bRes.order || 1,
         status: bRes.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
@@ -624,6 +627,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       payload.type = updatedData.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT';
     }
     if (updatedData.videoUrl !== undefined) payload.videoUrl = updatedData.videoUrl;
+    if (updatedData.bunnyVideoId !== undefined) {
+      payload.bunnyVideoId = updatedData.bunnyVideoId;
+    } else if (updatedData.videoUrl) {
+      payload.bunnyVideoId = updatedData.videoUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] || null;
+    }
     if (updatedData.content !== undefined) payload.content = updatedData.content;
     if (updatedData.order !== undefined) payload.order = updatedData.order;
     if (updatedData.status !== undefined) payload.status = updatedData.status.toUpperCase();

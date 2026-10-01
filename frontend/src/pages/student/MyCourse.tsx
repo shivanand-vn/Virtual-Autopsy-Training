@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
+import { api } from '../../lib/api';
 
 export const MyCoursePage: React.FC = () => {
   const navigate = useNavigate();
@@ -118,6 +119,36 @@ export const MyCoursePage: React.FC = () => {
   const currentTopicUnlocked = currentModuleUnlocked && isTopicUnlocked(currentModule.id, currentTopic.id);
   const currentTopicIsCompleted = isTopicCompleted(currentTopic.id);
   const currentSubmission = getSubmissionForTopic(currentTopic.id);
+
+  // Auto-resolve signed Bunny DRM Stream token if videoUrl is unsigned or needs fresh token
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
+
+  useEffect(() => {
+    let rawUrl = currentTopic.videoUrl || '';
+    const rawBunnyId = currentTopic.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
+
+    if (!rawUrl && rawBunnyId && !rawBunnyId.startsWith('pmct-')) {
+      rawUrl = `https://iframe.mediadelivery.net/embed/764331/${rawBunnyId}`;
+    }
+
+    if (rawUrl && rawUrl.includes('iframe.mediadelivery.net') && !rawUrl.includes('token=')) {
+      const match = rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
+      const vidId = match?.[1] || rawBunnyId;
+      if (vidId && !vidId.startsWith('pmct-')) {
+        api.get<{ embedUrl: string }>(`/courses/stream-token/${vidId}`)
+          .then((res) => {
+            if (res?.data?.embedUrl) {
+              setActiveVideoUrl(res.data.embedUrl);
+            } else {
+              setActiveVideoUrl(rawUrl);
+            }
+          })
+          .catch(() => setActiveVideoUrl(rawUrl));
+        return;
+      }
+    }
+    setActiveVideoUrl(rawUrl);
+  }, [currentTopic.id, currentTopic.videoUrl, currentTopic.bunnyVideoId]);
 
   // Sync student assignment inputs with existing submission state
   useEffect(() => {
@@ -767,10 +798,10 @@ export const MyCoursePage: React.FC = () => {
                   </div>
 
                   <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                    {currentTopic.videoUrl ? (
-                      currentTopic.videoUrl.includes('iframe.mediadelivery.net') || currentTopic.videoUrl.includes('/embed/') ? (
+                    {activeVideoUrl ? (
+                      activeVideoUrl.includes('iframe.mediadelivery.net') || activeVideoUrl.includes('/embed/') ? (
                         <iframe
-                          src={`${currentTopic.videoUrl}${currentTopic.videoUrl.includes('?') ? '&' : '?'}autoplay=false`}
+                          src={`${activeVideoUrl}${activeVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
                           loading="lazy"
                           className="w-full h-full border-0"
                           allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
@@ -778,7 +809,7 @@ export const MyCoursePage: React.FC = () => {
                         />
                       ) : (
                         <video
-                          src={currentTopic.videoUrl}
+                          src={activeVideoUrl}
                           controls
                           className="w-full h-full object-contain bg-black"
                         >

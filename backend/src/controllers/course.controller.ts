@@ -6,6 +6,25 @@ import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary
 import { env } from '../config/env.js';
 import { CourseStatus, Role } from '@prisma/client';
 
+export function signBunnyEmbedUrlIfNeeded(url: string | null | undefined, videoId?: string | null): string {
+  const effectiveUrl = url || (videoId && !videoId.startsWith('pmct-') ? `https://iframe.mediadelivery.net/embed/${env.BUNNY_STREAM_LIBRARY_ID || '764331'}/${videoId}` : '');
+  if (!effectiveUrl) return url || '';
+
+  if (effectiveUrl.includes('iframe.mediadelivery.net') && !effectiveUrl.includes('token=')) {
+    const match = effectiveUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
+    const id = match ? match[1] : videoId;
+    if (id) {
+      try {
+        const streamToken = generateBunnyStreamToken(id, 365 * 24 * 3600);
+        return streamToken.embedUrl;
+      } catch (err) {
+        console.warn('Failed to sign Bunny embed URL:', err);
+      }
+    }
+  }
+  return effectiveUrl;
+}
+
 export async function getAllCourses(req: Request, res: Response): Promise<void> {
   try {
     const userRole = (req as any).user?.role;
@@ -26,7 +45,18 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
       },
     });
 
-    sendSuccess(res, courses, 'Courses retrieved successfully');
+    const mappedCourses = courses.map((c) => ({
+      ...c,
+      modules: c.modules.map((m) => ({
+        ...m,
+        resources: m.resources.map((r) => ({
+          ...r,
+          videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
+        })),
+      })),
+    }));
+
+    sendSuccess(res, mappedCourses, 'Courses retrieved successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to fetch courses', 500);
   }
@@ -89,6 +119,10 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
 
       return {
         ...mod,
+        resources: mod.resources.map((r) => ({
+          ...r,
+          videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
+        })),
         isCompleted: progress.isCompleted,
         lastVideoTimestamp: progress.lastVideoTimestamp,
         isLocked,
@@ -271,6 +305,9 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const effectiveVideoId = bunnyVideoId || (videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
+    const signedVideoUrl = videoUrl ? signBunnyEmbedUrlIfNeeded(videoUrl, effectiveVideoId) : null;
+
     const count = await prisma.resource.count({ where: { moduleId } });
     const newTopic = await prisma.resource.create({
       data: {
@@ -278,8 +315,8 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
         title,
         description: description || null,
         type: type || 'VIDEO_STREAM',
-        bunnyVideoId: bunnyVideoId || null,
-        videoUrl: videoUrl || null,
+        bunnyVideoId: effectiveVideoId,
+        videoUrl: signedVideoUrl,
         content: content || null,
         durationSeconds: durationSeconds ? Number(durationSeconds) : null,
         isDownloadable: Boolean(isDownloadable),
@@ -288,7 +325,10 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       },
     });
 
-    sendSuccess(res, newTopic, 'Topic created successfully', 201);
+    sendSuccess(res, {
+      ...newTopic,
+      videoUrl: signBunnyEmbedUrlIfNeeded(newTopic.videoUrl, newTopic.bunnyVideoId),
+    }, 'Topic created successfully', 201);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to create topic', 500);
   }
@@ -305,14 +345,17 @@ export async function updateTopic(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const effectiveVideoId = bunnyVideoId !== undefined ? bunnyVideoId : (videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] || existing.bunnyVideoId);
+    const signedVideoUrl = videoUrl !== undefined ? (videoUrl ? signBunnyEmbedUrlIfNeeded(videoUrl, effectiveVideoId) : null) : undefined;
+
     const updated = await prisma.resource.update({
       where: { id: topicId },
       data: {
         ...(title && { title }),
         ...(description !== undefined && { description }),
         ...(type && { type }),
-        ...(bunnyVideoId !== undefined && { bunnyVideoId }),
-        ...(videoUrl !== undefined && { videoUrl }),
+        ...(effectiveVideoId !== undefined && { bunnyVideoId: effectiveVideoId }),
+        ...(signedVideoUrl !== undefined && { videoUrl: signedVideoUrl }),
         ...(content !== undefined && { content }),
         ...(durationSeconds !== undefined && { durationSeconds: Number(durationSeconds) }),
         ...(isDownloadable !== undefined && { isDownloadable: Boolean(isDownloadable) }),
@@ -321,7 +364,10 @@ export async function updateTopic(req: Request, res: Response): Promise<void> {
       },
     });
 
-    sendSuccess(res, updated, 'Topic updated successfully');
+    sendSuccess(res, {
+      ...updated,
+      videoUrl: signBunnyEmbedUrlIfNeeded(updated.videoUrl, updated.bunnyVideoId),
+    }, 'Topic updated successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update topic', 500);
   }
@@ -473,9 +519,17 @@ export async function uploadCourseMediaHandler(req: Request, res: Response): Pro
         const libraryId = env.BUNNY_STREAM_LIBRARY_ID || '764331';
         const pullZone = env.BUNNY_STREAM_PULL_ZONE || 'vz-6c065033-dcc.b-cdn.net';
         
-        // Responsive Bunny embed player URL & HLS direct playlist URL
-        const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${bunnyGuid}`;
-        const streamUrl = `https://${pullZone}/${bunnyGuid}/playlist.m3u8`;
+        // Responsive Bunny embed player URL & HLS direct playlist URL with signed authentication token
+        let embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${bunnyGuid}`;
+        let streamUrl = `https://${pullZone}/${bunnyGuid}/playlist.m3u8`;
+
+        try {
+          const tokenData = generateBunnyStreamToken(bunnyGuid, 365 * 24 * 3600);
+          embedUrl = tokenData.embedUrl;
+          streamUrl = tokenData.streamUrl;
+        } catch (tokenErr) {
+          console.warn('[Media Upload] Failed to generate signed token for video upload:', tokenErr);
+        }
 
         console.log(`[Media Upload] Video successfully uploaded to secure storage! GUID: ${bunnyGuid}`);
 
@@ -568,6 +622,21 @@ export async function deleteCourseMediaHandler(req: Request, res: Response): Pro
   } catch (error: any) {
     console.error('Course media deletion failed:', error);
     sendError(res, error.message || 'Failed to delete media', 500);
+  }
+}
+
+export async function getVideoStreamTokenByVideoId(req: Request, res: Response): Promise<void> {
+  try {
+    const videoId = req.params.videoId as string;
+    if (!videoId) {
+      sendError(res, 'Video ID is required', 400);
+      return;
+    }
+
+    const tokenData = generateBunnyStreamToken(videoId, 365 * 24 * 3600);
+    sendSuccess(res, tokenData, 'Stream token generated successfully');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to generate stream token', 500);
   }
 }
 

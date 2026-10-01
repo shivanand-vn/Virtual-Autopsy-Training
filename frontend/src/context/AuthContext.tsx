@@ -9,6 +9,7 @@ export interface User {
   avatar?: string;
   title?: string;
   organization?: string;
+  isTemporaryPassword?: boolean;
 }
 
 interface AuthContextType {
@@ -32,6 +33,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isAdmin = user?.role === 'ADMIN';
   const isStudent = user?.role === 'STUDENT';
 
+  const checkIsTempPassword = (userEmail: string, isTempProp?: boolean): boolean => {
+    if (isTempProp) return true;
+    if (!userEmail) return false;
+    const cleanEmail = userEmail.trim().toLowerCase();
+    return localStorage.getItem(`vat_temp_pwd_${cleanEmail}`) === 'true';
+  };
+
   const refreshUser = async () => {
     const currentToken = getAuthToken();
     if (!currentToken) {
@@ -43,8 +51,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const res = await api.get('/auth/me');
       if (res.data?.user) {
-        setUser(res.data.user);
-        setStoredUser(res.data.user);
+        const fetchedUser = res.data.user;
+        const isTemp = checkIsTempPassword(fetchedUser.email, fetchedUser.isTemporaryPassword);
+        const updatedUser: User = {
+          ...fetchedUser,
+          isTemporaryPassword: isTemp,
+        };
+        setUser(updatedUser);
+        setStoredUser(updatedUser);
       }
     } catch {
       clearAuthToken();
@@ -83,12 +97,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const res = await api.post('/auth/login', { email, password });
     const { user: loggedInUser, token: authToken } = res.data;
 
-    setUser(loggedInUser);
+    const isTemp = checkIsTempPassword(loggedInUser?.email || email, loggedInUser?.isTemporaryPassword);
+    const updatedUser: User = {
+      ...loggedInUser,
+      isTemporaryPassword: isTemp,
+    };
+
+    setUser(updatedUser);
     setToken(authToken);
     setAuthToken(authToken);
-    setStoredUser(loggedInUser);
+    setStoredUser(updatedUser);
 
-    return loggedInUser;
+    return updatedUser;
   };
 
   const logout = async () => {

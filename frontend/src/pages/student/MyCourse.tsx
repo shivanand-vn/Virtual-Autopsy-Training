@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -23,7 +23,8 @@ import {
   FileCheck,
   Award,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Paperclip
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
@@ -36,7 +37,7 @@ export const MyCoursePage: React.FC = () => {
   const {
     activeCourse,
     completedTopicIds,
-    toggleTopicCompletion,
+    markTopicCompleted,
     isModuleCompletedByStudent,
     isModuleUnlocked,
     getModuleStatus,
@@ -91,33 +92,109 @@ export const MyCoursePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [hasDownloadedTemplate, setHasDownloadedTemplate] = useState<boolean>(false);
 
-  // 2. DYNAMIC TOPIC SELECTION & NUMBER CALCULATION
+  // 2. DYNAMIC TOPIC SELECTION & SEQUENTIAL GATING
   const totalTopics = currentModule.topics.length;
   let currentTopicIndex = 0;
 
   if (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test') {
     const idx = currentModule.topics.findIndex((t) => t.id === paramLessonId);
     if (idx !== -1) {
-      currentTopicIndex = idx;
+      if (isTopicUnlocked(currentModule.id, currentModule.topics[idx].id)) {
+        currentTopicIndex = idx;
+      } else {
+        const firstUnlockedIdx = currentModule.topics.findIndex((t) => isTopicUnlocked(currentModule.id, t.id));
+        currentTopicIndex = firstUnlockedIdx !== -1 ? firstUnlockedIdx : 0;
+      }
     }
   } else {
-    const nonCompIdx = currentModule.topics.findIndex((t) => !completedTopicIds[t.id]);
-    if (nonCompIdx !== -1) {
-      currentTopicIndex = nonCompIdx;
+    // New student / default visit: select first non-completed topic that is unlocked
+    const firstNonCompUnlockedIdx = currentModule.topics.findIndex((t) => !completedTopicIds[t.id] && isTopicUnlocked(currentModule.id, t.id));
+    if (firstNonCompUnlockedIdx !== -1) {
+      currentTopicIndex = firstNonCompUnlockedIdx;
+    } else {
+      currentTopicIndex = 0;
     }
+  }
+
+  // Safety check: ensure currentTopicIndex is not locked
+  if (currentModule.topics[currentTopicIndex] && !isTopicUnlocked(currentModule.id, currentModule.topics[currentTopicIndex].id)) {
+    const firstUnlockedIdx = currentModule.topics.findIndex((t) => isTopicUnlocked(currentModule.id, t.id));
+    currentTopicIndex = firstUnlockedIdx !== -1 ? firstUnlockedIdx : 0;
   }
 
   const currentTopic = currentModule.topics[currentTopicIndex] || currentModule.topics[0];
 
+  // Auto-redirect if student URL is pointing to a locked topic
+  useEffect(() => {
+    if (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test') {
+      const targetTopic = currentModule.topics.find((t) => t.id === paramLessonId);
+      if (targetTopic && !isTopicUnlocked(currentModule.id, targetTopic.id)) {
+        const firstUnlocked = currentModule.topics.find((t) => isTopicUnlocked(currentModule.id, t.id)) || currentModule.topics[0];
+        if (firstUnlocked && firstUnlocked.id !== paramLessonId) {
+          navigate(`/my-course/${currentModule.id}/${firstUnlocked.id}`, { replace: true });
+        }
+      }
+    }
+  }, [paramLessonId, currentModule.id, currentModule.topics, isTopicUnlocked, navigate]);
+
   const currentModuleUnlocked = isModuleUnlocked(currentModule.id);
   const currentTopicUnlocked = currentModuleUnlocked && isTopicUnlocked(currentModule.id, currentTopic.id);
-  const currentTopicIsCompleted = Boolean(completedTopicIds[currentTopic.id]);
+  const isCurrentTopicCompleted = Boolean(completedTopicIds[currentTopic?.id]);
+
+  // Count completed topics in current module
+  const currentModuleCompletedCount = currentModule.topics.filter((t) => completedTopicIds[t.id]).length;
+
+  // 3. VIDEO WATCH PROGRESS TRACKING (Fixed 99% required threshold)
+  const requiredWatchPct = 99;
+  const [videoProgressMap, setVideoProgressMap] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('va_lms_video_progress_map');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+  const currentWatchPct = currentTopic ? (videoProgressMap[currentTopic.id] || 0) : 0;
+
+  // Floating Toast Notification for Gated Lessons
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+
+  const showGatingMessage = (customMsg?: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    const defaultMsg =
+      currentTopic?.contentType === 'video'
+        ? `Please watch the video completely before proceeding to the next lesson. Current progress: ${currentWatchPct}%.`
+        : `Please review and confirm completion of this reading lesson before proceeding to the next lesson.`;
+    setToastMessage(customMsg || defaultMsg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('va_lms_video_progress_map', JSON.stringify(videoProgressMap));
+    } catch {}
+  }, [videoProgressMap]);
+
+  // Bunny Stream iframe ref and player.js instance
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const playerRef = useRef<any>(null);
+
+  // 4. THEORY SCROLL & READING VERIFICATION
+  const [theoryReadMap, setTheoryReadMap] = useState<Record<string, boolean>>({});
+  const hasReadCurrentTheory = currentTopic ? Boolean(theoryReadMap[currentTopic.id]) : false;
+  const theoryScrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-resolve signed Bunny DRM Stream token if videoUrl is unsigned or needs fresh token
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
 
   useEffect(() => {
+    if (!currentTopic) return;
     let rawUrl = currentTopic.videoUrl || '';
     const rawBunnyId = currentTopic.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
 
@@ -142,7 +219,144 @@ export const MyCoursePage: React.FC = () => {
       }
     }
     setActiveVideoUrl(rawUrl);
-  }, [currentTopic.id, currentTopic.videoUrl, currentTopic.bunnyVideoId]);
+  }, [currentTopic?.id, currentTopic?.videoUrl, currentTopic?.bunnyVideoId]);
+
+  // Bunny Stream / Player.js & postMessage event listeners
+  useEffect(() => {
+    if (!currentTopic || currentTopic.contentType !== 'video') return;
+
+    const handleMessage = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (!data) return;
+
+        let seconds: number | undefined;
+        let duration: number | undefined;
+
+        if (data.event === 'timeupdate' || data.event === 'timeUpdate') {
+          seconds = data.value?.seconds ?? data.data?.currentTime ?? data.data?.seconds ?? data.seconds;
+          duration = data.value?.duration ?? data.data?.duration ?? data.duration;
+        } else if (data.context === 'player.js' && data.event === 'timeupdate') {
+          seconds = data.value?.seconds;
+          duration = data.value?.duration;
+        }
+
+        if (seconds !== undefined && duration !== undefined && duration > 0) {
+          const pct = Math.min(100, Math.round((seconds / duration) * 100));
+          setVideoProgressMap((prev) => {
+            const curr = prev[currentTopic.id] || 0;
+            const newPct = Math.max(curr, pct);
+            if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
+              markTopicCompleted(currentTopic.id);
+            }
+            return { ...prev, [currentTopic.id]: newPct };
+          });
+        }
+
+        if (data.event === 'ended' || (data.context === 'player.js' && data.event === 'ended')) {
+          setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
+          markTopicCompleted(currentTopic.id);
+        }
+      } catch {
+        // Safe ignore
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    let playerInstance: any = null;
+    const timer = setTimeout(() => {
+      if (iframeRef.current && (window as any).playerjs) {
+        try {
+          playerInstance = new (window as any).playerjs.Player(iframeRef.current);
+          playerRef.current = playerInstance;
+
+          playerInstance.on('ready', () => {
+            console.log('[Bunny Player] Connected to stream for topic:', currentTopic.id);
+          });
+
+          playerInstance.on('timeupdate', (data: any) => {
+            if (data && data.duration > 0) {
+              const pct = Math.min(100, Math.round((data.seconds / data.duration) * 100));
+              setVideoProgressMap((prev) => {
+                const curr = prev[currentTopic.id] || 0;
+                const newPct = Math.max(curr, pct);
+                if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
+                  markTopicCompleted(currentTopic.id);
+                }
+                return { ...prev, [currentTopic.id]: newPct };
+              });
+            }
+          });
+
+          playerInstance.on('ended', () => {
+            setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
+            markTopicCompleted(currentTopic.id);
+          });
+        } catch (err) {
+          console.warn('[Bunny Player] Player.js initialization notice:', err);
+        }
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearTimeout(timer);
+    };
+  }, [activeVideoUrl, currentTopic?.id, currentTopic?.contentType, requiredWatchPct, completedTopicIds, markTopicCompleted]);
+
+  // Fallback simulator for non-iframe / placeholder playback
+  useEffect(() => {
+    let timer: any;
+    if (isPlaying && currentTopic?.contentType === 'video' && !isCurrentTopicCompleted) {
+      timer = setInterval(() => {
+        setVideoProgressMap((prev) => {
+          const curr = prev[currentTopic.id] || 0;
+          const next = Math.min(100, curr + 2);
+          if (next >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
+            markTopicCompleted(currentTopic.id);
+          }
+          return { ...prev, [currentTopic.id]: next };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isPlaying, currentTopic?.id, currentTopic?.contentType, isCurrentTopicCompleted, completedTopicIds, requiredWatchPct, markTopicCompleted]);
+
+  // HTML5 Video Playback Handlers
+  const handleHtml5TimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    if (video.duration > 0 && currentTopic) {
+      const pct = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+      setVideoProgressMap((prev) => {
+        const curr = prev[currentTopic.id] || 0;
+        const newPct = Math.max(curr, pct);
+        if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
+          markTopicCompleted(currentTopic.id);
+        }
+        return { ...prev, [currentTopic.id]: newPct };
+      });
+    }
+  };
+
+  const handleHtml5VideoEnded = () => {
+    if (currentTopic) {
+      setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
+      markTopicCompleted(currentTopic.id);
+    }
+  };
+
+  // Theory Reader Scroll Detection
+  const handleTheoryScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!currentTopic) return;
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 50) {
+      setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
+    }
+  };
+
   // Formatted 2-digit module number
   const formattedModuleNumber =
     currentModule.moduleNumber < 10 ? `0${currentModule.moduleNumber}` : `${currentModule.moduleNumber}`;
@@ -152,12 +366,24 @@ export const MyCoursePage: React.FC = () => {
 
   // Navigation Helpers
   const goToTopic = (modId: string, topId: string) => {
+    if (!isModuleUnlocked(modId)) {
+      showGatingMessage('This module is locked. Please complete the preceding module first.');
+      return;
+    }
+    if (!isTopicUnlocked(modId, topId)) {
+      showGatingMessage('This lesson is locked. Please watch preceding videos completely or finish reading lessons to unlock.');
+      return;
+    }
     setActiveSection('topic');
     setExpandedModuleId(modId);
     navigate(`/my-course/${modId}/${topId}`);
   };
 
   const goToAssignment = (modId: string) => {
+    if (!isModuleUnlocked(modId)) {
+      showGatingMessage('This module is locked. Please complete the preceding module first.');
+      return;
+    }
     setActiveSection('assignment');
     setExpandedModuleId(modId);
     if (modId !== currentModule.id) {
@@ -166,6 +392,10 @@ export const MyCoursePage: React.FC = () => {
   };
 
   const goToTest = (modId: string) => {
+    if (!isModuleUnlocked(modId)) {
+      showGatingMessage('This module is locked. Please complete the preceding module first.');
+      return;
+    }
     setActiveSection('test');
     setExpandedModuleId(modId);
     if (modId !== currentModule.id) {
@@ -191,21 +421,32 @@ export const MyCoursePage: React.FC = () => {
 
   const handleNext = () => {
     if (activeSection === 'topic') {
+      if (!isCurrentTopicCompleted) {
+        showGatingMessage();
+        return;
+      }
       if (currentTopicIndex < totalTopics - 1) {
         const nextTopic = currentModule.topics[currentTopicIndex + 1];
-        goToTopic(currentModule.id, nextTopic.id);
+        if (nextTopic && isTopicUnlocked(currentModule.id, nextTopic.id)) {
+          goToTopic(currentModule.id, nextTopic.id);
+        } else {
+          showGatingMessage('Please complete this lesson before unlocking the next topic.');
+        }
       } else {
         setActiveSection('assignment');
       }
     } else if (activeSection === 'assignment') {
       setActiveSection('test');
     } else if (activeSection === 'test') {
+      if (!isCurrentModuleUnlocked) {
+        showGatingMessage('Please complete all module topics before starting the test.');
+        return;
+      }
       navigate(`/assessment/${currentModule.id}`);
     }
   };
 
   const isCurrentModuleUnlocked = isModuleCompletedByStudent(currentModule.id);
-  const isCurrentTopicCompleted = Boolean(completedTopicIds[currentTopic?.id]);
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setClinicalNotes(e.target.value);
@@ -224,6 +465,11 @@ export const MyCoursePage: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
+  };
+
+  const handleDownloadTemplate = () => {
+    setHasDownloadedTemplate(true);
+    alert(`Downloading template dossier: ${currentModule.assignment?.templateFileName || 'Module_Assignment_Case_Template.pdf'}`);
   };
 
   const handleSubmitAssignment = (e: React.FormEvent) => {
@@ -248,6 +494,27 @@ export const MyCoursePage: React.FC = () => {
 
   return (
     <DashboardLayout headerSubtitle="MY COURSE">
+      {/* FLOATING GATING NOTIFICATION TOAST */}
+      {toastMessage && (
+        <div className="fixed top-20 right-6 z-50 max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-[#0A192F] text-white p-4 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-start space-x-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-bold mt-0.5">
+              <AlertCircle className="w-5 h-5 text-slate-950" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black uppercase tracking-wider text-amber-400">Lesson Locked</p>
+              <p className="text-xs font-semibold text-slate-200 mt-0.5 leading-snug">{toastMessage}</p>
+            </div>
+            <button
+              onClick={() => setToastMessage(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6 pb-16">
         {/* 1. DYNAMIC BREADCRUMB / COURSE HEADER CONTROL BAR */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -260,7 +527,7 @@ export const MyCoursePage: React.FC = () => {
             <span>/</span>
             {activeSection === 'topic' ? (
               <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-md font-bold">
-                Topic {currentTopicIndex + 1} of {totalTopics} ΓÇó {currentTopic?.contentType === 'video' ? 'Video' : 'Theory'} Lesson
+                Topic {currentTopicIndex + 1} of {totalTopics} • {currentTopic?.contentType === 'video' ? 'Video' : currentTopic?.contentType === 'assignment' ? 'Assignment' : 'Theory'} Lesson
               </span>
             ) : activeSection === 'assignment' ? (
               <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-md font-bold inline-flex items-center space-x-1">
@@ -301,13 +568,34 @@ export const MyCoursePage: React.FC = () => {
 
             {/* NEXT BUTTON */}
             {activeSection === 'topic' ? (
-              <button
-                onClick={handleNext}
-                className="inline-flex items-center space-x-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
-              >
-                <span>{currentTopicIndex < totalTopics - 1 ? 'Next Topic' : 'Next: Assignment'}</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              (() => {
+                const isLastTopic = currentTopicIndex >= totalTopics - 1;
+                const nextTopic = !isLastTopic ? currentModule.topics[currentTopicIndex + 1] : null;
+                const isNextUnlocked = isLastTopic ? isCurrentTopicCompleted : (nextTopic && isTopicUnlocked(currentModule.id, nextTopic.id));
+
+                if (!isNextUnlocked) {
+                  return (
+                    <button
+                      onClick={() => showGatingMessage()}
+                      className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl transition-colors cursor-pointer border border-amber-300 shadow-2xs"
+                      title="Click to view unlock requirements"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{isLastTopic ? 'Next: Assignment' : 'Next Topic'}</span>
+                    </button>
+                  );
+                }
+
+                return (
+                  <button
+                    onClick={handleNext}
+                    className="inline-flex items-center space-x-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <span>{isLastTopic ? 'Next: Assignment' : 'Next Topic'}</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                );
+              })()
             ) : activeSection === 'assignment' ? (
               <button
                 onClick={handleNext}
@@ -326,13 +614,128 @@ export const MyCoursePage: React.FC = () => {
               </button>
             ) : (
               <button
-                disabled
-                className="inline-flex items-center space-x-1 text-xs font-bold text-slate-400 bg-slate-100 px-3 py-2 rounded-xl cursor-not-allowed border border-slate-200"
+                onClick={() => showGatingMessage('Please complete all module topics before starting the test.')}
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl cursor-pointer border border-amber-300 shadow-2xs transition-colors"
+                title="Click to view unlock requirements"
               >
-                <Lock className="w-3.5 h-3.5" />
+                <Lock className="w-3.5 h-3.5 text-amber-700" />
                 <span>Complete Topics First</span>
               </button>
             )}
+          </div>
+        </div>
+
+        {/* 2. REPLACED MILESTONE CARD: HORIZONTAL PROGRESSION FLOW LINE: 1. Lessons -> 2. Assignment -> 3. Practice Quiz */}
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+            {/* Step Sequence in a clean horizontal flow */}
+            <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0">
+              {/* Step 1: Learning Lessons */}
+              <button
+                onClick={() => {
+                  setActiveSection('topic');
+                  if (currentTopic) goToTopic(currentModule.id, currentTopic.id);
+                }}
+                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'topic'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
+                  activeSection === 'topic' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  1
+                </span>
+                <span>Learning Lessons</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                  currentModuleCompletedCount === totalTopics
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : activeSection === 'topic'
+                    ? 'bg-slate-950/20 text-slate-950'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {currentModuleCompletedCount}/{totalTopics} Done
+                </span>
+              </button>
+
+              {/* Arrow Flow Separator */}
+              <span className="text-slate-400 font-bold hidden sm:inline text-sm">→</span>
+
+              {/* Step 2: Module Assignment */}
+              <button
+                onClick={() => goToAssignment(currentModule.id)}
+                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'assignment'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
+                  activeSection === 'assignment' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  2
+                </span>
+                <span>Module Assignment</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                  currentModule.assignment?.submissionStatus === 'submitted'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : activeSection === 'assignment'
+                    ? 'bg-slate-950/20 text-slate-950'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {currentModule.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending'}
+                </span>
+              </button>
+
+              {/* Arrow Flow Separator */}
+              <span className="text-slate-400 font-bold hidden sm:inline text-sm">→</span>
+
+              {/* Step 3: Module Test */}
+              <button
+                onClick={() => goToTest(currentModule.id)}
+                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'test'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
+                  activeSection === 'test' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  3
+                </span>
+                <span>Practice Quiz</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                  pastAssessmentResult?.passed
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : activeSection === 'test'
+                    ? 'bg-slate-950/20 text-slate-950'
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}>
+                  {pastAssessmentResult?.passed ? '✓ Passed' : 'Unlimited Retakes'}
+                </span>
+              </button>
+            </div>
+
+            {/* Quick Action Button / Locked Indicator */}
+            <div className="shrink-0 flex items-center space-x-2">
+              {isCurrentModuleUnlocked ? (
+                <button
+                  onClick={() => navigate(`/assessment/${currentModule.id}`)}
+                  className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>Launch Module Quiz</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <div className="inline-flex items-center space-x-1.5 text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Quiz unlocks after lessons</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -365,33 +768,43 @@ export const MyCoursePage: React.FC = () => {
                   {currentModule.topics.map((top, idx) => {
                     const isCurrent = activeSection === 'topic' && top.id === currentTopic?.id;
                     const isDone = Boolean(completedTopicIds[top.id]);
+                    const isAvailable = isModuleUnlocked(currentModule.id) && isTopicUnlocked(currentModule.id, top.id);
 
                     return (
                       <div
                         key={top.id}
                         onClick={() => {
-                          goToTopic(currentModule.id, top.id);
-                          setShowCurriculumDrawer(false);
+                          if (isAvailable) {
+                            goToTopic(currentModule.id, top.id);
+                            setShowCurriculumDrawer(false);
+                          } else {
+                            showGatingMessage('This lesson is locked. Please complete preceding lessons (99% watch for video) to unlock.');
+                          }
                         }}
-                        className={`p-3 rounded-2xl border flex items-center justify-between text-xs cursor-pointer transition-all ${
+                        className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition-all ${
                           isCurrent
                             ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20 shadow-xs'
                             : isDone
-                            ? 'bg-white border-emerald-200 hover:border-emerald-300'
-                            : 'bg-slate-50 border-slate-200 hover:border-amber-300'
+                            ? 'bg-white border-emerald-200 hover:border-emerald-300 cursor-pointer'
+                            : !isAvailable
+                            ? 'bg-slate-50 border-slate-200/70 opacity-60 cursor-pointer hover:border-amber-300'
+                            : 'bg-slate-50 border-slate-200 hover:border-amber-300 cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center space-x-3 min-w-0">
+                          {/* Non-mutable read-only status indicator */}
                           <div
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 select-none ${
                               isDone
-                                ? 'bg-emerald-500 text-white'
+                                ? 'bg-emerald-500 text-white shadow-2xs'
                                 : isCurrent
                                 ? 'bg-amber-500 text-slate-950 font-extrabold'
+                                : !isAvailable
+                                ? 'bg-slate-100 text-slate-400 border border-slate-200'
                                 : 'bg-slate-200 text-slate-600'
                             }`}
                           >
-                            {isDone ? 'Γ£ô' : idx + 1}
+                            {isDone ? '✓' : !isAvailable ? <Lock className="w-3 h-3 text-slate-400" /> : idx + 1}
                           </div>
                           <div className="min-w-0">
                             <p className={`font-bold truncate ${isCurrent ? 'text-slate-950' : 'text-slate-800'}`}>
@@ -403,14 +816,14 @@ export const MyCoursePage: React.FC = () => {
                               ) : (
                                 <FileText className="w-3 h-3 text-slate-400 inline mr-1" />
                               )}
-                              <span>{top.contentType === 'video' ? 'Video Lesson' : 'Theory Lesson'}</span>
+                              <span>{top.contentType === 'video' ? 'Video Lesson' : top.contentType === 'assignment' ? 'Assignment' : 'Theory Lesson'}</span>
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center space-x-2 shrink-0">
-                          <span className={`text-[11px] ${isDone ? 'text-emerald-700 font-bold' : 'text-slate-400'}`}>
-                            {isDone ? 'Γ£ô Done' : 'Γùï Pending'}
+                          <span className={`text-[11px] font-bold ${isDone ? 'text-emerald-700' : !isAvailable ? 'text-slate-400 flex items-center' : 'text-slate-500'}`}>
+                            {isDone ? '✓ Done' : !isAvailable ? '🔒 Locked' : '○ Pending'}
                           </span>
                         </div>
                       </div>
@@ -442,7 +855,7 @@ export const MyCoursePage: React.FC = () => {
                         <p className="font-bold text-slate-800 truncate">
                           {currentModule.assignment?.title || 'Case Report Assignment'}
                         </p>
-                        <p className="text-[11px] text-slate-500">100 Marks ΓÇó Required submission</p>
+                        <p className="text-[11px] text-slate-500">100 Marks • Required submission</p>
                       </div>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -479,7 +892,7 @@ export const MyCoursePage: React.FC = () => {
                         <p className="font-bold text-slate-800 truncate">
                           {currentModule.test?.title || 'Module Practice Quiz'}
                         </p>
-                        <p className="text-[11px] text-slate-500">70% Pass ΓÇó Unlimited Retakes</p>
+                        <p className="text-[11px] text-slate-500">70% Pass • Unlimited Retakes</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
@@ -502,53 +915,203 @@ export const MyCoursePage: React.FC = () => {
           </div>
         )}
 
-        {/* Player & Drawer Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 3. MAIN 2-COLUMN CLASSROOM LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Main Learning Content Column (2 Spans) */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-6">
 
-            {/* LEVEL 1: TOPIC PLAYER & THEORY READER */}
-            {activeSection === 'topic' && currentTopic && (
-              <>
+            {/* PRIMARY LEARNING STAGE: ACTIVE TOPIC PLAYER & THEORY READER */}
+            {currentTopic && (
+              <div className="space-y-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center space-x-2 text-[11px] font-bold text-amber-700 uppercase tracking-wider">
                       <span>Topic {currentTopicIndex + 1} of {totalTopics}</span>
-                      <span>ΓÇó</span>
-                      <span className="capitalize">{currentTopic.contentType === 'video' ? 'Video' : 'Theory'} Lesson</span>
+                      <span>•</span>
+                      <span className="capitalize">{currentTopic.contentType === 'video' ? 'Video' : currentTopic.contentType === 'assignment' ? 'Assignment' : 'Theory'} Lesson</span>
                     </div>
                     <h2 className="text-base font-extrabold text-[#0A192F] truncate">{currentTopic.title}</h2>
                   </div>
 
-                  {/* TOPIC COMPLETION TOGGLE BUTTON */}
-                  <button
-                    onClick={() => toggleTopicCompletion(currentTopic.id)}
-                    className={`shrink-0 inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      isCurrentTopicCompleted
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
-                        : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-xs'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>{isCurrentTopicCompleted ? 'Γ£ô Completed' : 'Mark as Completed'}</span>
-                  </button>
+                  {/* READ-ONLY AUTOMATED PROGRESS INDICATOR (NON-MUTABLE BY USER) */}
+                  {isCurrentTopicCompleted ? (
+                    <div className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>✓ Completed</span>
+                    </div>
+                  ) : currentTopic.contentType === 'video' ? (
+                    <div className="shrink-0 inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-600 border-t-transparent animate-spin shrink-0" />
+                      <span>Watch: {currentWatchPct}%</span>
+                    </div>
+                  ) : (
+                    <div className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+                      <span>{currentTopic.contentType === 'assignment' ? 'Exercise Review' : 'Read Lesson'}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* DYNAMIC TOPIC CONTENT SURFACE (VIDEO VS THEORY TEXT) */}
-                {currentTopic.contentType === 'theory' || (currentTopic.contentType as string) === 'description' ? (
-                  <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-                    <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
-                      <FileText className="w-4 h-4 text-amber-500" />
-                      <span>Theoretical Lesson Content</span>
+                {/* DYNAMIC TOPIC CONTENT SURFACE (PDF DOCUMENT OR TEXT FORMAT OR ASSIGNMENT) */}
+                {currentTopic.contentType === 'theory' || (currentTopic.contentType as string) === 'description' || currentTopic.contentType === 'assignment' ? (
+                  <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
+                        {currentTopic.contentType === 'assignment' ? (
+                          <>
+                            <FileCheck className="w-4 h-4 text-amber-500" />
+                            <span>Case Exercise & Assignment Brief</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 text-amber-500" />
+                            <span>Theoretical Lesson & Clinical Dossier</span>
+                          </>
+                        )}
+                      </div>
+                      {currentTopic.pdfUrl && (
+                        <a
+                          href={currentTopic.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
+                        >
+                          <Download className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Open / Download PDF</span>
+                        </a>
+                      )}
                     </div>
-                    <h3 className="text-lg font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
-                    <p className="text-xs text-slate-500 font-medium">{currentTopic.description}</p>
-                    <div className="pt-3 border-t border-slate-100 text-xs text-slate-700 leading-relaxed space-y-3 font-medium">
-                      <p>{currentTopic.content || 'No detailed text content entered for this topic yet.'}</p>
+
+                    <div>
+                      <h3 className="text-lg font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
+                      {currentTopic.description && (
+                        <p className="text-xs text-slate-500 font-medium mt-1">{currentTopic.description}</p>
+                      )}
+                    </div>
+
+                    {currentTopic.pdfUrl ? (
+                      /* PDF DOCUMENT VIEWER */
+                      <div className="space-y-4">
+                        {currentTopic.content && (
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 leading-relaxed font-medium">
+                            <p className="font-bold text-[#0A192F] mb-1">Lesson Overview & Reading Notes:</p>
+                            <p className="whitespace-pre-line">{currentTopic.content}</p>
+                          </div>
+                        )}
+                        <div className="w-full rounded-2xl border border-slate-200 overflow-hidden bg-slate-100 shadow-inner">
+                          <iframe
+                            src={`${currentTopic.pdfUrl}#toolbar=1`}
+                            className="w-full h-[600px] border-0"
+                            title={currentTopic.title}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* TEXT DOSSIER READING VIEW */
+                      <div
+                        ref={theoryScrollContainerRef}
+                        onScroll={handleTheoryScroll}
+                        className="pt-2 text-xs text-slate-700 leading-relaxed space-y-4 font-medium max-h-[400px] overflow-y-auto pr-2"
+                      >
+                        <p className="whitespace-pre-line">
+                          {currentTopic.content ||
+                            'Virtual autopsy (PMCT) provides a permanent, tamper-evident digital record. This dossier reviews international chain-of-custody standards, DICOM metadata verification, and admissibility under Daubert/Frye legal frameworks.'}
+                        </p>
+                        <p className="text-slate-600">
+                          In contemporary forensic radiological practice, standard acquisition protocols mandate complete documentation of body positioning, gantry tilt parameters, and detector calibration curves. Every slice acquired is timestamped and cryptographically checksummed before inclusion in legal evidence bundles.
+                        </p>
+                        <p className="text-slate-600">
+                          When presenting volumetric reconstruction findings in court, medical examiners must demonstrate adherence to standardized window width/level (WW/WL) thresholds (+400/40 HU for soft tissue, +2000/500 HU for bone structures). Any post-processing alterations must be cataloged in the case log.
+                        </p>
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-[11px]">
+                          [End of Theoretical Lesson Content] — Please review all points above thoroughly.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Topic Exercise & Reference Attachment */}
+                    {(currentTopic.assignmentInstructions || currentTopic.referenceAttachmentName) && (
+                      <div className="p-4 sm:p-5 bg-amber-50/70 border border-amber-200/90 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                          <span className="text-xs font-extrabold text-amber-950 uppercase tracking-wider flex items-center space-x-1.5">
+                            <FileCheck className="w-4 h-4 text-amber-600" />
+                            <span>Case Exercise & Assignment Instructions</span>
+                          </span>
+                          {currentTopic.referenceAttachmentName && (
+                            <span className="text-[11px] font-mono font-bold text-amber-900 bg-amber-200/60 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+                              <Paperclip className="w-3 h-3 text-amber-700" />
+                              <span>{currentTopic.referenceAttachmentName}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {currentTopic.assignmentInstructions && (
+                          <div className="text-xs text-slate-800 leading-relaxed font-medium whitespace-pre-line">
+                            {currentTopic.assignmentInstructions}
+                          </div>
+                        )}
+
+                        {currentTopic.submissionInstructions && (
+                          <div className="text-[11px] text-amber-900 font-semibold bg-white/80 p-2.5 rounded-xl border border-amber-200/60">
+                            <span className="font-bold">Guidelines: </span>
+                            {currentTopic.submissionInstructions}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Reading Verification Bar */}
+                    <div
+                      className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-center justify-between gap-3 ${
+                        isCurrentTopicCompleted
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                          : hasReadCurrentTheory
+                          ? 'bg-amber-50 border-amber-300 text-amber-950'
+                          : 'bg-slate-50 border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                            isCurrentTopicCompleted ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-950'
+                          }`}
+                        >
+                          {isCurrentTopicCompleted ? '✓' : '📖'}
+                        </div>
+                        <div>
+                          <p className="text-xs font-extrabold">
+                            {isCurrentTopicCompleted
+                              ? 'Theoretical Lesson Completed'
+                              : currentTopic.pdfUrl
+                              ? 'PDF Document Reading'
+                              : 'Complete Reading'}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {isCurrentTopicCompleted
+                              ? 'You have completed this theoretical reading lesson.'
+                              : currentTopic.pdfUrl
+                              ? 'Review the clinical document above and confirm completion to unlock the next lesson.'
+                              : 'Review the dossier text above and confirm completion to unlock the next lesson.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {!isCurrentTopicCompleted && (
+                        <button
+                          onClick={() => {
+                            setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
+                            markTopicCompleted(currentTopic.id);
+                          }}
+                          className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs cursor-pointer transition-all"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Confirm Reading Completed</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  /* Video Stream Surface */
+                  /* Video Stream Surface with Live Watch Tracker */
                   <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 relative group">
                     <div className="bg-slate-900/95 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
                       <div className="flex items-center">
@@ -564,6 +1127,7 @@ export const MyCoursePage: React.FC = () => {
                       {activeVideoUrl ? (
                         activeVideoUrl.includes('iframe.mediadelivery.net') || activeVideoUrl.includes('/embed/') ? (
                           <iframe
+                            ref={iframeRef}
                             src={`${activeVideoUrl}${activeVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
                             loading="lazy"
                             className="w-full h-full border-0"
@@ -574,6 +1138,8 @@ export const MyCoursePage: React.FC = () => {
                           <video
                             src={activeVideoUrl}
                             controls
+                            onTimeUpdate={handleHtml5TimeUpdate}
+                            onEnded={handleHtml5VideoEnded}
                             className="w-full h-full object-contain bg-black"
                           >
                             Your browser does not support HTML5 video playback.
@@ -602,12 +1168,149 @@ export const MyCoursePage: React.FC = () => {
                         </>
                       )}
                     </div>
+
+                    {/* Clean real-time watch footer without duplicate 90% or 'Required' */}
+                    <div className="bg-slate-900/95 px-4 py-2 flex items-center justify-between text-xs text-slate-300 border-t border-slate-800">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <Video className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="font-medium text-slate-400 text-[11px] truncate">{currentTopic.title}</span>
+                      </div>
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <span className="font-bold text-slate-300 text-[11px]">Watch: {currentWatchPct}%</span>
+                        <div className="w-24 sm:w-32 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              isCurrentTopicCompleted ? 'bg-emerald-500' : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${currentWatchPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guidance banner when video is not yet completed */}
+                    {!isCurrentTopicCompleted && (
+                      <div className="bg-amber-500/10 border-t border-amber-500/20 px-4 py-2.5 flex items-center justify-between text-xs text-amber-300 font-medium">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span className="truncate">
+                            Please watch this video completely to unlock the next lesson.
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-amber-400 shrink-0 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-md ml-2">
+                          {Math.max(0, 99 - currentWatchPct)}% remaining
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
-            {/* LEVEL 2: MODULE ASSIGNMENT WORKSPACE */}
+            {/* TABBED STUDY WORKSPACE CONTROLS */}
+            <div className="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveSection('topic')}
+                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'topic'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-amber-700" />
+                <span>Lesson & Notes</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSection('assignment')}
+                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'assignment'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <FileCheck className="w-4 h-4 text-amber-700" />
+                <span>Module Assignment</span>
+                {currentModule.assignment?.submissionStatus === 'submitted' && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    ✓ Submitted
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveSection('test')}
+                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSection === 'test'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Award className="w-4 h-4 text-amber-700" />
+                <span>Practice Quiz</span>
+                {pastAssessmentResult?.passed && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                    ✓ Passed
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* TAB CONTENT 1: LESSON DETAILS & CLINICAL OBSERVATIONS */}
+            {activeSection === 'topic' && (
+              <div className="space-y-6">
+                {/* Topic Description Card */}
+                {currentTopic?.description && (
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
+                      <FileText className="w-4 h-4 text-amber-500" />
+                      <span>Lesson Details & Objectives</span>
+                    </div>
+                    <h3 className="text-base font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium">{currentTopic.description}</p>
+                    {currentTopic.content && currentTopic.contentType !== 'theory' && (
+                      <div className="pt-3 border-t border-slate-100 text-xs text-slate-700 leading-relaxed space-y-2">
+                        <p>{currentTopic.content}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Clinical Observations Log */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-amber-500" />
+                      <h3 className="font-extrabold text-sm text-[#0A192F]">Clinical Observations</h3>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Private Log</span>
+                  </div>
+
+                  <textarea
+                    value={clinicalNotes}
+                    onChange={handleNotesChange}
+                    rows={5}
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed"
+                    placeholder="Record timestamp observations, Hounsfield units, and preliminary findings..."
+                  />
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-[11px] text-slate-400">
+                      {notesSaved ? 'Last auto-saved 2m ago' : 'Unsaved changes...'}
+                    </span>
+                    <button
+                      onClick={handleSaveNotes}
+                      className="inline-flex items-center space-x-1.5 font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Notes</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT 2: LEVEL 2 MODULE ASSIGNMENT WORKSPACE */}
             {activeSection === 'assignment' && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -629,7 +1332,7 @@ export const MyCoursePage: React.FC = () => {
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                         : 'bg-amber-50 text-amber-800 border-amber-200'
                     }`}>
-                      {currentModule.assignment?.submissionStatus === 'submitted' ? 'Γ£ô Submitted' : 'Pending Submission'}
+                      {currentModule.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending Submission'}
                     </span>
                   </div>
                 </div>
@@ -651,13 +1354,13 @@ export const MyCoursePage: React.FC = () => {
                         'Download the case dossier worksheet. Complete all theoretical interpretations and upload your completed report in PDF format.'}
                     </p>
                     <div className="pt-2 flex items-center space-x-3 text-xs text-slate-500 font-medium">
-                      <span>ΓÇó Format: PDF Document (Max 10MB)</span>
-                      <span>ΓÇó Due Date: {currentModule.assignment?.dueDate || '14 Days from Enrollment'}</span>
+                      <span>• Format: PDF Document (Max 10MB)</span>
+                      <span>• Due Date: {currentModule.assignment?.dueDate || '14 Days from Enrollment'}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Template Download Button */}
+                {/* Template Download Button (Fulfills assignment download requirement) */}
                 <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <FileText className="w-5 h-5 text-amber-600" />
@@ -671,11 +1374,11 @@ export const MyCoursePage: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => alert(`Downloading template: ${currentModule.assignment?.templateFileName || 'Module_Assignment_Case_Template.pdf'}`)}
+                    onClick={handleDownloadTemplate}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
+                    <span>{hasDownloadedTemplate ? 'Downloaded ✓' : 'Download'}</span>
                   </button>
                 </div>
 
@@ -699,7 +1402,7 @@ export const MyCoursePage: React.FC = () => {
                             {currentModule.assignment?.submittedFileName || 'PMCT_Forensic_Case_Report.pdf'}
                           </p>
                           <p className="text-[11px] text-emerald-700">
-                            Submitted on {currentModule.assignment?.submittedAt || 'Recent'} ΓÇó Under Faculty Review
+                            Submitted on {currentModule.assignment?.submittedAt || 'Recent'} • Under Faculty Review
                           </p>
                         </div>
                       </div>
@@ -756,7 +1459,7 @@ export const MyCoursePage: React.FC = () => {
               </div>
             )}
 
-            {/* LEVEL 3: MODULE TEST (PRACTICE QUIZ) WORKSPACE */}
+            {/* TAB CONTENT 3: LEVEL 3 MODULE TEST (PRACTICE QUIZ) WORKSPACE */}
             {activeSection === 'test' && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -770,7 +1473,7 @@ export const MyCoursePage: React.FC = () => {
                   </div>
 
                   <span className="text-xs font-extrabold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300">
-                    ≡ƒöä Unlimited Retakes Allowed
+                    🔄 Unlimited Retakes Allowed
                   </span>
                 </div>
 
@@ -830,7 +1533,7 @@ export const MyCoursePage: React.FC = () => {
                         ? 'bg-emerald-200 text-emerald-900'
                         : 'bg-amber-200 text-amber-900'
                     }`}>
-                      {pastAssessmentResult.passed ? 'Passed Γ£ô' : 'Retry Quiz'}
+                      {pastAssessmentResult.passed ? 'Passed ✓' : 'Retry Quiz'}
                     </span>
                   </div>
                 )}
@@ -854,23 +1557,26 @@ export const MyCoursePage: React.FC = () => {
                     </button>
                   ) : (
                     <button
-                      disabled
-                      className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl border border-slate-200 cursor-not-allowed"
+                      onClick={() => showGatingMessage('Please complete all educational lessons (at least 99% video watch) before taking this quiz.')}
+                      className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-300 cursor-pointer transition-colors shadow-2xs"
+                      title="Click to view unlock requirements"
                     >
-                      <Lock className="w-4 h-4" />
-                      <span>Quiz Locked</span>
+                      <Lock className="w-4 h-4 text-amber-700" />
+                      <span>Quiz Locked (Complete Lessons First)</span>
                     </button>
                   )}
                 </div>
               </div>
             )}
+          </div>
 
-            {/* MODULE LIST WITH 3-LEVEL ACCORDION VIEW */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+          {/* Right Column: Course Curriculum Modules Playlist (Fits perfectly at the top!) */}
+          <div className="space-y-6">
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="font-extrabold text-base text-[#0A192F]">Course Curriculum Modules</h3>
-                  <p className="text-xs text-slate-500">Structured into Learning Topics, Module Assignment, and Practice Quiz.</p>
+                  <h3 className="font-extrabold text-base text-[#0A192F]">Curriculum Modules</h3>
+                  <p className="text-xs text-slate-500">Learning Topics, Assignment & Practice Quiz.</p>
                 </div>
                 <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
                   {modules.length} Modules Total
@@ -879,13 +1585,13 @@ export const MyCoursePage: React.FC = () => {
 
               <div className="space-y-4">
                 {modules.map((mod) => {
-                  const unlocked = isModuleCompletedByStudent(mod.id);
+                  const isModUnlocked = isModuleUnlocked(mod.id);
+                  const isModDone = isModuleCompletedByStudent(mod.id);
                   const isSelected = mod.id === currentModule.id;
                   const isExpanded = expandedModuleId === mod.id;
                   const compCount = mod.topics.filter((t) => completedTopicIds[t.id]).length;
                   const totalCount = mod.topics.length;
                   const progPercent = totalCount > 0 ? Math.round((compCount / totalCount) * 100) : 0;
-                  const incompleteCount = totalCount - compCount;
                   const modPaddedNum = mod.moduleNumber < 10 ? `0${mod.moduleNumber}` : `${mod.moduleNumber}`;
 
                   return (
@@ -894,74 +1600,86 @@ export const MyCoursePage: React.FC = () => {
                       className={`border rounded-2xl transition-all overflow-hidden ${
                         isSelected
                           ? 'border-amber-500 ring-2 ring-amber-400/20 bg-amber-50/10'
-                          : unlocked
+                          : isModDone
                           ? 'border-emerald-300 bg-emerald-50/10'
+                          : !isModUnlocked
+                          ? 'border-slate-200 bg-slate-50/60 opacity-75'
                           : 'border-slate-200 bg-white'
                       }`}
                     >
                       {/* Module Header Bar */}
-                      <div className="p-4 sm:p-5 space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center space-x-3.5 min-w-0">
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-3 min-w-0">
                             <div
-                              className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
-                                isSelected
+                              className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${
+                                !isModUnlocked
+                                  ? 'bg-slate-200 text-slate-500'
+                                  : isSelected
                                   ? 'bg-amber-500 text-slate-950 font-black'
-                                  : unlocked
+                                  : isModDone
                                   ? 'bg-emerald-500 text-white'
                                   : 'bg-slate-200 text-slate-600'
                               }`}
                             >
-                              {modPaddedNum}
+                              {!isModUnlocked ? <Lock className="w-4 h-4 text-slate-500" /> : modPaddedNum}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-bold text-sm text-[#0A192F] truncate">
+                              <h4 className="font-bold text-xs text-[#0A192F] truncate">
                                 Module {mod.moduleNumber}: {mod.title}
                               </h4>
-                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-                                <span className="font-bold text-slate-700">
-                                  Lessons: {compCount} / {totalCount} Completed
-                                </span>
-                                <span>ΓÇó</span>
-                                <span>{mod.duration}</span>
-                                <span>ΓÇó</span>
-                                <span className="text-amber-700 font-bold">{mod.cmeCredits} CME Pts</span>
+                              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                                {!isModUnlocked ? (
+                                  <span className="text-amber-800 font-medium flex items-center">
+                                    <Lock className="w-2.5 h-2.5 mr-1 text-amber-700" /> Complete previous module first
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className="font-bold text-slate-700">
+                                      {compCount}/{totalCount} Done
+                                    </span>
+                                    <span>•</span>
+                                    <span>{mod.duration}</span>
+                                    <span>•</span>
+                                    <span className="text-amber-700 font-bold">{mod.cmeCredits} CME</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center space-x-2 shrink-0">
+                          <div className="flex items-center space-x-1 shrink-0">
                             <button
                               onClick={() => toggleModuleAccordion(mod.id)}
-                              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                              className="p-1 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                             >
-                              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
                           </div>
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="space-y-2 pt-1 border-t border-slate-100">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-600">
+                        <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                          <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
                             <span>Topics Progress</span>
-                            <span className={unlocked ? 'text-emerald-700 font-extrabold' : 'text-amber-700 font-extrabold'}>
-                              {progPercent}% {unlocked && '(Γ£ô Complete)'}
+                            <span className={isModDone ? 'text-emerald-700 font-extrabold' : !isModUnlocked ? 'text-slate-400 font-medium' : 'text-amber-700 font-extrabold'}>
+                              {!isModUnlocked ? 'Locked' : `${progPercent}% ${isModDone ? '(✓ Complete)' : ''}`}
                             </span>
                           </div>
 
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div
-                              className={`h-2 rounded-full transition-all duration-500 ${
-                                unlocked ? 'bg-emerald-500' : 'bg-amber-500'
+                              className={`h-1.5 rounded-full transition-all duration-500 ${
+                                isModDone ? 'bg-emerald-500' : 'bg-amber-500'
                               }`}
-                              style={{ width: `${progPercent}%` }}
+                              style={{ width: `${!isModUnlocked ? 0 : progPercent}%` }}
                             />
                           </div>
                         </div>
 
                         {/* 3-TIER EXPANDED CURRICULUM ACCORDION */}
                         {isExpanded && (
-                          <div className="space-y-3 pt-3 border-t border-slate-100 bg-slate-50/50 p-4 rounded-2xl">
+                          <div className="space-y-3 pt-3 border-t border-slate-100 bg-slate-50/50 p-3 rounded-2xl">
                             {/* Tier 1: Topics */}
                             <div>
                               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2">
@@ -971,55 +1689,65 @@ export const MyCoursePage: React.FC = () => {
                               <div className="space-y-1.5">
                                 {mod.topics.map((top, idx) => {
                                   const isCompleted = Boolean(completedTopicIds[top.id]);
+                                  const isTopicAvailable = isModUnlocked && isTopicUnlocked(mod.id, top.id);
                                   const isCurrentTopicActive =
                                     mod.id === currentModule.id && top.id === currentTopic?.id && activeSection === 'topic';
 
                                   return (
                                     <div
                                       key={top.id}
-                                      className={`p-3 rounded-xl flex items-center justify-between text-xs transition-all ${
+                                      className={`p-2.5 rounded-xl flex items-center justify-between text-xs transition-all ${
                                         isCurrentTopicActive
                                           ? 'bg-amber-50 border-2 border-amber-400 text-slate-950 font-bold shadow-2xs'
                                           : isCompleted
                                           ? 'bg-white border border-emerald-200 text-slate-800 shadow-2xs'
+                                          : !isTopicAvailable
+                                          ? 'bg-slate-50 border border-slate-200/70 text-slate-400 opacity-60'
                                           : 'bg-white border border-slate-200 text-slate-600 hover:border-amber-300'
                                       }`}
                                     >
                                       <div
-                                        onClick={() => goToTopic(mod.id, top.id)}
-                                        className="flex items-center space-x-3 min-w-0 flex-1 cursor-pointer"
+                                        onClick={() => {
+                                          if (isTopicAvailable) {
+                                            goToTopic(mod.id, top.id);
+                                          } else {
+                                            showGatingMessage('This lesson is locked. Please complete preceding lessons (99% watch for video) to unlock.');
+                                          }
+                                        }}
+                                        className="flex items-center space-x-2.5 min-w-0 flex-1 cursor-pointer"
                                       >
+                                        {/* READ-ONLY INDICATOR: Checkboxes are NOT directly mutable by user */}
                                         <div
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleTopicCompletion(top.id);
-                                          }}
-                                          className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-xs shrink-0 cursor-pointer ${
+                                          className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-xs shrink-0 select-none ${
                                             isCompleted
-                                              ? 'bg-emerald-500 text-white'
-                                              : 'bg-slate-100 text-slate-400 border border-slate-300 hover:bg-amber-100'
+                                              ? 'bg-emerald-500 text-white shadow-2xs'
+                                              : !isTopicAvailable
+                                              ? 'bg-slate-100 text-slate-400 border border-slate-200'
+                                              : 'bg-slate-100 text-slate-300 border border-slate-300'
                                           }`}
-                                          title="Toggle topic completion state"
+                                          title={isCompleted ? 'Topic completed' : !isTopicAvailable ? 'Complete preceding lesson to unlock' : 'Active lesson'}
                                         >
-                                          {isCompleted ? 'Γ£ô' : ''}
+                                          {isCompleted ? '✓' : !isTopicAvailable ? <Lock className="w-3 h-3 text-slate-400" /> : ''}
                                         </div>
-                                        <span className={`truncate ${isCurrentTopicActive ? 'text-slate-950 font-extrabold' : ''}`}>
+                                        <span className={`truncate text-xs ${isCurrentTopicActive ? 'text-slate-950 font-extrabold' : ''}`}>
                                           {idx + 1}. {top.title}
                                         </span>
                                       </div>
 
-                                      <div className="flex items-center space-x-3 text-[11px] shrink-0 ml-2">
-                                        <span className="text-[10px] text-slate-400">
+                                      <div className="flex items-center space-x-2 text-[10px] shrink-0 ml-2">
+                                        <span className="text-slate-400">
                                           {top.contentType === 'video' ? 'Video' : 'Theory'}
                                         </span>
-                                        {isCurrentTopicActive && (
-                                          <span className="bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded text-[10px]">
+                                        {isCurrentTopicActive ? (
+                                          <span className="bg-amber-200 text-amber-900 font-extrabold px-1.5 py-0.5 rounded text-[9px]">
                                             ACTIVE
                                           </span>
-                                        )}
-                                        <span className={isCompleted ? 'text-emerald-700 font-bold' : 'text-slate-400'}>
-                                          {isCompleted ? 'Γ£ô Completed' : 'Γùï Pending'}
-                                        </span>
+                                        ) : !isTopicAvailable ? (
+                                          <span className="text-slate-400 font-medium text-[9px] flex items-center">
+                                            <Lock className="w-2.5 h-2.5 mr-0.5 inline" />
+                                            <span>LOCKED</span>
+                                          </span>
+                                        ) : null}
                                       </div>
                                     </div>
                                   );
@@ -1035,26 +1763,26 @@ export const MyCoursePage: React.FC = () => {
 
                               <div
                                 onClick={() => goToAssignment(mod.id)}
-                                className={`p-3 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
+                                className={`p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
                                   mod.id === currentModule.id && activeSection === 'assignment'
                                     ? 'bg-amber-50 border-2 border-amber-400 text-slate-950 font-bold'
                                     : 'bg-white border border-slate-200 hover:border-amber-300'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2.5 min-w-0">
+                                <div className="flex items-center space-x-2 min-w-0">
                                   <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                                  <span className="truncate font-bold text-slate-800">
+                                  <span className="truncate font-bold text-slate-800 text-xs">
                                     {mod.assignment?.title || 'Case Report Assignment'}
                                   </span>
                                 </div>
 
-                                <div className="flex items-center space-x-2 shrink-0">
+                                <div className="flex items-center space-x-1.5 shrink-0">
                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                     mod.assignment?.submissionStatus === 'submitted'
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : 'bg-amber-100 text-amber-800'
                                   }`}>
-                                    {mod.assignment?.submissionStatus === 'submitted' ? 'Γ£ô Submitted' : 'Γùï Pending'}
+                                    {mod.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending'}
                                   </span>
                                 </div>
                               </div>
@@ -1068,22 +1796,22 @@ export const MyCoursePage: React.FC = () => {
 
                               <div
                                 onClick={() => goToTest(mod.id)}
-                                className={`p-3 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
+                                className={`p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
                                   mod.id === currentModule.id && activeSection === 'test'
                                     ? 'bg-amber-50 border-2 border-amber-400 text-slate-950 font-bold'
                                     : 'bg-white border border-slate-200 hover:border-amber-300'
                                 }`}
                               >
-                                <div className="flex items-center space-x-2.5 min-w-0">
+                                <div className="flex items-center space-x-2 min-w-0">
                                   <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span className="truncate font-bold text-slate-800">
-                                    {mod.test?.title || 'Module Comprehensive Practice Quiz'}
+                                  <span className="truncate font-bold text-slate-800 text-xs">
+                                    {mod.test?.title || 'Practice Quiz'}
                                   </span>
                                 </div>
 
-                                <div className="flex items-center space-x-2 shrink-0">
+                                <div className="flex items-center space-x-1.5 shrink-0">
                                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                                    Unlimited Practice
+                                    Unlimited
                                   </span>
                                 </div>
                               </div>
@@ -1094,108 +1822,6 @@ export const MyCoursePage: React.FC = () => {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column Curriculum Progress & Clinical Notes */}
-          <div className="space-y-6">
-            {/* 3-Level Quick Access Box */}
-            <div className="bg-gradient-to-r from-slate-900 to-[#0A192F] text-white p-6 rounded-3xl border border-slate-800 shadow-lg space-y-4">
-              <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
-                <Sparkles className="w-4 h-4" />
-                <span>Module {formattedModuleNumber} Milestones</span>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                {/* Milestone 1 */}
-                <div
-                  onClick={() => goToTopic(currentModule.id, currentTopic?.id)}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 flex items-center justify-between cursor-pointer"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[10px] flex items-center justify-center">1</span>
-                    <span className="font-bold text-slate-200">Learning Lessons</span>
-                  </div>
-                  <span className={`text-[10px] font-bold ${isCurrentModuleUnlocked ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {currentModule.topics.filter(t => completedTopicIds[t.id]).length}/{totalTopics} Done
-                  </span>
-                </div>
-
-                {/* Milestone 2 */}
-                <div
-                  onClick={() => goToAssignment(currentModule.id)}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 flex items-center justify-between cursor-pointer"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[10px] flex items-center justify-center">2</span>
-                    <span className="font-bold text-slate-200">Module Assignment</span>
-                  </div>
-                  <span className={`text-[10px] font-bold ${
-                    currentModule.assignment?.submissionStatus === 'submitted' ? 'text-emerald-400' : 'text-amber-400'
-                  }`}>
-                    {currentModule.assignment?.submissionStatus === 'submitted' ? 'Γ£ô Submitted' : 'Pending'}
-                  </span>
-                </div>
-
-                {/* Milestone 3 */}
-                <div
-                  onClick={() => goToTest(currentModule.id)}
-                  className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 flex items-center justify-between cursor-pointer"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-400 font-bold text-[10px] flex items-center justify-center">3</span>
-                    <span className="font-bold text-slate-200">Module Test</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400">
-                    Unlimited Retakes
-                  </span>
-                </div>
-              </div>
-
-              {isCurrentModuleUnlocked ? (
-                <button
-                  onClick={() => navigate(`/assessment/${currentModule.id}`)}
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all text-center block cursor-pointer"
-                >
-                  Take Module {formattedModuleNumber} Quiz
-                </button>
-              ) : (
-                <p className="text-[11px] text-slate-400 text-center">
-                  Complete all {totalTopics} topics in this module to unlock the practice quiz.
-                </p>
-              )}
-            </div>
-
-            {/* Clinical Observations Log */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-amber-500" />
-                  <h3 className="font-extrabold text-sm text-[#0A192F]">Clinical Observations</h3>
-                </div>
-                <span className="text-[10px] text-slate-400">Private Log</span>
-              </div>
-
-              <textarea
-                value={clinicalNotes}
-                onChange={handleNotesChange}
-                rows={5}
-                className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed"
-                placeholder="Record timestamp observations, Hounsfield units, and preliminary findings..."
-              />
-
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-[11px] text-slate-400">
-                  {notesSaved ? 'Last auto-saved 2m ago' : 'Unsaved changes...'}
-                </span>
-                <button
-                  onClick={handleSaveNotes}
-                  className="inline-flex items-center space-x-1.5 font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Save Notes</span>
-                </button>
               </div>
             </div>
           </div>

@@ -11,7 +11,6 @@ import {
   Download,
   BookOpen,
   Save,
-  Shield,
   Layers,
   Sparkles,
   HelpCircle,
@@ -551,17 +550,13 @@ export const MyCoursePage: React.FC = () => {
                 ) : (
                   /* Video Stream Surface */
                   <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 relative group">
-                    <div className="bg-slate-900/90 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <span className="flex items-center space-x-1 text-emerald-400 font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
-                          SECURE DRM STREAM
-                        </span>
-                        <span>ΓÇó 256-BIT DICOM-RT ENCRYPTED</span>
-                      </div>
-                      <div className="hidden sm:flex items-center space-x-2 text-slate-500">
-                        <Shield className="w-3 h-3 text-amber-400" />
-                        <span>WATERMARK: ALISTAIR VANCE</span>
+                    <div className="bg-slate-900/95 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <img
+                          src="/logo.png"
+                          alt="Virtual Autopsy Global Solutions"
+                          className="h-7 sm:h-8 w-auto object-contain"
+                        />
                       </div>
                     </div>
 

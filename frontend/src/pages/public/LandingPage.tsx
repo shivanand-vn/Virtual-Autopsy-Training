@@ -16,10 +16,31 @@ import {
   Laptop
 } from 'lucide-react';
 import { useCourse } from '../../context/CourseContext';
+import { useAuth } from '../../context/AuthContext';
+import { getAuthToken, getStoredUser } from '../../lib/api';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { courses } = useCourse();
+  const { user, token } = useAuth();
+
+  const handleSignInClick = () => {
+    // Check synchronous storage and live state to guarantee instant redirection
+    const currentStoredUser = getStoredUser();
+    const currentStoredToken = getAuthToken();
+    const currentUser = user || currentStoredUser;
+    const currentToken = token || currentStoredToken;
+
+    if (currentUser && currentToken) {
+      if (currentUser.role === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } else {
+      navigate('/login');
+    }
+  };
 
   // Accordion State for Modules
   const [openModuleId, setOpenModuleId] = useState<string | null>('mod-1');
@@ -148,7 +169,7 @@ export const LandingPage: React.FC = () => {
           {/* Action Buttons */}
           <div className="flex items-center space-x-3 sm:space-x-4">
             <button
-              onClick={() => navigate('/login')}
+              onClick={handleSignInClick}
               className="text-xs font-bold text-slate-700 hover:text-[#0A192F] transition-colors cursor-pointer px-2 py-1"
             >
               Sign In

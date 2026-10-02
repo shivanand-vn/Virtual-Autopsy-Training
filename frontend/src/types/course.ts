@@ -28,8 +28,9 @@ export interface Topic {
   title: string;
   description: string;
   contentType: ContentType;
-  content?: string; // For theory / reading topics
+  content?: string; // For text / theory topics
   videoUrl?: string; // For video topics
+  bunnyVideoId?: string; // Bunny Stream video GUID
   requiredWatchPercentage?: number; // Default 90% for video topics
   assignmentInstructions?: string; // For assignment topics
   submissionInstructions?: string; // For assignment topics

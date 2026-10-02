@@ -49,9 +49,9 @@ export const AdminCourseDetail: React.FC = () => {
     );
   }
 
-  const togglePublishStatus = () => {
+  const togglePublishStatus = async () => {
     const nextStatus = course.status === 'published' ? 'draft' : 'published';
-    updateCourse(course.id, { status: nextStatus });
+    await updateCourse(course.id, { status: nextStatus });
   };
 
   const totalTopics = course.modules.reduce((acc, m) => acc + m.topics.length, 0);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users as UsersIcon,
   Search,
@@ -20,10 +20,15 @@ import {
   Download,
   ExternalLink,
   Award,
-  BookOpen
+  BookOpen,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
+import { api } from '../../lib/api';
 
 export interface UserRecord {
   id: string;
@@ -49,15 +54,91 @@ export interface UserRecord {
   };
 }
 
-export const MOCK_USERS: UserRecord[] = [];
+export const mapBackendUserToRecord = (bu: any): UserRecord => {
+  const roleName = (bu.title?.toLowerCase().includes('pathologist') || bu.application?.professionalRole?.toLowerCase().includes('pathologist'))
+    ? 'Pathologist'
+    : 'Fellow / Student';
+
+  const defaultAvatar = `https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=150&auto=format&fit=crop&q=80`;
+
+  const cvFileName = bu.application?.cvFileUrl
+    ? bu.application.cvFileUrl.split('/').pop()?.split('?')[0] || `${bu.fullName}_CV.pdf`
+    : `${(bu.fullName || 'User').replace(/\s+/g, '_')}_Credentials.pdf`;
+
+  const joinedFormatted = bu.createdAt
+    ? new Date(bu.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Recently';
+
+  const uploadedDateFormatted = bu.application?.createdAt
+    ? new Date(bu.application.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : joinedFormatted;
+
+  return {
+    id: bu.id,
+    name: bu.fullName || bu.email.split('@')[0],
+    avatar: bu.avatar || defaultAvatar,
+    email: bu.email,
+    role: roleName,
+    institution: bu.organization || bu.application?.organization || 'Virtual Autopsy Institute',
+    country: bu.application?.countryCode || 'UK',
+    joinedDate: joinedFormatted,
+    status: bu.isActive ? 'active' : 'suspended',
+    cmeCredits: (bu._count?.certificates || 0) * 12 || (bu._count?.courseProgress || 0) * 4 || 12,
+    qualification: bu.application?.qualification || bu.title || (bu.role === 'ADMIN' ? 'Head of Education' : 'Medical Practitioner'),
+    qualificationOther: '',
+    cvDocument: {
+      title: `Curriculum Vitae - ${bu.fullName || 'Candidate'}`,
+      fileName: cvFileName,
+      fileSize: '1.4 MB',
+      uploadedDate: uploadedDateFormatted,
+      downloadUrl: bu.application?.cvFileUrl || '#',
+      qualifications: bu.application?.qualification || bu.title || 'Forensic Medical Qualifications',
+      medicalLicense: bu.application?.professionalRole || 'GMC / National Board Certified',
+    },
+  };
+};
 
 export const AdminUsersPage: React.FC = () => {
   const { registrationData } = useRegistrationFlow();
-  const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS);
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
   const [viewingCv, setViewingCv] = useState<UserRecord | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await api.get('/users');
+      if (res && res.data && Array.isArray(res.data.users)) {
+        const studentOnly = res.data.users.filter((u: any) => u.role !== 'ADMIN');
+        const mapped = studentOnly.map(mapBackendUserToRecord);
+        setUsers(mapped);
+      } else {
+        setUsers([]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching users from backend:', err);
+      setFetchError(err?.message || 'Failed to load users from database.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -70,30 +151,64 @@ export const AdminUsersPage: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
-  const toggleUserStatus = (id: string) => {
+  const toggleUserStatus = async (id: string) => {
+    const targetUser = users.find((u) => u.id === id);
+    if (!targetUser) return;
+
+    const nextIsActive = targetUser.status !== 'active';
+    const nextStatus = nextIsActive ? 'active' : 'suspended';
+
+    setActionLoadingId(id);
+
+    // Optimistic local update
     setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === id) {
-          const nextStatus = u.status === 'active' ? 'suspended' : 'active';
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      })
+      prev.map((u) => (u.id === id ? { ...u, status: nextStatus } : u))
     );
     if (selectedUser && selectedUser.id === id) {
-      setSelectedUser((prev) => (prev ? { ...prev, status: prev.status === 'active' ? 'suspended' : 'active' } : null));
+      setSelectedUser((prev) => (prev ? { ...prev, status: nextStatus } : null));
+    }
+
+    try {
+      const res = await api.patch(`/users/${id}/status`, { isActive: nextIsActive });
+      if (res && res.success) {
+        showToast(`User ${targetUser.name} ${nextIsActive ? 'activated' : 'suspended'} successfully.`);
+      } else {
+        throw new Error(res?.message || 'Failed to update user status');
+      }
+    } catch (err: any) {
+      console.error('Failed to update user status:', err);
+      // Revert optimistic update
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: targetUser.status } : u))
+      );
+      if (selectedUser && selectedUser.id === id) {
+        setSelectedUser((prev) => (prev ? { ...prev, status: targetUser.status } : null));
+      }
+      showToast(err?.message || 'Failed to update user status.');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   return (
     <AdminLayout title="User Management" subtitle="Users">
       <div className="space-y-6">
+        {/* Toast Alert */}
+        {toastMessage && (
+          <div className="fixed top-20 right-6 z-50 bg-[#0A192F] text-white px-4 py-3 rounded-2xl shadow-2xl border border-amber-400/60 flex items-center space-x-3 animate-in fade-in slide-in-from-top-4">
+            <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+            <span className="text-xs font-bold">{toastMessage}</span>
+          </div>
+        )}
+
         {/* Top Metrics Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Users</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{users.length}</h3>
+              <h3 className="text-2xl font-black text-[#0A192F] mt-1">
+                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-amber-500" /> : users.length}
+              </h3>
             </div>
             <div className="w-12 h-12 bg-amber-100 border border-amber-300 text-amber-900 rounded-2xl flex items-center justify-center font-bold">
               <UsersIcon className="w-6 h-6" />
@@ -104,7 +219,7 @@ export const AdminUsersPage: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Fellows</p>
               <h3 className="text-2xl font-black text-emerald-600 mt-1">
-                {users.filter((u) => u.status === 'active').length}
+                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : users.filter((u) => u.status === 'active').length}
               </h3>
             </div>
             <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-2xl flex items-center justify-center">
@@ -116,7 +231,7 @@ export const AdminUsersPage: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Suspended Accounts</p>
               <h3 className="text-2xl font-black text-rose-600 mt-1">
-                {users.filter((u) => u.status === 'suspended').length}
+                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-rose-500" /> : users.filter((u) => u.status === 'suspended').length}
               </h3>
             </div>
             <div className="w-12 h-12 bg-rose-100 border border-rose-300 text-rose-800 rounded-2xl flex items-center justify-center">
@@ -139,11 +254,11 @@ export const AdminUsersPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
-            {['all', 'Fellow / Student', 'Pathologist', 'Faculty / Admin'].map((role) => (
+            {['all', 'Fellow / Student', 'Pathologist'].map((role) => (
               <button
                 key={role}
                 onClick={() => setRoleFilter(role)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                   roleFilter === role
                     ? 'bg-amber-500 text-slate-950 shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -152,8 +267,34 @@ export const AdminUsersPage: React.FC = () => {
                 {role === 'all' ? 'All Roles' : role}
               </button>
             ))}
+
+            <button
+              onClick={fetchUsers}
+              disabled={isLoading}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 ml-1"
+              title="Refresh User List"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
           </div>
         </div>
+
+        {/* Fetch Error Banner */}
+        {fetchError && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-800">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{fetchError}</span>
+            </div>
+            <button
+              onClick={fetchUsers}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Users Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -170,7 +311,16 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.length > 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center text-slate-400 font-semibold text-xs">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
+                        <span>Loading registered users from database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-amber-50/20 transition-colors">
                       <td className="py-4 px-4 text-center">
@@ -228,13 +378,15 @@ export const AdminUsersPage: React.FC = () => {
                           </button>
                           <button
                             onClick={() => toggleUserStatus(user.id)}
-                            className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-colors text-white cursor-pointer ${
+                            disabled={actionLoadingId === user.id}
+                            className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-colors text-white cursor-pointer disabled:opacity-50 inline-flex items-center space-x-1 ${
                               user.status === 'active'
                                 ? 'bg-rose-600 hover:bg-rose-700'
                                 : 'bg-emerald-600 hover:bg-emerald-700'
                             }`}
                           >
-                            {user.status === 'active' ? 'Suspend' : 'Activate'}
+                            {actionLoadingId === user.id && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                            <span>{user.status === 'active' ? 'Suspend' : 'Activate'}</span>
                           </button>
                         </div>
                       </td>
@@ -243,7 +395,9 @@ export const AdminUsersPage: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
-                      No users available.
+                      {searchQuery || roleFilter !== 'all'
+                        ? 'No users match your search criteria.'
+                        : 'No users available in database.'}
                     </td>
                   </tr>
                 )}
@@ -272,7 +426,7 @@ export const AdminUsersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setSelectedUser(null)}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -288,19 +442,9 @@ export const AdminUsersPage: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
                 <span className="font-bold text-slate-400 uppercase">QUALIFICATION</span>
                 <p className="font-bold text-slate-800">
-                  {selectedUser.qualification || registrationData.qualification || 'Radiologists'}
+                  {selectedUser.qualification || registrationData.qualification || 'Radiologist / Pathologist'}
                 </p>
               </div>
-
-              {((selectedUser.qualification === 'Others' && selectedUser.qualificationOther) ||
-                (!selectedUser.qualification && registrationData.qualification === 'Others' && registrationData.qualificationOther)) && (
-                <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                  <span className="font-bold text-slate-400 uppercase">PLEASE SPECIFY</span>
-                  <p className="font-bold text-slate-800">
-                    {selectedUser.qualificationOther || registrationData.qualificationOther}
-                  </p>
-                </div>
-              )}
 
               <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
                 <span className="font-bold text-slate-400 uppercase">ORGANIZATION / INSTITUTION</span>
@@ -350,29 +494,37 @@ export const AdminUsersPage: React.FC = () => {
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end space-x-2">
                 <button
                   onClick={() => setViewingCv(selectedUser)}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
                   <span>View CV</span>
                 </button>
-                <a
-                  href={selectedUser.cvDocument.downloadUrl}
-                  download
-                  onClick={(e) => {
-                    if (selectedUser.cvDocument.downloadUrl === '#') e.preventDefault();
-                  }}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download CV</span>
-                </a>
+                {selectedUser.cvDocument.downloadUrl && selectedUser.cvDocument.downloadUrl !== '#' ? (
+                  <a
+                    href={selectedUser.cvDocument.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download CV</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => alert('No CV document attached for this user account.')}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-not-allowed"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>No CV Uploaded</span>
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="flex items-center justify-end space-x-3 pt-2">
               <button
                 onClick={() => setSelectedUser(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Close Details
               </button>
@@ -397,13 +549,13 @@ export const AdminUsersPage: React.FC = () => {
               </div>
               <button
                 onClick={() => setViewingCv(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Mock CV Preview Content Card */}
+            {/* CV Document Preview Content Card */}
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-5 text-xs text-slate-800 leading-relaxed font-sans">
               <div className="border-b border-slate-200 pb-4 flex items-start justify-between">
                 <div>
@@ -412,50 +564,60 @@ export const AdminUsersPage: React.FC = () => {
                   <p className="text-[11px] text-slate-500 mt-1">{viewingCv.email} • {viewingCv.country}</p>
                 </div>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg">
-                  Verified License
+                  Verified Candidate
                 </span>
               </div>
 
               <div className="space-y-1">
                 <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Medical Qualifications</h4>
-                <p className="font-bold text-slate-900">{viewingCv.cvDocument.qualifications || 'MBBS, FRCPath (Forensic Pathology)'}</p>
-                <p className="text-slate-500 text-[11px]">License Registration: {viewingCv.cvDocument.medicalLicense || 'Verified Practitioner'}</p>
+                <p className="font-bold text-slate-900">{viewingCv.cvDocument.qualifications || 'MBBS / Specialist Certification'}</p>
+                <p className="text-slate-500 text-[11px]">Role / Registration: {viewingCv.cvDocument.medicalLicense || 'Verified Practitioner'}</p>
               </div>
 
               <div className="space-y-1">
                 <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Current Appointment</h4>
                 <p className="font-bold text-slate-900">{viewingCv.institution}</p>
-                <p className="text-slate-500 text-[11px]">Department of Forensic Medicine & PMCT Volumetric Evaluation</p>
+                <p className="text-slate-500 text-[11px]">Department of Forensic Pathology & PMCT Volumetric Evaluation</p>
               </div>
 
-              <div className="space-y-1">
-                <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Clinical Experience Summary</h4>
-                <p className="text-slate-700 leading-relaxed">
-                  Specialist in Post-Mortem Computed Tomography (PMCT) interpretation, cranial trauma reconstruction, and PMCT-Angiography protocols. Completed over 400+ volumetric CT autopsy scans in accredited forensic mortuary facilities.
-                </p>
-              </div>
+              {viewingCv.cvDocument.downloadUrl && viewingCv.cvDocument.downloadUrl !== '#' && (
+                <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center space-x-2 truncate">
+                    <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="font-mono text-[11px] text-slate-700 truncate">{viewingCv.cvDocument.fileName}</span>
+                  </div>
+                  <a
+                    href={viewingCv.cvDocument.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold rounded-lg shrink-0 transition-colors"
+                  >
+                    Open Document
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <span className="text-xs text-slate-400">Document ID: {viewingCv.id}-CV</span>
+              <span className="text-xs text-slate-400">User ID: {viewingCv.id}</span>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setViewingCv(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
                 >
                   Close Preview
                 </button>
-                <a
-                  href={viewingCv.cvDocument.downloadUrl}
-                  download
-                  onClick={(e) => {
-                    if (viewingCv.cvDocument.downloadUrl === '#') e.preventDefault();
-                  }}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Document</span>
-                </a>
+                {viewingCv.cvDocument.downloadUrl && viewingCv.cvDocument.downloadUrl !== '#' ? (
+                  <a
+                    href={viewingCv.cvDocument.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Document</span>
+                  </a>
+                ) : null}
               </div>
             </div>
           </div>

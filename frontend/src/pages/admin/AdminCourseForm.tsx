@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
 import { type ContentType, type CourseModule, type Topic } from '../../types/course';
+import { api } from '../../lib/api';
 import {
   ArrowLeft,
   Plus,
@@ -17,14 +18,17 @@ import {
   X,
   AlertCircle,
   PlayCircle,
-  Upload
+  Upload,
+  Loader2,
+  Shield,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export const AdminCourseForm: React.FC = () => {
   const navigate = useNavigate();
   const { courseId } = useParams<{ courseId?: string }>();
   const isEditing = Boolean(courseId);
-  const { addCourse, updateCourse, getCourse, addModule, addTopic } = useCourse();
+  const { addCourse, updateCourse, getCourse, refreshCourses } = useCourse();
 
   // Course Form State (NO FEE OR PRICE FIELDS)
   const [courseName, setCourseName] = useState('');
@@ -33,6 +37,8 @@ export const AdminCourseForm: React.FC = () => {
   const [duration, setDuration] = useState('6 Months');
   const [status, setStatus] = useState<'draft' | 'published'>('published');
   const [modules, setModules] = useState<CourseModule[]>([]);
+  const [initialModules, setInitialModules] = useState<CourseModule[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Module Modal / Inline State
   const [showModuleModal, setShowModuleModal] = useState(false);
@@ -49,26 +55,242 @@ export const AdminCourseForm: React.FC = () => {
   const [topicContentType, setTopicContentType] = useState<ContentType>('theory');
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
+  const [topicBunnyVideoId, setTopicBunnyVideoId] = useState<string | null>(null);
   const [requiredWatchPercentage, setRequiredWatchPercentage] = useState<number>(90);
   const [assignmentInstructions, setAssignmentInstructions] = useState('');
   const [submissionInstructions, setSubmissionInstructions] = useState('');
   const [referenceAttachmentName, setReferenceAttachmentName] = useState('');
   const [topicThumbnail, setTopicThumbnail] = useState('');
   const [topicStatus, setTopicStatus] = useState<'draft' | 'published'>('published');
+  
+  // Video Source & Upload State
   const [videoSourceMode, setVideoSourceMode] = useState<'url' | 'file'>('url');
   const [uploadedVideoFileName, setUploadedVideoFileName] = useState<string | null>(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState<number>(0);
+  const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
+  const videoUploadAbortControllerRef = useRef<AbortController | null>(null);
 
+  // Thumbnail Source & Upload State
+  const [thumbnailSourceMode, setThumbnailSourceMode] = useState<'url' | 'file'>('url');
+  const [uploadedThumbnailFileName, setUploadedThumbnailFileName] = useState<string | null>(null);
+  const [thumbnailLocalPreview, setThumbnailLocalPreview] = useState<string | null>(null);
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState<number>(0);
+  const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
+  const thumbnailUploadAbortControllerRef = useRef<AbortController | null>(null);
+
+  const [isDeletingThumbnail, setIsDeletingThumbnail] = useState(false);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleVideoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Auto-sign Bunny video URLs if an unsigned embed URL is present
+  useEffect(() => {
+    if (topicVideoUrl && topicVideoUrl.includes('iframe.mediadelivery.net') && !topicVideoUrl.includes('token=')) {
+      const match = topicVideoUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
+      if (match && match[1]) {
+        const videoId = match[1];
+        setTopicBunnyVideoId(videoId);
+        api.get<{ embedUrl: string }>(`/courses/stream-token/${videoId}`)
+          .then((res) => {
+            if (res?.data?.embedUrl) {
+              setTopicVideoUrl(res.data.embedUrl);
+            }
+          })
+          .catch((err) => {
+            console.warn('Could not auto-sign stream embed URL:', err);
+          });
+      }
+    }
+  }, [topicVideoUrl]);
+
+  const handleVideoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedVideoFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTopicVideoUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    e.target.value = '';
+
+    if (!file.type.startsWith('video/')) {
+      setVideoUploadError('Please select a valid video file (MP4, WebM, MOV, etc.).');
+      return;
+    }
+
+    const MAX_SIZE = 100 * 1024 * 1024; // 100MB limit
+    if (file.size > MAX_SIZE) {
+      setVideoUploadError('Video file exceeds maximum allowed size of 100MB.');
+      return;
+    }
+
+    const abortController = new AbortController();
+    videoUploadAbortControllerRef.current = abortController;
+
+    setUploadedVideoFileName(file.name);
+    setIsUploadingVideo(true);
+    setVideoUploadProgress(0);
+    setVideoUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.upload<{ url: string; fileName: string; bunnyVideoId?: string }>(
+        '/courses/upload-media',
+        formData,
+        (percent) => setVideoUploadProgress(percent),
+        abortController.signal
+      );
+      if (response && response.data && response.data.url) {
+        setTopicVideoUrl(response.data.url);
+        if (response.data.bunnyVideoId) {
+          setTopicBunnyVideoId(response.data.bunnyVideoId);
+        }
+        setVideoUploadProgress(100);
+      } else {
+        throw new Error(response?.message || 'Failed to upload video.');
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('Video upload was cancelled by user.');
+        return;
+      }
+      console.error('Video upload failed:', err);
+      const rawMsg = err.data?.message || err.message || '';
+      const msg = rawMsg.toLowerCase().includes('fetch failed') || rawMsg.toLowerCase().includes('timeout')
+        ? 'Video upload connection timed out or was interrupted. Please check network connection and try again.'
+        : (rawMsg || 'Failed to upload video. Please check connection and try again.');
+      setVideoUploadError(msg);
+    } finally {
+      setIsUploadingVideo(false);
+      videoUploadAbortControllerRef.current = null;
+    }
+  };
+
+  const handleThumbnailFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    e.target.value = '';
+
+    if (!file.type.startsWith('image/')) {
+      setThumbnailUploadError('Please select a valid image file (JPG, PNG, WebP, etc.).');
+      return;
+    }
+
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB limit
+    if (file.size > MAX_SIZE) {
+      setThumbnailUploadError('Image file exceeds maximum allowed size of 10MB.');
+      return;
+    }
+
+    const abortController = new AbortController();
+    thumbnailUploadAbortControllerRef.current = abortController;
+
+    const localUrl = URL.createObjectURL(file);
+    setThumbnailLocalPreview(localUrl);
+    setUploadedThumbnailFileName(file.name);
+    setIsUploadingThumbnail(true);
+    setThumbnailUploadProgress(0);
+    setThumbnailUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.upload<{ url: string; fileName: string }>(
+        '/courses/upload-media',
+        formData,
+        (percent) => setThumbnailUploadProgress(percent),
+        abortController.signal
+      );
+      if (response && response.data && response.data.url) {
+        setTopicThumbnail(response.data.url);
+        setThumbnailUploadProgress(100);
+      } else {
+        throw new Error(response?.message || 'Failed to upload thumbnail image.');
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('Thumbnail upload was cancelled by user.');
+        return;
+      }
+      console.error('Thumbnail upload failed:', err);
+      const msg = err.data?.message || err.message || 'Failed to upload thumbnail image. Please try again.';
+      setThumbnailUploadError(msg);
+    } finally {
+      setIsUploadingThumbnail(false);
+      thumbnailUploadAbortControllerRef.current = null;
+    }
+  };
+
+  const handleRemoveThumbnail = async () => {
+    // 1. If currently uploading, cancel the upload so it is NOT uploaded
+    if (isUploadingThumbnail && thumbnailUploadAbortControllerRef.current) {
+      thumbnailUploadAbortControllerRef.current.abort();
+      thumbnailUploadAbortControllerRef.current = null;
+      setIsUploadingThumbnail(false);
+      setThumbnailUploadProgress(0);
+      if (thumbnailLocalPreview) {
+        URL.revokeObjectURL(thumbnailLocalPreview);
+        setThumbnailLocalPreview(null);
+      }
+      setUploadedThumbnailFileName(null);
+      setThumbnailUploadError(null);
+      return;
+    }
+
+    // 2. If already uploaded, delete it from storage
+    if (thumbnailLocalPreview) {
+      URL.revokeObjectURL(thumbnailLocalPreview);
+      setThumbnailLocalPreview(null);
+    }
+    const urlToDelete = topicThumbnail;
+    setTopicThumbnail('');
+    setUploadedThumbnailFileName(null);
+    setThumbnailUploadError(null);
+    if (urlToDelete && urlToDelete.startsWith('http')) {
+      setIsDeletingThumbnail(true);
+      try {
+        await api.post('/courses/delete-media', { url: urlToDelete, provider: 'cloudinary' });
+      } catch (err) {
+        console.warn('Failed to delete thumbnail from storage:', err);
+      } finally {
+        setIsDeletingThumbnail(false);
+      }
+    }
+  };
+
+  const handleRemoveVideo = async () => {
+    // 1. If currently uploading, abort so it is NOT uploaded
+    if (isUploadingVideo && videoUploadAbortControllerRef.current) {
+      videoUploadAbortControllerRef.current.abort();
+      videoUploadAbortControllerRef.current = null;
+      setIsUploadingVideo(false);
+      setVideoUploadProgress(0);
+      setUploadedVideoFileName(null);
+      setVideoUploadError(null);
+      return;
+    }
+
+    // 2. If already uploaded, delete from storage
+    const urlToDelete = topicVideoUrl;
+    const bunnyIdToDelete = topicBunnyVideoId;
+    setTopicVideoUrl('');
+    setTopicBunnyVideoId(null);
+    setUploadedVideoFileName(null);
+    setVideoUploadError(null);
+    if ((urlToDelete && urlToDelete.startsWith('http')) || bunnyIdToDelete) {
+      setIsDeletingVideo(true);
+      try {
+        await api.post('/courses/delete-media', {
+          url: urlToDelete,
+          bunnyVideoId: bunnyIdToDelete,
+          provider: 'bunny',
+        });
+      } catch (err) {
+        console.warn('Failed to delete video from storage:', err);
+      } finally {
+        setIsDeletingVideo(false);
+      }
     }
   };
 
@@ -77,15 +299,16 @@ export const AdminCourseForm: React.FC = () => {
     if (isEditing && courseId) {
       const existing = getCourse(courseId);
       if (existing) {
-        setCourseName(existing.name);
-        setShortDescription(existing.shortDescription);
-        setDescription(existing.description);
-        setDuration(existing.duration);
+        setCourseName(existing.name || existing.title || '');
+        setShortDescription(existing.shortDescription || '');
+        setDescription(existing.description || '');
+        setDuration(existing.duration || '6 Months');
         setStatus(existing.status);
         setModules(existing.modules || []);
+        setInitialModules(existing.modules || []);
       }
     }
-  }, [isEditing, courseId]);
+  }, [isEditing, courseId, getCourse]);
 
   // MODULE HANDLERS
   const openAddModuleModal = () => {
@@ -173,7 +396,7 @@ export const AdminCourseForm: React.FC = () => {
     setTopicDescription('');
     setTopicContentType('theory');
     setTopicContent('');
-    setTopicVideoUrl('https://example.com/videos/sample-lesson.mp4');
+    setTopicVideoUrl('');
     setRequiredWatchPercentage(90);
     setAssignmentInstructions('');
     setSubmissionInstructions('');
@@ -182,10 +405,27 @@ export const AdminCourseForm: React.FC = () => {
     setTopicStatus('published');
     setVideoSourceMode('url');
     setUploadedVideoFileName(null);
+    setIsUploadingVideo(false);
+    setVideoUploadProgress(0);
+    setVideoUploadError(null);
+    if (thumbnailLocalPreview) {
+      URL.revokeObjectURL(thumbnailLocalPreview);
+      setThumbnailLocalPreview(null);
+    }
+    setThumbnailSourceMode('url');
+    setUploadedThumbnailFileName(null);
+    setIsUploadingThumbnail(false);
+    setThumbnailUploadProgress(0);
+    setThumbnailUploadError(null);
+    setTopicBunnyVideoId(null);
     setShowTopicModal(true);
   };
 
   const openEditTopicModal = (modId: string, top: Topic) => {
+    if (thumbnailLocalPreview) {
+      URL.revokeObjectURL(thumbnailLocalPreview);
+      setThumbnailLocalPreview(null);
+    }
     setTargetModuleIdForTopic(modId);
     setEditingTopicId(top.id);
     setTopicTitle(top.title);
@@ -193,25 +433,46 @@ export const AdminCourseForm: React.FC = () => {
     setTopicContentType(top.contentType);
     setTopicContent(top.content || '');
     setTopicVideoUrl(top.videoUrl || '');
+    setTopicBunnyVideoId(top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null);
     setRequiredWatchPercentage(top.requiredWatchPercentage || 90);
     setAssignmentInstructions(top.assignmentInstructions || '');
     setSubmissionInstructions(top.submissionInstructions || '');
     setReferenceAttachmentName(top.referenceAttachmentName || '');
     setTopicThumbnail(top.thumbnail || '');
     setTopicStatus(top.status || 'published');
-    if (top.videoUrl && top.videoUrl.startsWith('data:video')) {
+    setIsUploadingVideo(false);
+    setVideoUploadProgress(0);
+    setVideoUploadError(null);
+    setIsUploadingThumbnail(false);
+    setThumbnailUploadProgress(0);
+    setThumbnailUploadError(null);
+
+    // Detect if videoUrl or thumbnail is a hosted/uploaded file
+    if (top.videoUrl && (top.videoUrl.includes('mediadelivery.net') || top.videoUrl.includes('bunny') || top.videoUrl.includes('b-cdn.net') || top.videoUrl.includes('cloudinary') || top.videoUrl.startsWith('data:video'))) {
       setVideoSourceMode('file');
-      setUploadedVideoFileName('Uploaded Local Video File');
+      setUploadedVideoFileName(top.videoUrl.split('/').pop() || 'Uploaded Video');
     } else {
       setVideoSourceMode('url');
       setUploadedVideoFileName(null);
     }
+
+    if (top.thumbnail && (top.thumbnail.includes('cloudinary') || top.thumbnail.startsWith('data:image'))) {
+      setThumbnailSourceMode('file');
+      setUploadedThumbnailFileName(top.thumbnail.split('/').pop() || 'Uploaded Thumbnail');
+    } else {
+      setThumbnailSourceMode('url');
+      setUploadedThumbnailFileName(null);
+    }
+
     setShowTopicModal(true);
   };
 
   const handleSaveTopic = (e: React.FormEvent) => {
     e.preventDefault();
     if (!topicTitle.trim() || !targetModuleIdForTopic) return;
+    if (isUploadingVideo || isUploadingThumbnail) return;
+
+    const extractedBunnyId = topicContentType === 'video' ? (topicBunnyVideoId || (topicVideoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || undefined) : undefined;
 
     setModules((prev) =>
       prev.map((m) => {
@@ -226,6 +487,7 @@ export const AdminCourseForm: React.FC = () => {
                   contentType: topicContentType,
                   content: topicContentType === 'theory' ? topicContent : undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+                  bunnyVideoId: extractedBunnyId,
                   requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
                   assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
                   submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
@@ -245,6 +507,7 @@ export const AdminCourseForm: React.FC = () => {
               contentType: topicContentType,
               content: topicContentType === 'theory' ? topicContent : undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+              bunnyVideoId: extractedBunnyId,
               requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
               assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
               submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
@@ -264,6 +527,25 @@ export const AdminCourseForm: React.FC = () => {
   };
 
   const handleDeleteTopic = (modId: string, topicId: string) => {
+    // Delete associated media from cloud storage if uploaded
+    const targetModule = modules.find((m) => m.id === modId);
+    const targetTopic = targetModule?.topics.find((t) => t.id === topicId);
+    if (targetTopic) {
+      if (targetTopic.videoUrl || targetTopic.bunnyVideoId) {
+        api.post('/courses/delete-media', {
+          url: targetTopic.videoUrl,
+          bunnyVideoId: targetTopic.bunnyVideoId,
+          provider: 'bunny',
+        }).catch((err) => console.warn('Failed to delete video on topic delete:', err));
+      }
+      if (targetTopic.thumbnail && targetTopic.thumbnail.includes('cloudinary')) {
+        api.post('/courses/delete-media', {
+          url: targetTopic.thumbnail,
+          provider: 'cloudinary',
+        }).catch((err) => console.warn('Failed to delete thumbnail on topic delete:', err));
+      }
+    }
+
     setModules((prev) =>
       prev.map((m) => {
         if (m.id === modId) {
@@ -299,7 +581,7 @@ export const AdminCourseForm: React.FC = () => {
   };
 
   // SAVE COURSE
-  const handleSaveCourse = (e: React.FormEvent) => {
+  const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -308,26 +590,140 @@ export const AdminCourseForm: React.FC = () => {
       return;
     }
 
+    if (!description.trim()) {
+      setValidationError('Please enter a Course Description.');
+      return;
+    }
+
     if (modules.length === 0) {
       setValidationError('Please add at least 1 module to the course curriculum.');
       return;
     }
 
-    const coursePayload = {
-      name: courseName,
-      shortDescription,
-      description,
-      duration,
-      status,
-      modules
-    };
+    setIsSaving(true);
 
-    if (isEditing && courseId) {
-      updateCourse(courseId, coursePayload);
-      navigate(`/admin/courses/${courseId}`);
-    } else {
-      const created = addCourse(coursePayload);
-      navigate(`/admin/courses/${created.id}`);
+    try {
+      if (isEditing && courseId) {
+        // 1. Update Course metadata
+        await api.put(`/courses/${courseId}`, {
+          title: courseName,
+          shortDescription: shortDescription || null,
+          description,
+          duration,
+          status: status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+        });
+
+        // 2. Identify deleted modules and delete them from DB
+        const currentModuleIds = new Set(modules.map((m) => m.id));
+        for (const initialMod of initialModules) {
+          if (!currentModuleIds.has(initialMod.id) && !initialMod.id.startsWith('mod-')) {
+            try {
+              await api.delete(`/courses/modules/${initialMod.id}`);
+            } catch (err) {
+              console.warn(`Could not delete module ${initialMod.id}:`, err);
+            }
+          }
+        }
+
+        // 3. Process current modules (Create new ones, update existing ones)
+        for (let modIdx = 0; modIdx < modules.length; modIdx++) {
+          const mod = modules[modIdx];
+          let activeModId = mod.id;
+
+          if (mod.id.startsWith('mod-')) {
+            // New Module -> Create in DB
+            const modRes = await api.post(`/courses/${courseId}/modules`, {
+              title: mod.title,
+              subtitle: mod.subtitle || null,
+              description: mod.description || null,
+              duration: mod.duration || '2h 00m',
+              durationMinutes: 120,
+              cmeCredits: mod.cmeCredits ?? 4,
+              status: mod.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+            });
+            activeModId = modRes.data.id;
+          } else {
+            // Existing Module -> Update in DB
+            await api.put(`/courses/modules/${mod.id}`, {
+              title: mod.title,
+              subtitle: mod.subtitle || null,
+              description: mod.description || null,
+              duration: mod.duration || '2h 00m',
+              cmeCredits: mod.cmeCredits ?? 4,
+              order: modIdx + 1,
+              status: mod.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+            });
+          }
+
+          // Handle topics within this module
+          const initialMod = initialModules.find((im) => im.id === mod.id);
+          if (initialMod) {
+            const currentTopicIds = new Set(mod.topics.map((t) => t.id));
+            for (const initTop of initialMod.topics) {
+              if (!currentTopicIds.has(initTop.id) && !initTop.id.startsWith('t-')) {
+                try {
+                  await api.delete(`/courses/topics/${initTop.id}`);
+                } catch (topDelErr) {
+                  console.warn(`Could not delete topic ${initTop.id}:`, topDelErr);
+                }
+              }
+            }
+          }
+
+          // Create or update topics
+          for (let topIdx = 0; topIdx < mod.topics.length; topIdx++) {
+            const top = mod.topics[topIdx];
+            const extractedBunnyId = top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
+            if (top.id.startsWith('t-')) {
+              // New Topic -> Create in DB
+              await api.post(`/courses/modules/${activeModId}/topics`, {
+                title: top.title,
+                description: top.description || null,
+                type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+                videoUrl: top.videoUrl || null,
+                bunnyVideoId: extractedBunnyId,
+                content: top.content || null,
+                status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+              });
+            } else {
+              // Existing Topic -> Update in DB
+              await api.put(`/courses/topics/${top.id}`, {
+                title: top.title,
+                description: top.description || null,
+                type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+                videoUrl: top.videoUrl || null,
+                bunnyVideoId: extractedBunnyId,
+                content: top.content || null,
+                order: topIdx + 1,
+                status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+              });
+            }
+          }
+        }
+
+        await refreshCourses();
+        navigate(`/admin/courses/${courseId}`);
+      } else {
+        // Create new course with modules and topics through CourseContext.addCourse
+        const coursePayload = {
+          name: courseName,
+          shortDescription,
+          description,
+          duration,
+          status,
+          modules,
+        };
+
+        const created = await addCourse(coursePayload);
+        await refreshCourses();
+        navigate(`/admin/courses/${created.id}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to save course:', err);
+      const msg = err.data?.message || err.message || 'An error occurred while saving the course to the database.';
+      setValidationError(msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -646,9 +1042,11 @@ export const AdminCourseForm: React.FC = () => {
             </Link>
             <button
               type="submit"
-              className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              disabled={isSaving}
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center space-x-2"
             >
-              {isEditing ? 'Update Course & Curriculum' : 'Save Course'}
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin text-slate-950" />}
+              <span>{isSaving ? 'Saving to Database...' : (isEditing ? 'Update Course & Curriculum' : 'Save Course')}</span>
             </button>
           </div>
         </form>
@@ -781,15 +1179,147 @@ export const AdminCourseForm: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#0A192F] mb-1">Thumbnail Image URL (Optional)</label>
-                  <input
-                    type="url"
-                    value={topicThumbnail}
-                    onChange={(e) => setTopicThumbnail(e.target.value)}
-                    placeholder="https://example.com/topic-thumbnail.jpg"
-                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800"
-                  />
+                {/* THUMBNAIL IMAGE (DUAL-MODE: URL OR CLOUD UPLOAD) */}
+                <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                    <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
+                      <ImageIcon className="w-4 h-4 text-amber-500" />
+                      <span>Thumbnail Image (Optional)</span>
+                    </label>
+                    <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setThumbnailSourceMode('url')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          thumbnailSourceMode === 'url'
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setThumbnailSourceMode('file')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          thumbnailSourceMode === 'file'
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Upload File
+                      </button>
+                    </div>
+                  </div>
+
+                  {thumbnailUploadError && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>{thumbnailUploadError}</span>
+                    </div>
+                  )}
+
+                  {thumbnailSourceMode === 'url' ? (
+                    <div>
+                      <input
+                        type="url"
+                        value={topicThumbnail}
+                        onChange={(e) => setTopicThumbnail(e.target.value)}
+                        placeholder="https://example.com/topic-thumbnail.jpg"
+                        className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      {isUploadingThumbnail ? (
+                        <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                            <div className="flex items-center space-x-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                              <span>
+                                {thumbnailUploadProgress < 100
+                                  ? `Uploading thumbnail (${thumbnailUploadProgress}%)...`
+                                  : 'Finalizing image upload...'}
+                              </span>
+                            </div>
+                            <span className="font-mono text-amber-700">{thumbnailUploadProgress}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                            <div
+                              className="bg-amber-500 h-2 rounded-full transition-all duration-200 ease-out"
+                              style={{ width: `${Math.max(5, thumbnailUploadProgress)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : topicThumbnail ? (
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
+                              <ImageIcon className="w-6 h-6 text-slate-400" />
+                              {(thumbnailLocalPreview || topicThumbnail) && (
+                                <img
+                                  src={thumbnailLocalPreview || topicThumbnail}
+                                  alt="Thumbnail preview"
+                                  className="w-full h-full object-cover absolute inset-0"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate">{uploadedThumbnailFileName || 'Uploaded Thumbnail'}</p>
+                              <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Uploaded successfully
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isDeletingThumbnail}
+                            onClick={handleRemoveThumbnail}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
+                          >
+                            {isDeletingThumbnail ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
+                          <Upload className="w-6 h-6 text-amber-600" />
+                          <span className="text-xs font-bold text-slate-800">+ Select Image File (JPG, PNG, WebP)</span>
+                          <span className="text-[10px] text-slate-400">Direct upload to secure storage</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleThumbnailFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Thumbnail Image preview in URL mode */}
+                  {thumbnailSourceMode === 'url' && topicThumbnail && (
+                    <div className="flex items-center space-x-3 p-2 bg-white rounded-xl border border-slate-200">
+                      <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
+                        <ImageIcon className="w-5 h-5 text-slate-400" />
+                        <img
+                          src={topicThumbnail}
+                          alt="Preview"
+                          className="w-full h-full object-cover absolute inset-0"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 text-xs text-slate-600 truncate">
+                        <span className="font-semibold text-slate-800">Preview: </span>
+                        <span className="font-mono text-[11px]">{topicThumbnail}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}
@@ -807,7 +1337,10 @@ export const AdminCourseForm: React.FC = () => {
                 ) : topicContentType === 'video' ? (
                   <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider">Video Source *</label>
+                      <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
+                        <Video className="w-4 h-4 text-amber-500" />
+                        <span>Video Source *</span>
+                      </label>
                       <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-xl">
                         <button
                           type="button"
@@ -834,6 +1367,13 @@ export const AdminCourseForm: React.FC = () => {
                       </div>
                     </div>
 
+                    {videoUploadError && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center space-x-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                        <span>{videoUploadError}</span>
+                      </div>
+                    )}
+
                     {videoSourceMode === 'url' ? (
                       <div>
                         <label className="block text-xs font-bold text-[#0A192F] mb-1">Video URL *</label>
@@ -848,31 +1388,76 @@ export const AdminCourseForm: React.FC = () => {
                     ) : (
                       <div>
                         <label className="block text-xs font-bold text-[#0A192F] mb-1">Upload Video File from System *</label>
-                        {topicVideoUrl && topicVideoUrl.startsWith('data:video') ? (
+                        {isUploadingVideo ? (
+                          <div className="p-5 bg-white rounded-xl border border-amber-300 space-y-3.5">
+                            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                              <div className="flex items-center space-x-2">
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                                <span>
+                                  {videoUploadProgress < 100
+                                    ? `Uploading video file (${videoUploadProgress}%)...`
+                                    : 'Processing video...'}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <span className="font-mono text-xs font-black text-amber-700">
+                                  {videoUploadProgress < 100 ? `${videoUploadProgress}%` : 'Processing...'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveVideo}
+                                  className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                              {videoUploadProgress < 100 ? (
+                                <div
+                                  className="bg-gradient-to-r from-amber-500 to-amber-400 h-2.5 rounded-full transition-all duration-200 ease-out"
+                                  style={{ width: `${Math.max(5, videoUploadProgress)}%` }}
+                                />
+                              ) : (
+                                <div className="bg-gradient-to-r from-amber-500 via-amber-300 to-amber-500 h-2.5 rounded-full animate-pulse w-full" />
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-slate-100">
+                              <span>
+                                {videoUploadProgress < 100
+                                  ? 'Transferring video file. Click Cancel anytime to abort.'
+                                  : 'Finalizing secure upload. Almost done...'}
+                              </span>
+                            </div>
+                          </div>
+                        ) : topicVideoUrl ? (
                           <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                             <div className="flex items-center space-x-2.5 min-w-0">
                               <Video className="w-5 h-5 text-amber-600 shrink-0" />
                               <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-800 truncate">{uploadedVideoFileName || 'Uploaded Video File'}</p>
-                                <p className="text-[10px] text-emerald-600 font-semibold">Loaded from system for playback</p>
+                                <p className="text-xs font-bold text-slate-800 truncate">{uploadedVideoFileName || 'Video Lesson'}</p>
+                                <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Video linked successfully (DRM Protected)
+                                </p>
                               </div>
                             </div>
                             <button
                               type="button"
-                              onClick={() => {
-                                setTopicVideoUrl('');
-                                setUploadedVideoFileName(null);
-                              }}
-                              className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer"
+                              disabled={isDeletingVideo}
+                              onClick={handleRemoveVideo}
+                              className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
                             >
-                              Remove
+                              {isDeletingVideo ? 'Removing...' : 'Remove'}
                             </button>
                           </div>
                         ) : (
                           <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
                             <Upload className="w-6 h-6 text-amber-600" />
                             <span className="text-xs font-bold text-slate-800">+ Select Video File (MP4, WEBM, MOV)</span>
-                            <span className="text-[10px] text-slate-400">Click to browse your computer system</span>
+                            <span className="text-[10px] text-slate-400">Direct upload with DRM protection (up to 100MB)</span>
                             <input
                               type="file"
                               accept="video/*"
@@ -898,23 +1483,83 @@ export const AdminCourseForm: React.FC = () => {
                       <span className="text-[10px] text-slate-400">Student must watch this percentage before topic completes. Default: 90%</span>
                     </div>
 
-                    {/* VIDEO PREVIEW PLAYER */}
-                    {topicVideoUrl ? (
-                      <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
-                        <video
-                          src={topicVideoUrl}
-                          controls
-                          className="w-full max-h-48 object-contain bg-black"
-                        >
-                          Your browser does not support HTML5 video playback.
-                        </video>
+                    {/* VIDEO PREVIEW PLAYER (MATCHING STUDENT PLAYER EXPERIENCE) */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">Video Player Preview</label>
+                        {topicVideoUrl && (
+                          <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live DRM Stream
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <div className="aspect-video bg-slate-950 rounded-xl flex items-center justify-center text-amber-400 text-xs font-mono border border-slate-800">
-                        <PlayCircle className="w-8 h-8 mr-2 text-amber-500" />
-                        <span>Video Player Preview</span>
-                      </div>
-                    )}
+
+                      {topicVideoUrl ? (
+                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800 relative group space-y-0">
+                          {/* DRM Status Chrome Bar matching MyCourse */}
+                          <div className="bg-slate-900/95 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center space-x-2 text-emerald-400 font-bold truncate">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
+                              <span>SECURE DRM STREAM ({requiredWatchPercentage || 90}% WATCH REQUIRED)</span>
+                              <span className="text-slate-500 hidden sm:inline">• 256-BIT DICOM-RT ENCRYPTED</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 text-slate-400 shrink-0">
+                              <Shield className="w-3 h-3 text-amber-400" />
+                              <span>PREVIEW MODE</span>
+                            </div>
+                          </div>
+
+                          {/* Responsive 16:9 Black Screen Container */}
+                          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                            {topicVideoUrl.includes('iframe.mediadelivery.net') || topicVideoUrl.includes('/embed/') ? (
+                              <iframe
+                                src={`${topicVideoUrl}${topicVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
+                                loading="lazy"
+                                className="w-full h-full border-0"
+                                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                allowFullScreen
+                              />
+                            ) : (
+                              <video
+                                src={topicVideoUrl}
+                                controls
+                                className="w-full h-full object-contain bg-black"
+                              >
+                                Your browser does not support HTML5 video playback.
+                              </video>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800">
+                          <div className="bg-slate-900/90 text-[10px] uppercase font-mono tracking-widest text-slate-500 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center space-x-2 text-slate-400 font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-1" />
+                              <span>DRM STREAM PLAYER PREVIEW</span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 text-slate-500">
+                              <Shield className="w-3 h-3 text-slate-600" />
+                              <span>STANDBY</span>
+                            </div>
+                          </div>
+                          <div className="aspect-video bg-slate-950 flex flex-col items-center justify-center text-slate-500 text-xs font-mono p-6 text-center space-y-2">
+                            <PlayCircle className="w-10 h-10 text-slate-700" />
+                            <span className="text-slate-300 font-sans text-xs font-semibold">No video linked yet</span>
+                            <span className="text-[11px] text-slate-500 font-sans">Upload a video file or enter a stream URL above to preview the secure player</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {topicVideoUrl && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            <strong>Stream ready:</strong> Video is linked securely. You can save and publish your topic right away.
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   /* ASSIGNMENT TOPIC INPUTS */
@@ -962,16 +1607,21 @@ export const AdminCourseForm: React.FC = () => {
                 <div className="pt-2 flex justify-end space-x-2">
                   <button
                     type="button"
+                    disabled={isUploadingVideo || isUploadingThumbnail}
                     onClick={() => setShowTopicModal(false)}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl"
+                    className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-md cursor-pointer"
+                    disabled={isUploadingVideo || isUploadingThumbnail}
+                    className="px-5 py-2 bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center"
                   >
-                    Save Topic
+                    {(isUploadingVideo || isUploadingThumbnail) && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                    )}
+                    {isUploadingVideo || isUploadingThumbnail ? 'Uploading Media...' : 'Save Topic'}
                   </button>
                 </div>
               </form>

@@ -49,6 +49,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   const adminNav: NavItem[] = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Users', path: '/admin/users', icon: Users },
+    { name: 'Applications', path: '/admin/applications', icon: UserCheck },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Question Bank', path: '/admin/question-bank', icon: FileQuestion },
     { name: 'Assignment Submissions', path: '/admin/assignments', icon: ClipboardList, badge: pendingSubmissions > 0 ? String(pendingSubmissions) : undefined },

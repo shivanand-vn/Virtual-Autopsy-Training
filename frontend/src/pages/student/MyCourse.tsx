@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -11,7 +11,6 @@ import {
   Download,
   BookOpen,
   Save,
-  Shield,
   Layers,
   Sparkles,
   HelpCircle,
@@ -28,6 +27,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
+import { api } from '../../lib/api';
 import { useCourseProgress } from '../../context/CourseProgressContext';
 
 export const MyCoursePage: React.FC = () => {
@@ -110,6 +110,39 @@ export const MyCoursePage: React.FC = () => {
 
   const currentTopic = currentModule.topics[currentTopicIndex] || currentModule.topics[0];
 
+  const currentModuleUnlocked = isModuleUnlocked(currentModule.id);
+  const currentTopicUnlocked = currentModuleUnlocked && isTopicUnlocked(currentModule.id, currentTopic.id);
+  const currentTopicIsCompleted = Boolean(completedTopicIds[currentTopic.id]);
+
+  // Auto-resolve signed Bunny DRM Stream token if videoUrl is unsigned or needs fresh token
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
+
+  useEffect(() => {
+    let rawUrl = currentTopic.videoUrl || '';
+    const rawBunnyId = currentTopic.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
+
+    if (!rawUrl && rawBunnyId && !rawBunnyId.startsWith('pmct-')) {
+      rawUrl = `https://iframe.mediadelivery.net/embed/764331/${rawBunnyId}`;
+    }
+
+    if (rawUrl && rawUrl.includes('iframe.mediadelivery.net') && !rawUrl.includes('token=')) {
+      const match = rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
+      const vidId = match?.[1] || rawBunnyId;
+      if (vidId && !vidId.startsWith('pmct-')) {
+        api.get<{ embedUrl: string }>(`/courses/stream-token/${vidId}`)
+          .then((res) => {
+            if (res?.data?.embedUrl) {
+              setActiveVideoUrl(res.data.embedUrl);
+            } else {
+              setActiveVideoUrl(rawUrl);
+            }
+          })
+          .catch(() => setActiveVideoUrl(rawUrl));
+        return;
+      }
+    }
+    setActiveVideoUrl(rawUrl);
+  }, [currentTopic.id, currentTopic.videoUrl, currentTopic.bunnyVideoId]);
   // Formatted 2-digit module number
   const formattedModuleNumber =
     currentModule.moduleNumber < 10 ? `0${currentModule.moduleNumber}` : `${currentModule.moduleNumber}`;
@@ -517,39 +550,57 @@ export const MyCoursePage: React.FC = () => {
                 ) : (
                   /* Video Stream Surface */
                   <div className="bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 relative group">
-                    <div className="bg-slate-900/90 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <span className="flex items-center space-x-1 text-emerald-400 font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
-                          SECURE DRM STREAM
-                        </span>
-                        <span>ΓÇó 256-BIT DICOM-RT ENCRYPTED</span>
-                      </div>
-                      <div className="hidden sm:flex items-center space-x-2 text-slate-500">
-                        <Shield className="w-3 h-3 text-amber-400" />
-                        <span>WATERMARK: ALISTAIR VANCE</span>
+                    <div className="bg-slate-900/95 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <img
+                          src="/logo.png"
+                          alt="Virtual Autopsy Global Solutions"
+                          className="h-7 sm:h-8 w-auto object-contain"
+                        />
                       </div>
                     </div>
 
                     <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                      <img
-                        src="https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"
-                        alt="PMCT DICOM Stream"
-                        className="w-full h-full object-cover opacity-80"
-                      />
+                      {activeVideoUrl ? (
+                        activeVideoUrl.includes('iframe.mediadelivery.net') || activeVideoUrl.includes('/embed/') ? (
+                          <iframe
+                            src={`${activeVideoUrl}${activeVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
+                            loading="lazy"
+                            className="w-full h-full border-0"
+                            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                            allowFullScreen
+                          />
+                        ) : (
+                          <video
+                            src={activeVideoUrl}
+                            controls
+                            className="w-full h-full object-contain bg-black"
+                          >
+                            Your browser does not support HTML5 video playback.
+                          </video>
+                        )
+                      ) : (
+                        <>
+                          <img
+                            src="https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"
+                            alt="PMCT DICOM Stream"
+                            className="w-full h-full object-cover opacity-80"
+                          />
 
-                      <div className="absolute top-4 left-4 space-y-1 text-left font-mono text-[11px] max-w-[90%]">
-                        <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded text-amber-400 font-bold inline-block border border-amber-500/30 truncate max-w-full">
-                          {currentTopic.title.toUpperCase()}
-                        </div>
-                      </div>
+                          <div className="absolute top-4 left-4 space-y-1 text-left font-mono text-[11px] max-w-[90%]">
+                            <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded text-amber-400 font-bold inline-block border border-amber-500/30 truncate max-w-full">
+                              {currentTopic.title.toUpperCase()}
+                            </div>
+                          </div>
 
-                      <button
-                        onClick={() => setIsPlaying(!isPlaying)}
-                        className="w-16 h-16 rounded-full bg-amber-500/90 text-slate-950 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
-                      >
-                        {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-                      </button>
+                          <button
+                            onClick={() => setIsPlaying(!isPlaying)}
+                            className="w-16 h-16 rounded-full bg-amber-500/90 text-slate-950 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer"
+                          >
+                            {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

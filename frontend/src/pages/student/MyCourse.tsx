@@ -975,23 +975,56 @@ export const MyCoursePage: React.FC = () => {
                     <h2 className="text-base font-extrabold text-[#0A192F] truncate">{currentTopic.title}</h2>
                   </div>
 
-                  {/* READ-ONLY AUTOMATED PROGRESS INDICATOR (NON-MUTABLE BY USER) */}
-                  {isCurrentTopicCompleted ? (
-                    <div className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>✓ Completed</span>
-                    </div>
-                  ) : currentTopic.contentType === 'video' ? (
-                    <div className="shrink-0 inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                      <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-600 border-t-transparent animate-spin shrink-0" />
-                      <span>Watch: {currentWatchPct}%</span>
-                    </div>
-                  ) : (
-                    <div className="shrink-0 inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                      <BookOpen className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{currentTopic.contentType === 'assignment' ? 'Exercise Review' : 'Read Lesson'}</span>
-                    </div>
-                  )}
+                  {/* PROGRESS INDICATOR & NEXT TOPIC BUTTON */}
+                  <div className="shrink-0 flex items-center space-x-2">
+                    {/* READ-ONLY AUTOMATED PROGRESS INDICATOR (NON-MUTABLE BY USER) */}
+                    {isCurrentTopicCompleted ? (
+                      <div className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>✓ Completed</span>
+                      </div>
+                    ) : currentTopic.contentType === 'video' ? (
+                      <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-600 border-t-transparent animate-spin shrink-0" />
+                        <span>Watch: {currentWatchPct}%</span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{currentTopic.contentType === 'assignment' ? 'Exercise Review' : 'Read Lesson'}</span>
+                      </div>
+                    )}
+
+                    {/* NEXT BUTTON BESIDE COMPLETED MARK */}
+                    {(() => {
+                      const isLastTopic = currentTopicIndex >= totalTopics - 1;
+                      const nextTopic = !isLastTopic ? currentModule.topics[currentTopicIndex + 1] : null;
+                      const isNextUnlocked = isLastTopic ? isCurrentTopicCompleted : (nextTopic && isTopicUnlocked(currentModule.id, nextTopic.id));
+
+                      if (!isNextUnlocked) {
+                        return (
+                          <button
+                            onClick={() => showGatingMessage()}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 border border-amber-300 transition-colors cursor-pointer shadow-2xs"
+                            title="Click to view unlock requirements"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-amber-700" />
+                            <span>{isLastTopic ? 'Next: Assignment' : 'Next Topic'}</span>
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <button
+                          onClick={handleNext}
+                          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-sm transition-all cursor-pointer"
+                        >
+                          <span>{isLastTopic ? 'Next: Assignment' : 'Next Topic'}</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </div>
 
                 {/* DYNAMIC TOPIC CONTENT SURFACE (PDF DOCUMENT OR TEXT FORMAT OR ASSIGNMENT) */}

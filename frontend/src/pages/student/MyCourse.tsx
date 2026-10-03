@@ -10,7 +10,6 @@ import {
   FileText,
   Download,
   BookOpen,
-  Save,
   Layers,
   Sparkles,
   HelpCircle,
@@ -83,10 +82,6 @@ export const MyCoursePage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCurriculumDrawer, setShowCurriculumDrawer] = useState(false);
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(currentModule.id);
-  const [clinicalNotes, setClinicalNotes] = useState(
-    `At 14:12 timestamp: Observed sharp density gradient along petrous temporal ridge (+1450 HU) consistent with longitudinal fracture line. Note differential hypodensity representing extradural hematoma along middle cranial fossa.`
-  );
-  const [notesSaved, setNotesSaved] = useState(true);
 
   // File Upload State for Assignment
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -348,14 +343,46 @@ export const MyCoursePage: React.FC = () => {
     }
   };
 
-  // Theory Reader Scroll Detection
+  // Theory Reader Scroll Detection: Automatically marks completed when fully scrolled to bottom
   const handleTheoryScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (!currentTopic) return;
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop - clientHeight < 50) {
+    if (scrollHeight - scrollTop - clientHeight <= 30) {
       setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
+      if (!completedTopicIds[currentTopic.id]) {
+        markTopicCompleted(currentTopic.id);
+      }
     }
   };
+
+  // Auto-detect reading completion: short content (no scroll needed) or PDF view
+  // CRITICAL: Does NOT move automatically to next topic; user reads and clicks next when ready
+  useEffect(() => {
+    if (!currentTopic) return;
+    if (currentTopic.contentType !== 'theory' && (currentTopic.contentType as string) !== 'description') return;
+
+    const timer = setTimeout(() => {
+      const container = theoryScrollContainerRef.current;
+      if (container) {
+        // If content fits without scrolling (short content)
+        const isShortContent = container.scrollHeight <= container.clientHeight + 25;
+        if (isShortContent) {
+          setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
+          if (!completedTopicIds[currentTopic.id]) {
+            markTopicCompleted(currentTopic.id);
+          }
+        }
+      } else if (currentTopic.pdfUrl) {
+        // PDF document view: marked read without auto-advancing
+        setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
+        if (!completedTopicIds[currentTopic.id]) {
+          markTopicCompleted(currentTopic.id);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [currentTopic?.id, currentTopic?.contentType, currentTopic?.content, currentTopic?.pdfUrl, completedTopicIds, markTopicCompleted]);
 
   // Formatted 2-digit module number
   const formattedModuleNumber =
@@ -447,15 +474,6 @@ export const MyCoursePage: React.FC = () => {
   };
 
   const isCurrentModuleUnlocked = isModuleCompletedByStudent(currentModule.id);
-
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setClinicalNotes(e.target.value);
-    setNotesSaved(false);
-  };
-
-  const handleSaveNotes = () => {
-    setNotesSaved(true);
-  };
 
   const toggleModuleAccordion = (id: string) => {
     setExpandedModuleId(expandedModuleId === id ? null : id);
@@ -625,117 +643,141 @@ export const MyCoursePage: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. REPLACED MILESTONE CARD: HORIZONTAL PROGRESSION FLOW LINE: 1. Lessons -> 2. Assignment -> 3. Practice Quiz */}
-        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-            {/* Step Sequence in a clean horizontal flow */}
-            <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0">
-              {/* Step 1: Learning Lessons */}
-              <button
-                onClick={() => {
-                  setActiveSection('topic');
-                  if (currentTopic) goToTopic(currentModule.id, currentTopic.id);
-                }}
-                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'topic'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
-                  activeSection === 'topic' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  1
-                </span>
-                <span>Learning Lessons</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                  currentModuleCompletedCount === totalTopics
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : activeSection === 'topic'
-                    ? 'bg-slate-950/20 text-slate-950'
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {currentModuleCompletedCount}/{totalTopics} Done
-                </span>
-              </button>
-
-              {/* Arrow Flow Separator */}
-              <span className="text-slate-400 font-bold hidden sm:inline text-sm">→</span>
-
-              {/* Step 2: Module Assignment */}
-              <button
-                onClick={() => goToAssignment(currentModule.id)}
-                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'assignment'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
-                  activeSection === 'assignment' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  2
-                </span>
-                <span>Module Assignment</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                  currentModule.assignment?.submissionStatus === 'submitted'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : activeSection === 'assignment'
-                    ? 'bg-slate-950/20 text-slate-950'
-                    : 'bg-amber-100 text-amber-800'
-                }`}>
-                  {currentModule.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending'}
-                </span>
-              </button>
-
-              {/* Arrow Flow Separator */}
-              <span className="text-slate-400 font-bold hidden sm:inline text-sm">→</span>
-
-              {/* Step 3: Module Test */}
-              <button
-                onClick={() => goToTest(currentModule.id)}
-                className={`inline-flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'test'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
-                  activeSection === 'test' ? 'bg-slate-950 text-amber-400' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  3
-                </span>
-                <span>Practice Quiz</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                  pastAssessmentResult?.passed
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : activeSection === 'test'
-                    ? 'bg-slate-950/20 text-slate-950'
-                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                }`}>
-                  {pastAssessmentResult?.passed ? '✓ Passed' : 'Unlimited Retakes'}
-                </span>
-              </button>
+        {/* 2. COURSE MODULES PATHWAY WITH LOCKED MECHANISM */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+            <div className="flex items-center space-x-2">
+              <Layers className="w-4 h-4 text-amber-600" />
+              <h3 className="font-extrabold text-sm text-[#0A192F]">Curriculum Modules Progression</h3>
             </div>
+            <div className="flex items-center space-x-2 text-xs text-slate-500 font-semibold">
+              <span className="text-amber-700 font-bold">
+                {modules.filter((m) => isModuleCompletedByStudent(m.id)).length} of {modules.length} Modules Completed
+              </span>
+              <span>•</span>
+              <span>
+                {Math.round((modules.filter((m) => isModuleCompletedByStudent(m.id)).length / Math.max(1, modules.length)) * 100)}% Overall Progress
+              </span>
+            </div>
+          </div>
 
-            {/* Quick Action Button / Locked Indicator */}
-            <div className="shrink-0 flex items-center space-x-2">
-              {isCurrentModuleUnlocked ? (
-                <button
-                  onClick={() => navigate(`/assessment/${currentModule.id}`)}
-                  className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {modules.map((mod) => {
+              const isModUnlocked = isModuleUnlocked(mod.id);
+              const isModDone = isModuleCompletedByStudent(mod.id);
+              const isCurrent = mod.id === currentModule.id;
+              const modPadded = mod.moduleNumber < 10 ? `0${mod.moduleNumber}` : `${mod.moduleNumber}`;
+              const compTopics = mod.topics.filter((t) => completedTopicIds[t.id]).length;
+              const totalTopicsInMod = mod.topics.length;
+              const percent = totalTopicsInMod > 0 ? Math.round((compTopics / totalTopicsInMod) * 100) : 0;
+
+              return (
+                <div
+                  key={mod.id}
+                  onClick={() => {
+                    if (!isModUnlocked) {
+                      showGatingMessage(`Module ${mod.moduleNumber} is locked. Please complete preceding modules first to unlock.`);
+                      return;
+                    }
+                    setExpandedModuleId(mod.id);
+                    const firstTopic = mod.topics[0];
+                    if (firstTopic) {
+                      goToTopic(mod.id, firstTopic.id);
+                    } else {
+                      navigate(`/my-course/${mod.id}`);
+                    }
+                  }}
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+                    isCurrent
+                      ? 'bg-amber-50/70 border-amber-400 ring-2 ring-amber-400/25 shadow-xs'
+                      : isModDone
+                      ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-300 shadow-2xs'
+                      : !isModUnlocked
+                      ? 'bg-slate-50/90 border-slate-200/80 opacity-70 hover:border-amber-300'
+                      : 'bg-white border-slate-200 hover:border-amber-300 shadow-2xs'
+                  }`}
+                  title={
+                    !isModUnlocked
+                      ? `Module ${mod.moduleNumber} is locked. Complete previous module to unlock.`
+                      : `Go to Module ${mod.moduleNumber}: ${mod.title}`
+                  }
                 >
-                  <Award className="w-4 h-4" />
-                  <span>Launch Module Quiz</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              ) : (
-                <div className="inline-flex items-center space-x-1.5 text-xs font-medium text-slate-400 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Quiz unlocks after lessons</span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${
+                          !isModUnlocked
+                            ? 'bg-slate-200 text-slate-500'
+                            : isCurrent
+                            ? 'bg-amber-500 text-slate-950 font-black'
+                            : isModDone
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {!isModUnlocked ? (
+                          <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        ) : isModDone ? (
+                          '✓'
+                        ) : (
+                          modPadded
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Module {mod.moduleNumber}
+                        </span>
+                        <h4 className={`text-xs font-bold truncate ${isCurrent ? 'text-slate-950 font-extrabold' : 'text-slate-800'}`}>
+                          {mod.title}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      {!isModUnlocked ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Locked</span>
+                        </span>
+                      ) : isModDone ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>Done</span>
+                        </span>
+                      ) : isCurrent ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-extrabold text-amber-950 bg-amber-300 px-2 py-0.5 rounded-full">
+                          <span>Active</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                          <span>Unlocked</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress Line */}
+                  <div className="space-y-1 pt-1.5 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                      <span>
+                        {!isModUnlocked
+                          ? 'Complete previous module'
+                          : `${compTopics}/${totalTopicsInMod} Lessons (${percent}%)`}
+                      </span>
+                      <span>{mod.duration}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                      <div
+                        className={`h-1 rounded-full transition-all duration-300 ${
+                          isModDone ? 'bg-emerald-500' : isCurrent ? 'bg-amber-500' : 'bg-slate-300'
+                        }`}
+                        style={{ width: `${!isModUnlocked ? 0 : percent}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })}
           </div>
         </div>
 
@@ -921,7 +963,7 @@ export const MyCoursePage: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
 
             {/* PRIMARY LEARNING STAGE: ACTIVE TOPIC PLAYER & THEORY READER */}
-            {currentTopic && (
+            {activeSection === 'topic' && currentTopic && (
               <div className="space-y-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -1060,53 +1102,28 @@ export const MyCoursePage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Reading Verification Bar */}
-                    <div
-                      className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-center justify-between gap-3 ${
-                        isCurrentTopicCompleted
-                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
-                          : hasReadCurrentTheory
-                          ? 'bg-amber-50 border-amber-300 text-amber-950'
-                          : 'bg-slate-50 border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-                            isCurrentTopicCompleted ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-slate-950'
-                          }`}
-                        >
-                          {isCurrentTopicCompleted ? '✓' : '📖'}
+                    {/* Non-intrusive automatic reading status bar (No confirmation button required) */}
+                    <div className="pt-2">
+                      {isCurrentTopicCompleted ? (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200/90 rounded-2xl flex items-center justify-between text-xs text-emerald-900 font-semibold shadow-2xs">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Reading Completed — Proceed to the next lesson when you are ready.</span>
+                          </div>
+                          <span className="text-[10px] font-black text-emerald-800 bg-emerald-200/80 px-2.5 py-0.5 rounded-full shrink-0">
+                            ✓ Unlocked
+                          </span>
                         </div>
-                        <div>
-                          <p className="text-xs font-extrabold">
-                            {isCurrentTopicCompleted
-                              ? 'Theoretical Lesson Completed'
-                              : currentTopic.pdfUrl
-                              ? 'PDF Document Reading'
-                              : 'Complete Reading'}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            {isCurrentTopicCompleted
-                              ? 'You have completed this theoretical reading lesson.'
-                              : currentTopic.pdfUrl
-                              ? 'Review the clinical document above and confirm completion to unlock the next lesson.'
-                              : 'Review the dossier text above and confirm completion to unlock the next lesson.'}
-                          </p>
+                      ) : (
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs text-slate-600 font-medium">
+                          <div className="flex items-center space-x-2">
+                            <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>Scroll down to the end of the text above to complete this reading lesson.</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                            Reading in Progress
+                          </span>
                         </div>
-                      </div>
-
-                      {!isCurrentTopicCompleted && (
-                        <button
-                          onClick={() => {
-                            setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
-                            markTopicCompleted(currentTopic.id);
-                          }}
-                          className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs cursor-pointer transition-all"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Confirm Reading Completed</span>
-                        </button>
                       )}
                     </div>
                   </div>
@@ -1207,106 +1224,20 @@ export const MyCoursePage: React.FC = () => {
               </div>
             )}
 
-            {/* TABBED STUDY WORKSPACE CONTROLS */}
-            <div className="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap gap-2">
-              <button
-                onClick={() => setActiveSection('topic')}
-                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'topic'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <BookOpen className="w-4 h-4 text-amber-700" />
-                <span>Lesson & Notes</span>
-              </button>
-
-              <button
-                onClick={() => setActiveSection('assignment')}
-                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'assignment'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <FileCheck className="w-4 h-4 text-amber-700" />
-                <span>Module Assignment</span>
-                {currentModule.assignment?.submissionStatus === 'submitted' && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    ✓ Submitted
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection('test')}
-                className={`inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeSection === 'test'
-                    ? 'bg-amber-500 text-slate-950 shadow-xs font-extrabold'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                <Award className="w-4 h-4 text-amber-700" />
-                <span>Practice Quiz</span>
-                {pastAssessmentResult?.passed && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    ✓ Passed
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* TAB CONTENT 1: LESSON DETAILS & CLINICAL OBSERVATIONS */}
-            {activeSection === 'topic' && (
-              <div className="space-y-6">
-                {/* Topic Description Card */}
-                {currentTopic?.description && (
-                  <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-                    <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
-                      <FileText className="w-4 h-4 text-amber-500" />
-                      <span>Lesson Details & Objectives</span>
-                    </div>
-                    <h3 className="text-base font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
-                    <p className="text-xs text-slate-600 leading-relaxed font-medium">{currentTopic.description}</p>
-                    {currentTopic.content && currentTopic.contentType !== 'theory' && (
-                      <div className="pt-3 border-t border-slate-100 text-xs text-slate-700 leading-relaxed space-y-2">
-                        <p>{currentTopic.content}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Clinical Observations Log */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="w-4 h-4 text-amber-500" />
-                      <h3 className="font-extrabold text-sm text-[#0A192F]">Clinical Observations</h3>
-                    </div>
-                    <span className="text-[10px] text-slate-400">Private Log</span>
-                  </div>
-
-                  <textarea
-                    value={clinicalNotes}
-                    onChange={handleNotesChange}
-                    rows={5}
-                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed"
-                    placeholder="Record timestamp observations, Hounsfield units, and preliminary findings..."
-                  />
-
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-[11px] text-slate-400">
-                      {notesSaved ? 'Last auto-saved 2m ago' : 'Unsaved changes...'}
-                    </span>
-                    <button
-                      onClick={handleSaveNotes}
-                      className="inline-flex items-center space-x-1.5 font-bold text-slate-950 bg-amber-400 hover:bg-amber-500 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Save Notes</span>
-                    </button>
-                  </div>
+            {/* TOPIC DETAILS & OBJECTIVES (WHEN VIEWING TOPIC) */}
+            {activeSection === 'topic' && currentTopic?.description && (
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center space-x-2 text-xs font-bold text-amber-700 uppercase tracking-wider">
+                  <FileText className="w-4 h-4 text-amber-500" />
+                  <span>Lesson Details & Objectives</span>
                 </div>
+                <h3 className="text-base font-extrabold text-[#0A192F]">{currentTopic.title}</h3>
+                <p className="text-xs text-slate-600 leading-relaxed font-medium">{currentTopic.description}</p>
+                {currentTopic.content && currentTopic.contentType !== 'theory' && (
+                  <div className="pt-3 border-t border-slate-100 text-xs text-slate-700 leading-relaxed space-y-2">
+                    <p>{currentTopic.content}</p>
+                  </div>
+                )}
               </div>
             )}
 

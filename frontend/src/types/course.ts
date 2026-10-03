@@ -31,12 +31,14 @@ export interface Topic {
   content?: string; // For text / theory topics
   videoUrl?: string; // For video topics
   bunnyVideoId?: string; // Bunny Stream video GUID
-  requiredWatchPercentage?: number; // Default 90% for video topics
+  requiredWatchPercentage?: number; // Fixed 99% required for video topics
   assignmentInstructions?: string; // For assignment topics
   submissionInstructions?: string; // For assignment topics
   referenceAttachmentUrl?: string; // Optional reference file for assignment
   referenceAttachmentName?: string;
   thumbnail?: string;
+  pdfUrl?: string; // For PDF document theory lessons
+  pdfFileName?: string;
   order: number;
   status: 'draft' | 'published';
 }

@@ -56,13 +56,21 @@ export const AdminCourseForm: React.FC = () => {
   const [topicContent, setTopicContent] = useState('');
   const [topicVideoUrl, setTopicVideoUrl] = useState('');
   const [topicBunnyVideoId, setTopicBunnyVideoId] = useState<string | null>(null);
-  const [requiredWatchPercentage, setRequiredWatchPercentage] = useState<number>(90);
+  const [requiredWatchPercentage, setRequiredWatchPercentage] = useState<number>(99);
   const [assignmentInstructions, setAssignmentInstructions] = useState('');
   const [submissionInstructions, setSubmissionInstructions] = useState('');
   const [referenceAttachmentName, setReferenceAttachmentName] = useState('');
   const [topicThumbnail, setTopicThumbnail] = useState('');
   const [topicStatus, setTopicStatus] = useState<'draft' | 'published'>('published');
   
+  // Theory Content & PDF Document State
+  const [topicTheoryFormat, setTopicTheoryFormat] = useState<'text' | 'pdf'>('text');
+  const [topicPdfUrl, setTopicPdfUrl] = useState('');
+  const [topicPdfFileName, setTopicPdfFileName] = useState<string | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [pdfUploadProgress, setPdfUploadProgress] = useState<number>(0);
+  const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
+
   // Video Source & Upload State
   const [videoSourceMode, setVideoSourceMode] = useState<'url' | 'file'>('url');
   const [uploadedVideoFileName, setUploadedVideoFileName] = useState<string | null>(null);
@@ -259,6 +267,64 @@ export const AdminCourseForm: React.FC = () => {
     }
   };
 
+  const handlePdfFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.type !== 'application/pdf') {
+      setPdfUploadError('Please select a valid PDF file (.pdf).');
+      return;
+    }
+
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setPdfUploadError('PDF file exceeds maximum allowed size of 50MB.');
+      return;
+    }
+
+    setTopicPdfFileName(file.name);
+    setIsUploadingPdf(true);
+    setPdfUploadProgress(0);
+    setPdfUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.upload<{ url: string; fileName: string }>(
+        '/courses/upload-media',
+        formData,
+        (percent) => setPdfUploadProgress(percent)
+      );
+      if (res && res.data && res.data.url) {
+        setTopicPdfUrl(res.data.url);
+        setTopicPdfFileName(res.data.fileName || file.name);
+        setPdfUploadProgress(100);
+      } else {
+        throw new Error(res?.message || 'Failed to upload PDF document.');
+      }
+    } catch (err: any) {
+      console.error('PDF upload failed:', err);
+      setPdfUploadError(err.data?.message || err.message || 'Failed to upload PDF.');
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
+  const handleRemovePdf = async () => {
+    const urlToDelete = topicPdfUrl;
+    setTopicPdfUrl('');
+    setTopicPdfFileName(null);
+    setPdfUploadError(null);
+    if (urlToDelete && urlToDelete.startsWith('http')) {
+      try {
+        await api.post('/courses/delete-media', { url: urlToDelete, provider: 'cloudinary' });
+      } catch (err) {
+        console.warn('Failed to delete PDF from storage:', err);
+      }
+    }
+  };
+
   const handleRemoveVideo = async () => {
     // 1. If currently uploading, abort so it is NOT uploaded
     if (isUploadingVideo && videoUploadAbortControllerRef.current) {
@@ -397,7 +463,7 @@ export const AdminCourseForm: React.FC = () => {
     setTopicContentType('theory');
     setTopicContent('');
     setTopicVideoUrl('');
-    setRequiredWatchPercentage(90);
+    setRequiredWatchPercentage(99);
     setAssignmentInstructions('');
     setSubmissionInstructions('');
     setReferenceAttachmentName('');
@@ -417,6 +483,12 @@ export const AdminCourseForm: React.FC = () => {
     setIsUploadingThumbnail(false);
     setThumbnailUploadProgress(0);
     setThumbnailUploadError(null);
+    setTopicTheoryFormat('text');
+    setTopicPdfUrl('');
+    setTopicPdfFileName(null);
+    setIsUploadingPdf(false);
+    setPdfUploadProgress(0);
+    setPdfUploadError(null);
     setTopicBunnyVideoId(null);
     setShowTopicModal(true);
   };
@@ -430,11 +502,18 @@ export const AdminCourseForm: React.FC = () => {
     setEditingTopicId(top.id);
     setTopicTitle(top.title);
     setTopicDescription(top.description);
-    setTopicContentType(top.contentType);
+    const normalizedType = ((top.contentType as string) === 'description' || top.contentType === 'theory') ? 'theory' : top.contentType;
+    setTopicContentType(normalizedType);
     setTopicContent(top.content || '');
+    setTopicPdfUrl(top.pdfUrl || '');
+    setTopicPdfFileName(top.pdfFileName || (top.pdfUrl ? top.pdfUrl.split('/').pop() || 'Document.pdf' : null));
+    setTopicTheoryFormat(top.pdfUrl ? 'pdf' : 'text');
+    setIsUploadingPdf(false);
+    setPdfUploadProgress(0);
+    setPdfUploadError(null);
     setTopicVideoUrl(top.videoUrl || '');
     setTopicBunnyVideoId(top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null);
-    setRequiredWatchPercentage(top.requiredWatchPercentage || 90);
+    setRequiredWatchPercentage(99);
     setAssignmentInstructions(top.assignmentInstructions || '');
     setSubmissionInstructions(top.submissionInstructions || '');
     setReferenceAttachmentName(top.referenceAttachmentName || '');
@@ -470,7 +549,7 @@ export const AdminCourseForm: React.FC = () => {
   const handleSaveTopic = (e: React.FormEvent) => {
     e.preventDefault();
     if (!topicTitle.trim() || !targetModuleIdForTopic) return;
-    if (isUploadingVideo || isUploadingThumbnail) return;
+    if (isUploadingVideo || isUploadingThumbnail || isUploadingPdf) return;
 
     const extractedBunnyId = topicContentType === 'video' ? (topicBunnyVideoId || (topicVideoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || undefined) : undefined;
 
@@ -485,13 +564,15 @@ export const AdminCourseForm: React.FC = () => {
                   title: topicTitle,
                   description: topicDescription,
                   contentType: topicContentType,
-                  content: topicContentType === 'theory' ? topicContent : undefined,
+                  content: topicContent.trim() ? topicContent : undefined,
+                  pdfUrl: topicPdfUrl || undefined,
+                  pdfFileName: topicPdfFileName || undefined,
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
                   bunnyVideoId: extractedBunnyId,
-                  requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
-                  assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
-                  submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
-                  referenceAttachmentName: topicContentType === 'assignment' ? referenceAttachmentName : undefined,
+                  requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
+                  assignmentInstructions: assignmentInstructions.trim() ? assignmentInstructions : undefined,
+                  submissionInstructions: submissionInstructions.trim() ? submissionInstructions : undefined,
+                  referenceAttachmentName: referenceAttachmentName.trim() ? referenceAttachmentName : undefined,
                   thumbnail: topicThumbnail || undefined,
                   status: topicStatus
                 }
@@ -505,13 +586,15 @@ export const AdminCourseForm: React.FC = () => {
               title: topicTitle,
               description: topicDescription,
               contentType: topicContentType,
-              content: topicContentType === 'theory' ? topicContent : undefined,
+              content: topicContent.trim() ? topicContent : undefined,
+              pdfUrl: topicPdfUrl || undefined,
+              pdfFileName: topicPdfFileName || undefined,
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
               bunnyVideoId: extractedBunnyId,
-              requiredWatchPercentage: topicContentType === 'video' ? requiredWatchPercentage : undefined,
-              assignmentInstructions: topicContentType === 'assignment' ? assignmentInstructions : undefined,
-              submissionInstructions: topicContentType === 'assignment' ? submissionInstructions : undefined,
-              referenceAttachmentName: topicContentType === 'assignment' ? referenceAttachmentName : undefined,
+              requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
+              assignmentInstructions: assignmentInstructions.trim() ? assignmentInstructions : undefined,
+              submissionInstructions: submissionInstructions.trim() ? submissionInstructions : undefined,
+              referenceAttachmentName: referenceAttachmentName.trim() ? referenceAttachmentName : undefined,
               thumbnail: topicThumbnail || undefined,
               order: nextOrder,
               status: topicStatus
@@ -679,10 +762,11 @@ export const AdminCourseForm: React.FC = () => {
               await api.post(`/courses/modules/${activeModId}/topics`, {
                 title: top.title,
                 description: top.description || null,
-                type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+                type: top.contentType === 'video' ? 'VIDEO_STREAM' : (top.contentType === 'assignment' ? 'DOWNLOADABLE_BRIEF' : 'PROTECTED_DOCUMENT'),
                 videoUrl: top.videoUrl || null,
                 bunnyVideoId: extractedBunnyId,
                 content: top.content || null,
+                fileUrl: top.pdfUrl || null,
                 status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
               });
             } else {
@@ -690,10 +774,11 @@ export const AdminCourseForm: React.FC = () => {
               await api.put(`/courses/topics/${top.id}`, {
                 title: top.title,
                 description: top.description || null,
-                type: top.contentType === 'video' ? 'VIDEO_STREAM' : 'PROTECTED_DOCUMENT',
+                type: top.contentType === 'video' ? 'VIDEO_STREAM' : (top.contentType === 'assignment' ? 'DOWNLOADABLE_BRIEF' : 'PROTECTED_DOCUMENT'),
                 videoUrl: top.videoUrl || null,
                 bunnyVideoId: extractedBunnyId,
                 content: top.content || null,
+                fileUrl: top.pdfUrl || null,
                 order: topIdx + 1,
                 status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
               });
@@ -1144,12 +1229,12 @@ export const AdminCourseForm: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-[#0A192F] mb-1">Topic Description</label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={topicDescription}
                     onChange={(e) => setTopicDescription(e.target.value)}
                     placeholder="Short summary of lesson..."
-                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y"
                   />
                 </div>
 
@@ -1163,6 +1248,7 @@ export const AdminCourseForm: React.FC = () => {
                     >
                       <option value="theory">Theory / Reading Lesson</option>
                       <option value="video">Video Lesson</option>
+                      <option value="assignment">Assignment / Case Exercise</option>
                     </select>
                   </div>
 
@@ -1324,15 +1410,190 @@ export const AdminCourseForm: React.FC = () => {
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}
                 {topicContentType === 'theory' ? (
-                  <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Theory Content (Reading Text / Educational Lesson) *</label>
-                    <textarea
-                      value={topicContent}
-                      onChange={(e) => setTopicContent(e.target.value)}
-                      rows={5}
-                      placeholder="Enter the lesson text content displayed to students..."
-                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed font-medium"
-                    />
+                  <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                      <div>
+                        <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
+                          <FileText className="w-4 h-4 text-amber-500" />
+                          <span>Theory & Reading Content *</span>
+                        </label>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Provide reading materials as rich text notes or upload a PDF document.</p>
+                      </div>
+
+                      {/* Format Selector: Text vs PDF */}
+                      <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setTopicTheoryFormat('text')}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                            topicTheoryFormat === 'text'
+                              ? 'bg-amber-500 text-slate-950 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>Text Format</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTopicTheoryFormat('pdf')}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                            topicTheoryFormat === 'pdf'
+                              ? 'bg-amber-500 text-slate-950 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>PDF Document</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {topicTheoryFormat === 'text' ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700">Lesson Text & Reading Notes *</label>
+                          <span className="text-[11px] text-slate-400 font-medium">{topicContent.length} characters</span>
+                        </div>
+                        <textarea
+                          value={topicContent}
+                          onChange={(e) => setTopicContent(e.target.value)}
+                          rows={8}
+                          placeholder="Type or paste the complete theory lesson, educational notes, key takeaways, and references for students to read..."
+                          className="w-full text-xs p-3.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed font-normal shadow-xs resize-y"
+                        />
+                        <p className="text-[11px] text-slate-400">Students will read through this structured text dossier directly in their course dashboard.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <label className="block text-xs font-bold text-slate-700">PDF Document File (.pdf) *</label>
+                        
+                        {pdfUploadError && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center space-x-2">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>{pdfUploadError}</span>
+                          </div>
+                        )}
+
+                        {topicPdfUrl ? (
+                          <div className="p-4 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-xs">
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-600 font-bold">
+                                PDF
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">{topicPdfFileName || 'Uploaded Document.pdf'}</p>
+                                <a
+                                  href={topicPdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-amber-600 hover:text-amber-700 underline font-medium block truncate"
+                                >
+                                  View / Preview Document
+                                </a>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRemovePdf}
+                              className="px-3 py-1.5 text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer shrink-0 ml-3"
+                            >
+                              Remove PDF
+                            </button>
+                          </div>
+                        ) : isUploadingPdf ? (
+                          <div className="p-5 bg-white rounded-xl border border-amber-200 space-y-3">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center space-x-2 text-amber-700 font-semibold">
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                                <span>Uploading PDF: {topicPdfFileName}</span>
+                              </div>
+                              <span className="font-mono font-bold text-amber-600">{pdfUploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-amber-500 h-2 rounded-full transition-all duration-200"
+                                style={{ width: `${pdfUploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <label className="w-full p-6 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-2 text-center group">
+                            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center group-hover:scale-105 transition-transform">
+                              <Upload className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-slate-800 block">+ Select PDF Document (.pdf)</span>
+                              <span className="text-[11px] text-slate-400">Up to 50MB. Uploads securely to course repository.</span>
+                            </div>
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              onChange={handlePdfFileUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+
+                        {/* Optional companion overview notes */}
+                        <div className="pt-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Companion Lesson Overview (Optional)</label>
+                          <textarea
+                            value={topicContent}
+                            onChange={(e) => setTopicContent(e.target.value)}
+                            rows={3}
+                            placeholder="Optional intro or instructions to accompany the PDF reading..."
+                            className="w-full text-xs p-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 leading-relaxed font-normal shadow-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ASSIGNMENT & REFERENCE ATTACHMENT DETAILS (OPTIONAL FOR THEORY LESSONS) */}
+                    <div className="pt-4 border-t border-slate-200 space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
+                          <FileText className="w-4 h-4 text-amber-500" />
+                          <span>Assignment Details & Instructions (Optional)</span>
+                        </label>
+                        <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded-md">
+                          Theory Companion
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Assignment Instructions / Question</label>
+                        <textarea
+                          rows={3}
+                          value={assignmentInstructions}
+                          onChange={(e) => setAssignmentInstructions(e.target.value)}
+                          placeholder="Detail the case analysis task or exercise questions student must answer..."
+                          className="w-full text-xs p-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium shadow-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Submission Guidelines / Instructions</label>
+                        <input
+                          type="text"
+                          value={submissionInstructions}
+                          onChange={(e) => setSubmissionInstructions(e.target.value)}
+                          placeholder="e.g. Upload your findings PDF or type summary text below..."
+                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium shadow-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Optional Reference Attachment File Name</label>
+                        <input
+                          type="text"
+                          value={referenceAttachmentName}
+                          onChange={(e) => setReferenceAttachmentName(e.target.value)}
+                          placeholder="e.g. Case_Dataset_Reference.pdf"
+                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono shadow-xs"
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : topicContentType === 'video' ? (
                   <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
@@ -1469,18 +1730,20 @@ export const AdminCourseForm: React.FC = () => {
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-xs font-bold text-[#0A192F] mb-1">Required Watch Percentage (%) *</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={requiredWatchPercentage}
-                        onChange={(e) => setRequiredWatchPercentage(Number(e.target.value))}
-                        placeholder="90"
-                        className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                      <span className="text-[10px] text-slate-400">Student must watch this percentage before topic completes. Default: 90%</span>
+                    {/* FIXED 99% WATCH REQUIREMENT (SYSTEM FIXED, NOT EDITABLE) */}
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-300/80 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                          <Shield className="w-4 h-4 text-amber-700" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-extrabold text-[#0A192F]">Fixed Completion Threshold</p>
+                          <p className="text-[11px] text-slate-600 font-medium">Students must watch at least 99% of this video lesson before the next topic unlocks.</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0 font-mono font-black text-xs text-amber-950 bg-amber-400/80 px-3 py-1.5 rounded-xl border border-amber-400">
+                        99% Required
+                      </div>
                     </div>
 
                     {/* VIDEO PREVIEW PLAYER (MATCHING STUDENT PLAYER EXPERIENCE) */}
@@ -1501,7 +1764,7 @@ export const AdminCourseForm: React.FC = () => {
                           <div className="bg-slate-900/95 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
                             <div className="flex items-center space-x-2 text-emerald-400 font-bold truncate">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
-                              <span>SECURE DRM STREAM ({requiredWatchPercentage || 90}% WATCH REQUIRED)</span>
+                              <span>SECURE DRM STREAM (99% WATCH REQUIRED)</span>
                               <span className="text-slate-500 hidden sm:inline">• 256-BIT DICOM-RT ENCRYPTED</span>
                             </div>
                             <div className="flex items-center space-x-1.5 text-slate-400 shrink-0">
@@ -1600,6 +1863,42 @@ export const AdminCourseForm: React.FC = () => {
                         placeholder="e.g. Case_Dataset_Reference.pdf"
                         className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono"
                       />
+                    </div>
+
+                    {/* Optional Reference Worksheet / Guidelines PDF */}
+                    <div className="pt-2 border-t border-amber-200/80 space-y-2">
+                      <label className="block text-xs font-bold text-[#0A192F]">Reference Document / Worksheet (.pdf) (Optional)</label>
+                      {topicPdfUrl ? (
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-xs">
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">PDF</span>
+                            <span className="text-xs font-medium text-slate-800 truncate">{topicPdfFileName || 'Reference_Document.pdf'}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemovePdf}
+                            className="text-xs font-bold text-red-600 hover:text-red-700 cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : isUploadingPdf ? (
+                        <div className="p-3 bg-white rounded-xl border border-amber-200 text-xs text-amber-700 font-semibold flex items-center space-x-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Uploading Reference Document ({pdfUploadProgress}%)...</span>
+                        </div>
+                      ) : (
+                        <label className="p-3 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex items-center justify-center cursor-pointer space-x-2 text-xs text-slate-600 transition-colors">
+                          <Upload className="w-4 h-4 text-amber-600" />
+                          <span>+ Upload Reference Worksheet / Guide (.pdf)</span>
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handlePdfFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
                 )}

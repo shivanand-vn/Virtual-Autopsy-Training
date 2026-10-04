@@ -49,6 +49,7 @@ export interface CourseContextType {
   assessmentResults: Record<string, AssessmentResult>; // moduleId -> AssessmentResult
   markTopicCompleted: (topicId: string) => void;
   toggleTopicCompletion: (topicId: string) => void;
+  resetAllStudentProgress: () => void;
   saveAssessmentResult: (result: AssessmentResult) => void;
   getAssessmentResult: (moduleId: string) => AssessmentResult | undefined;
   isTopicCompleted: (topicId: string) => boolean;
@@ -65,7 +66,7 @@ export interface CourseContextType {
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'va_lms_courses_v4';
-const TOPICS_LOCAL_STORAGE_KEY = 'va_lms_completed_topic_ids';
+const TOPICS_LOCAL_STORAGE_KEY = 'va_lms_completed_topic_ids_v3';
 const ASSESSMENTS_LOCAL_STORAGE_KEY = 'va_lms_assessment_results';
 const ASSIGNMENTS_LOCAL_STORAGE_KEY = 'va_lms_assignment_submissions';
 
@@ -126,7 +127,7 @@ const getInitialCourses = (): Course[] => {
                 .filter((t: Topic) => !t.title.toLowerCase().includes('quiz') && !t.title.toLowerCase().includes('competency quiz') && !t.title.toLowerCase().includes('assessment:'))
                 .map((t: Topic) => ({
                   ...t,
-                  contentType: (t.contentType === 'video' ? 'video' : 'theory') as ContentType
+                  contentType: (t.contentType === 'video' ? 'video' : (t.contentType === 'assignment' ? 'assignment' : 'theory')) as ContentType
                 }))
             };
           })
@@ -171,11 +172,17 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
         id: r.id,
         title: r.title || '',
         description: r.description || '',
-        contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : 'description') as ContentType,
+        contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : (r.type === 'DOWNLOADABLE_BRIEF' || r.contentType === 'assignment' ? 'assignment' : 'theory')) as ContentType,
         content: r.content || '',
+        pdfUrl: r.fileUrl || r.pdfUrl || '',
+        pdfFileName: r.pdfFileName || (r.fileUrl ? r.fileUrl.split('/').pop()?.split('?')[0] : ''),
         videoUrl: r.videoUrl || '',
         bunnyVideoId: r.bunnyVideoId || (r.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]),
         thumbnail: r.thumbnail || '',
+        requiredWatchPercentage: 99,
+        assignmentInstructions: r.assignmentInstructions || '',
+        submissionInstructions: r.submissionInstructions || '',
+        referenceAttachmentName: r.referenceAttachmentName || '',
         order: r.order || (rIdx + 1),
         status: (r.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
       })),
@@ -190,6 +197,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Persistent student completed topics (by topic id)
   const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>(() => {
     try {
+      // Purge all old readings so every student starts fresh from the beginning
+      localStorage.removeItem('va_lms_completed_topic_ids');
+      localStorage.removeItem('va_lms_completed_topic_ids_v2');
       const saved = localStorage.getItem(TOPICS_LOCAL_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch (e) {
@@ -592,6 +602,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       videoUrl: topicData.videoUrl || null,
       bunnyVideoId: topicData.bunnyVideoId || (topicData.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null,
       content: topicData.content || null,
+      fileUrl: topicData.pdfUrl || null,
       status: topicData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
     };
 
@@ -604,8 +615,10 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         id: bRes.id,
         title: bRes.title,
         description: bRes.description || '',
-        contentType: (bRes.type === 'VIDEO_STREAM' ? 'video' : 'description') as ContentType,
+        contentType: (bRes.type === 'VIDEO_STREAM' ? 'video' : 'theory') as ContentType,
         content: bRes.content || '',
+        pdfUrl: bRes.fileUrl || topicData.pdfUrl || undefined,
+        pdfFileName: topicData.pdfFileName || undefined,
         videoUrl: bRes.videoUrl || '',
         bunnyVideoId: bRes.bunnyVideoId || payload.bunnyVideoId || undefined,
         thumbnail: topicData.thumbnail || '',
@@ -664,6 +677,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       payload.bunnyVideoId = updatedData.videoUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] || null;
     }
     if (updatedData.content !== undefined) payload.content = updatedData.content;
+    if (updatedData.pdfUrl !== undefined) payload.fileUrl = updatedData.pdfUrl;
     if (updatedData.order !== undefined) payload.order = updatedData.order;
     if (updatedData.status !== undefined) payload.status = updatedData.status.toUpperCase();
 
@@ -844,6 +858,16 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }));
   };
 
+  const resetAllStudentProgress = () => {
+    setCompletedTopicIds({});
+    setAssessmentResults({});
+    try {
+      localStorage.removeItem(TOPICS_LOCAL_STORAGE_KEY);
+      localStorage.removeItem('va_lms_completed_topic_ids');
+      localStorage.removeItem(ASSESSMENTS_LOCAL_STORAGE_KEY);
+    } catch {}
+  };
+
   const saveAssessmentResult = (result: AssessmentResult) => {
     setAssessmentResults((prev) => ({
       ...prev,
@@ -873,14 +897,15 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return isModuleTopicsCompleted(moduleId) && isModuleAssessmentCompleted(moduleId);
   };
 
-  // Rule: Module 1 is unlocked. Module N unlocks ONLY after Module N-1 topics AND Module N-1 assessment are completed!
+  // Rule: Module 1 is unlocked. Module N unlocks ONLY after ALL topics of Module N-1 are completed!
   const isModuleUnlocked = (moduleId: string): boolean => {
     const modules = activeCourse.modules || [];
     const index = modules.findIndex((m) => m.id === moduleId);
     if (index <= 0) return true; // Module 1 is always unlocked
 
     const prevMod = modules[index - 1];
-    return isModuleTopicsCompleted(prevMod.id) && isModuleAssessmentCompleted(prevMod.id);
+    if (!prevMod) return true;
+    return isModuleTopicsCompleted(prevMod.id);
   };
 
   // Rule: Inside an unlocked module, Topic 1 is unlocked. Topic N unlocks ONLY after Topic N-1 is completed!
@@ -1030,6 +1055,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         assessmentResults,
         markTopicCompleted,
         toggleTopicCompletion,
+        resetAllStudentProgress,
         saveAssessmentResult,
         getAssessmentResult,
         isTopicCompleted,

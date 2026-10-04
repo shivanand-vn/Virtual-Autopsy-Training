@@ -298,7 +298,7 @@ export async function deleteModule(req: Request, res: Response): Promise<void> {
 export async function createTopic(req: Request, res: Response): Promise<void> {
   try {
     const moduleId = req.params.moduleId as string;
-    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status } = req.body;
+    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, fileUrl } = req.body;
 
     if (!title) {
       sendError(res, 'Topic title is required', 400);
@@ -318,6 +318,7 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
         bunnyVideoId: effectiveVideoId,
         videoUrl: signedVideoUrl,
         content: content || null,
+        fileUrl: fileUrl || null,
         durationSeconds: durationSeconds ? Number(durationSeconds) : null,
         isDownloadable: Boolean(isDownloadable),
         order: count + 1,
@@ -337,7 +338,7 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
 export async function updateTopic(req: Request, res: Response): Promise<void> {
   try {
     const topicId = req.params.topicId as string;
-    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, order } = req.body;
+    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, order, fileUrl } = req.body;
 
     const existing = await prisma.resource.findUnique({ where: { id: topicId } });
     if (!existing) {
@@ -357,6 +358,7 @@ export async function updateTopic(req: Request, res: Response): Promise<void> {
         ...(effectiveVideoId !== undefined && { bunnyVideoId: effectiveVideoId }),
         ...(signedVideoUrl !== undefined && { videoUrl: signedVideoUrl }),
         ...(content !== undefined && { content }),
+        ...(fileUrl !== undefined && { fileUrl }),
         ...(durationSeconds !== undefined && { durationSeconds: Number(durationSeconds) }),
         ...(isDownloadable !== undefined && { isDownloadable: Boolean(isDownloadable) }),
         ...(status && { status }),
@@ -556,6 +558,33 @@ export async function uploadCourseMediaHandler(req: Request, res: Response): Pro
         }
         throw uploadErr;
       }
+    } else if (req.file.mimetype === 'application/pdf') {
+      const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedName}`;
+
+      console.log(`[Media Upload] Uploading course document PDF: ${req.file.originalname}...`);
+
+      const mediaUrl = await uploadToCloudinary(
+        req.file.buffer,
+        'course-documents',
+        fileName,
+        true,
+        'raw'
+      );
+
+      console.log(`[Media Upload] PDF successfully uploaded to storage: ${mediaUrl}`);
+
+      sendSuccess(
+        res,
+        {
+          url: mediaUrl,
+          provider: 'cloudinary',
+          fileName: req.file.originalname,
+          mimeType: req.file.mimetype,
+          size: req.file.size,
+        },
+        'PDF document uploaded successfully'
+      );
     } else {
       // 2. THUMBNAILS AND IMAGES ARE UPLOADED TO CLOUD STORAGE
       const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');

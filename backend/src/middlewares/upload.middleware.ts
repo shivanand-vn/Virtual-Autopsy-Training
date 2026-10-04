@@ -68,10 +68,11 @@ export const uploadCourseMedia = multer({
   fileFilter: (_req, file, cb) => {
     const isImage = file.mimetype.startsWith('image/');
     const isVideo = file.mimetype.startsWith('video/');
-    if (isImage || isVideo) {
+    const isPdf = file.mimetype === 'application/pdf';
+    if (isImage || isVideo || isPdf) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only videos (MP4, WEBM, MOV) or images (JPEG, PNG, WEBP) are permitted.'));
+      cb(new Error('Invalid file type. Only videos (MP4, WEBM, MOV), images (JPEG, PNG, WEBP), or PDF documents are permitted.'));
     }
   },
 });

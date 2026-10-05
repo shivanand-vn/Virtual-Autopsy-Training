@@ -35,7 +35,7 @@ export const AdminQuestionDetail: React.FC = () => {
             className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#0A192F] text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 text-amber-400" />
-            <span>Return to Question Bank</span>
+            <span>Return to Assessment Creation</span>
           </Link>
         </div>
       </AdminLayout>
@@ -65,7 +65,7 @@ export const AdminQuestionDetail: React.FC = () => {
             className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Question Bank</span>
+            <span>Back to Assessment Creation</span>
           </Link>
 
           <button

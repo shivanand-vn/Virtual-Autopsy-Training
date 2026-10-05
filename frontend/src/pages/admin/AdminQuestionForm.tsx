@@ -260,7 +260,7 @@ export const AdminQuestionForm: React.FC = () => {
             className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Question Bank</span>
+            <span>Back to Assessment Creation</span>
           </Link>
 
           <button

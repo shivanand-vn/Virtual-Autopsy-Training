@@ -90,7 +90,7 @@ export const AdminQuestionBankList: React.FC = () => {
   };
 
   return (
-    <AdminLayout title="Question Bank" subtitle="Create and manage assessment questions for individual course modules.">
+    <AdminLayout title="Assessment Creation" subtitle="Create and manage assessment questions for individual course modules.">
       <div className="space-y-6 pb-12">
         {/* Toast Notification */}
         {toastMessage && (

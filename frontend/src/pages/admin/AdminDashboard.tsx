@@ -91,7 +91,7 @@ export const AdminDashboardPage: React.FC = () => {
                 Welcome to Admin Control
               </h1>
               <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
-                Single source of truth for Course Management, Question Bank, Student Progress, and System Administration.
+                Single source of truth for Course Management, Assessment Creation, Student Progress, and System Administration.
               </p>
             </div>
 
@@ -125,8 +125,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
 
           <div
-            onClick={() => navigate('/admin/applications')}
-            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between"
           >
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Apps</p>
@@ -200,7 +199,7 @@ export const AdminDashboardPage: React.FC = () => {
               className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-bold text-xs transition-colors flex flex-col items-center text-center space-y-1 cursor-pointer"
             >
               <FileText className="w-4 h-4 text-amber-600" />
-              <span>Question Bank</span>
+              <span>Assessment Creation</span>
             </button>
 
             <button
@@ -229,13 +228,6 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 className="font-extrabold text-base text-[#0A192F]">Recent Applications</h3>
-                <button
-                  onClick={() => navigate('/admin/applications')}
-                  className="text-xs font-bold text-amber-700 hover:text-amber-800 inline-flex items-center space-x-1 cursor-pointer"
-                >
-                  <span>View All Applications</span>
-                  <ArrowUpRight className="w-4 h-4" />
-                </button>
               </div>
 
               {recentApplications.length > 0 ? (

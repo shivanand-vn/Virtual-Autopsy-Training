@@ -147,7 +147,7 @@ export const ModuleAssessmentPage: React.FC = () => {
       totalQuestions,
       correctAnswersCount: correctCount,
       scorePercent,
-      passed,
+      passed: true,
       completedAt: 'Just now',
       userAnswers
     });
@@ -202,11 +202,6 @@ export const ModuleAssessmentPage: React.FC = () => {
               <div className="bg-slate-950/70 border border-slate-800 p-3 rounded-2xl text-center space-y-0.5 min-w-[100px]">
                 <div className="text-[10px] text-slate-400 font-bold uppercase">Time Limit</div>
                 <div className="text-lg font-black text-white">{assessment.timeLimitMinutes} Mins</div>
-              </div>
-
-              <div className="bg-slate-950/70 border border-slate-800 p-3 rounded-2xl text-center space-y-0.5 min-w-[100px]">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Pass Mark</div>
-                <div className="text-lg font-black text-emerald-400">{assessment.passingScorePercent}%</div>
               </div>
             </div>
           </div>

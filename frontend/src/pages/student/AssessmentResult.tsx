@@ -61,25 +61,13 @@ export const AssessmentResultPage: React.FC = () => {
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-sm space-y-8 text-center">
           {/* Status Badge Icon */}
           <div className="space-y-3">
-            <div
-              className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-lg border ${
-                result.passed
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  : 'bg-rose-50 text-rose-600 border-rose-200'
-              }`}
-            >
-              {result.passed ? (
-                <CheckCircle2 className="w-10 h-10" />
-              ) : (
-                <XCircle className="w-10 h-10" />
-              )}
+            <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-lg border bg-emerald-50 text-emerald-600 border-emerald-200">
+              <CheckCircle2 className="w-10 h-10" />
             </div>
 
             <div className="space-y-1">
-              <span className={`inline-block text-xs font-extrabold uppercase px-3.5 py-1 rounded-full ${
-                result.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-              }`}>
-                {result.passed ? '✓ Assessment Passed & Module Completed' : 'Needs Review'}
+              <span className="inline-block text-xs font-extrabold uppercase px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                ✓ Module Test Completed
               </span>
 
               <h1 className="text-2xl sm:text-3xl font-black text-[#0A192F]">
@@ -92,40 +80,27 @@ export const AssessmentResultPage: React.FC = () => {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-100 max-w-md mx-auto">
             <div className="space-y-1">
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Correct Answers</div>
+              <div className="text-[11px] font-bold text-slate-400 uppercase">Questions Completed</div>
               <div className="text-xl sm:text-2xl font-black text-[#0A192F]">
-                {result.correctAnswersCount} / {result.totalQuestions}
+                {result.totalQuestions} Qs
               </div>
             </div>
 
-            <div className="space-y-1 border-x border-slate-200">
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Score Percentage</div>
-              <div className={`text-xl sm:text-2xl font-black ${result.passed ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {result.scorePercent}%
-              </div>
-            </div>
-
-            <div className="space-y-1">
+            <div className="space-y-1 border-l border-slate-200">
               <div className="text-[11px] font-bold text-slate-400 uppercase">Status</div>
-              <div className={`text-xl sm:text-2xl font-black ${result.passed ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {result.passed ? 'PASSED' : 'FAILED'}
+              <div className="text-xl sm:text-2xl font-black text-emerald-600">
+                COMPLETED ✓
               </div>
             </div>
           </div>
 
           {/* Detailed Message */}
           <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 text-xs text-slate-700 leading-relaxed max-w-lg mx-auto">
-            {result.passed ? (
-              <p>
-                Congratulations! You have demonstrated clinical competency in Module 0{currentModule.moduleNumber}. Your score of <span className="font-bold text-slate-900">{result.scorePercent}%</span> meets the accreditation benchmark. {nextModule ? `Module 0${nextModule.moduleNumber} is now unlocked!` : 'All course modules completed! You can now take the Final Exam.'}
-              </p>
-            ) : (
-              <p>
-                Your score of <span className="font-bold text-rose-700">{result.scorePercent}%</span> is below the required passing threshold. Review course materials and re-attempt the assessment to unlock the next module.
-              </p>
-            )}
+            <p>
+              Congratulations! You have completed the assessment for Module 0{currentModule.moduleNumber}. {nextModule ? `Module 0${nextModule.moduleNumber} is now unlocked!` : 'All course modules completed! You can now take the Final Exam.'}
+            </p>
           </div>
 
           {/* Primary Action Button */}

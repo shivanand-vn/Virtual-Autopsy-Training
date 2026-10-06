@@ -532,7 +532,6 @@ export const AdminAssignmentCreationPage: React.FC = () => {
                   <th className="py-3.5 px-4 font-bold">Assignment Title</th>
                   <th className="py-3.5 px-4 font-bold">Course / Module</th>
                   <th className="py-3.5 px-4 font-bold text-center">Reference File</th>
-                  <th className="py-3.5 px-4 font-bold text-center">Max Marks</th>
                   <th className="py-3.5 px-4 font-bold text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold text-right">Actions</th>
                 </tr>
@@ -540,13 +539,13 @@ export const AdminAssignmentCreationPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                    <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold text-xs">
                       Loading assignments...
                     </td>
                   </tr>
                 ) : filteredAssignments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                    <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold text-xs">
                       No assignments available. Click "+ Create Assignment" to add a new module assignment.
                     </td>
                   </tr>
@@ -580,11 +579,6 @@ export const AdminAssignmentCreationPage: React.FC = () => {
                         ) : (
                           <span className="text-[10px] text-slate-400 italic">None</span>
                         )}
-                      </td>
-
-                      {/* Max Marks */}
-                      <td className="py-4 px-4 text-center font-extrabold text-slate-800">
-                        {a.maxScore} Pts
                       </td>
 
                       {/* Status Badge */}
@@ -784,8 +778,8 @@ export const AdminAssignmentCreationPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 7. STATUS & MARKS ROW */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* 7. STATUS ROW */}
+                  <div className="pt-2">
                     <div>
                       <label className="block text-xs font-bold text-[#0A192F] mb-1.5">
                         Status *
@@ -798,20 +792,6 @@ export const AdminAssignmentCreationPage: React.FC = () => {
                         <option value="PUBLISHED">Published</option>
                         <option value="DRAFT">Draft</option>
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#0A192F] mb-1.5">
-                        Maximum Score / Marks
-                      </label>
-                      <input
-                        type="number"
-                        value={formMaxScore}
-                        onChange={(e) => setFormMaxScore(Number(e.target.value) || 100)}
-                        min={10}
-                        max={1000}
-                        className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold text-slate-900"
-                      />
                     </div>
                   </div>
                 </div>

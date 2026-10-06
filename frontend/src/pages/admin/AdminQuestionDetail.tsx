@@ -238,14 +238,9 @@ export const AdminQuestionDetail: React.FC = () => {
             )}
           </div>
 
-          {/* Marks & Optional Explanation */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100 text-xs">
-            <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">MARKS ALLOCATED</span>
-              <p className="text-xl font-black text-amber-900 mt-0.5">{question.marks} {question.marks === 1 ? 'Mark' : 'Marks'}</p>
-            </div>
-
-            <div className="sm:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+          {/* Explanation */}
+          <div className="pt-4 border-t border-slate-100 text-xs">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
               <span className="text-[10px] font-bold text-slate-400 uppercase">EXPLANATION</span>
               <p className="text-slate-700 font-medium mt-0.5 leading-relaxed">
                 {question.explanation || 'No rationale explanation recorded for this question.'}

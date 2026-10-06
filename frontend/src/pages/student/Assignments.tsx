@@ -67,7 +67,7 @@ export const AssignmentsPage: React.FC = () => {
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">SUBMITTED & GRADED</p>
               <h3 className="text-2xl font-black text-[#0A192F] mt-1">03 <span className="text-xs font-normal text-slate-400">Completed</span></h3>
-              <p className="text-xs text-emerald-600 font-bold mt-0.5">Avg Score: 94.2% (Grade A)</p>
+              <p className="text-xs text-emerald-600 font-bold mt-0.5">3/3 Submitted & Reviewed</p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5" />
@@ -146,9 +146,7 @@ export const AssignmentsPage: React.FC = () => {
               Cranial & Thoracic Trauma PMCT Volumetric Evaluation
             </h2>
             <div className="flex items-center space-x-4 text-xs text-slate-500 mt-1">
-              <span>Weight: <strong className="text-slate-800">15% of Final Grade</strong></span>
-              <span>•</span>
-              <span>Pass Threshold: <strong className="text-slate-800">80% (Score 80/100)</strong></span>
+              <span>Required: <strong className="text-slate-800">Module Completion Requirement</strong></span>
               <span>•</span>
               <span>Est. Duration: <strong className="text-slate-800">90 Mins</strong></span>
             </div>
@@ -178,7 +176,7 @@ export const AssignmentsPage: React.FC = () => {
                     </span>
                     <h3 className="font-bold text-sm text-[#0A192F]">Diagnostic PMCT Settings</h3>
                   </div>
-                  <span className="text-xs text-slate-500">Item 1 of 3 (20 Pts)</span>
+                  <span className="text-xs text-slate-500">Item 1 of 3</span>
                 </div>
 
                 <p className="text-xs text-slate-700 leading-normal">
@@ -228,7 +226,7 @@ export const AssignmentsPage: React.FC = () => {
                     </span>
                     <h3 className="font-bold text-sm text-[#0A192F]">Clinical Observations & Density Analysis</h3>
                   </div>
-                  <span className="text-xs text-slate-500">Structured Narrative (40 Pts)</span>
+                  <span className="text-xs text-slate-500">Structured Narrative</span>
                 </div>
 
                 <p className="text-xs text-slate-600">
@@ -277,7 +275,7 @@ export const AssignmentsPage: React.FC = () => {
                     </span>
                     <h3 className="font-bold text-sm text-[#0A192F]">Completed Worksheet</h3>
                   </div>
-                  <span className="text-xs text-slate-500">Required (40 Pts)</span>
+                  <span className="text-xs text-slate-500">Required</span>
                 </div>
 
                 <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center hover:border-amber-400 transition-colors bg-white cursor-pointer space-y-2">
@@ -375,18 +373,15 @@ export const AssignmentsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end space-x-4 shrink-0">
-                  {asg.score !== undefined ? (
-                    <div className="text-right">
-                      <div className="text-lg font-black text-[#0A192F]">
-                        {asg.score} <span className="text-xs text-slate-400 font-normal">/100</span>
-                      </div>
-                      <div className="text-xs font-bold text-amber-700">{asg.gradeLabel}</div>
-                    </div>
-                  ) : (
-                    <span className="text-xs font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
-                      {asg.status === 'pending' ? 'Action Required' : 'Locked'}
-                    </span>
-                  )}
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                    asg.status === 'graded'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : asg.status === 'pending'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {asg.status === 'graded' ? 'Submitted ✓' : asg.status === 'pending' ? 'Action Required' : 'Locked'}
+                  </span>
 
                   {asg.status === 'graded' && (
                     <button className="text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center space-x-1">

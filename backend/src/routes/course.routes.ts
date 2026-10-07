@@ -25,7 +25,7 @@ const router = Router();
 // Public / Learner Course Access
 router.get('/', optionalAuth, getAllCourses);
 router.get('/:id', optionalAuth, getCourseById);
-router.get('/stream-token/:videoId', optionalAuth, getVideoStreamTokenByVideoId);
+router.get('/stream-token/:videoId', requireAuth, getVideoStreamTokenByVideoId);
 
 // Admin Course CRUD
 router.post('/', requireAuth, requireRole('ADMIN'), createCourse);

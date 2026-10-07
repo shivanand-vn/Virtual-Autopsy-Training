@@ -51,6 +51,7 @@ import { AdminQuestionDetail } from './pages/admin/AdminQuestionDetail';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalytics';
 import { AdminSettingsPage } from './pages/admin/AdminSettings';
 import { AdminApplicationsPage } from './pages/admin/AdminApplications';
+import { AdminAssignmentCreationPage } from './pages/admin/AdminAssignmentCreation';
 
 export const App: React.FC = () => {
   return (
@@ -222,14 +223,7 @@ export const App: React.FC = () => {
                           </ProtectedRoute>
                         }
                       />
-                      <Route
-                        path="/admin/applications"
-                        element={
-                          <ProtectedRoute allowedRoles={['ADMIN']}>
-                            <AdminApplicationsPage />
-                          </ProtectedRoute>
-                        }
-                      />
+                      <Route path="/admin/applications" element={<Navigate to="/admin/dashboard" replace />} />
                       <Route
                         path="/admin/courses"
                         element={
@@ -299,6 +293,14 @@ export const App: React.FC = () => {
                         element={
                           <ProtectedRoute allowedRoles={['ADMIN']}>
                             <AdminAssignmentsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/assignment-creation"
+                        element={
+                          <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminAssignmentCreationPage />
                           </ProtectedRoute>
                         }
                       />

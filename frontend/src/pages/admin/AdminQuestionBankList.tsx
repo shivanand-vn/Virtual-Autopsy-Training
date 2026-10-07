@@ -90,7 +90,7 @@ export const AdminQuestionBankList: React.FC = () => {
   };
 
   return (
-    <AdminLayout title="Question Bank" subtitle="Create and manage assessment questions for individual course modules.">
+    <AdminLayout title="Assessment Creation" subtitle="Create and manage assessment questions for individual course modules.">
       <div className="space-y-6 pb-12">
         {/* Toast Notification */}
         {toastMessage && (
@@ -220,7 +220,6 @@ export const AdminQuestionBankList: React.FC = () => {
                   <th className="py-3.5 px-4 font-bold">Type</th>
                   <th className="py-3.5 px-4 font-bold text-center">Image</th>
                   <th className="py-3.5 px-4 font-bold text-center">Options</th>
-                  <th className="py-3.5 px-4 font-bold text-center">Marks</th>
                   <th className="py-3.5 px-4 font-bold text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold text-right">Actions</th>
                 </tr>
@@ -228,7 +227,7 @@ export const AdminQuestionBankList: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredQuestions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                    <td colSpan={7} className="py-12 text-center text-slate-400 font-semibold text-xs">
                       No questions available. Click "+ Add Question" to create questions for module assessments.
                     </td>
                   </tr>
@@ -265,11 +264,6 @@ export const AdminQuestionBankList: React.FC = () => {
                       {/* Options Count */}
                       <td className="py-4 px-4 text-center font-bold text-slate-700">
                         {q.type === 'true_false' ? '2 Stmts' : `${q.options?.length || 0} Opts`}
-                      </td>
-
-                      {/* Marks */}
-                      <td className="py-4 px-4 text-center font-extrabold text-amber-700">
-                        {q.marks} {q.marks === 1 ? 'Pt' : 'Pts'}
                       </td>
 
                       {/* Status */}

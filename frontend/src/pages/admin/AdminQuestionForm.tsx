@@ -260,7 +260,7 @@ export const AdminQuestionForm: React.FC = () => {
             className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Question Bank</span>
+            <span>Back to Assessment Creation</span>
           </Link>
 
           <button
@@ -578,20 +578,9 @@ export const AdminQuestionForm: React.FC = () => {
             )}
           </div>
 
-          {/* SECTION 4: MARKS & EXPLANATION */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+          {/* SECTION 4: EXPLANATION */}
+          <div className="pt-4 border-t border-slate-100">
             <div>
-              <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Marks *</label>
-              <input
-                type="number"
-                min={1}
-                value={marks}
-                onChange={(e) => setMarks(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold text-amber-900"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Explanation (Optional)</label>
               <textarea
                 value={explanation}

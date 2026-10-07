@@ -897,7 +897,7 @@ export const MyCoursePage: React.FC = () => {
                         <p className="font-bold text-slate-800 truncate">
                           {currentModule.assignment?.title || 'Case Report Assignment'}
                         </p>
-                        <p className="text-[11px] text-slate-500">100 Marks • Required submission</p>
+                        <p className="text-[11px] text-slate-500">Required submission</p>
                       </div>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -1288,9 +1288,6 @@ export const MyCoursePage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700">
-                      100 Marks
-                    </span>
                     <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${
                       currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -1371,7 +1368,7 @@ export const MyCoursePage: React.FC = () => {
                         </div>
                       </div>
                       <span className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-300 px-3 py-1 rounded-xl">
-                        Awaiting Marks
+                        Submitted / Under Review
                       </span>
                     </div>
                   )}
@@ -1453,7 +1450,7 @@ export const MyCoursePage: React.FC = () => {
                 </div>
 
                 {/* Test Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Time Limit</span>
                     <span className="text-base font-extrabold text-[#0A192F]">
@@ -1469,13 +1466,6 @@ export const MyCoursePage: React.FC = () => {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Passing Mark</span>
-                    <span className="text-base font-extrabold text-[#0A192F]">
-                      {currentModule.test?.passingScorePercent || 70}%
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Attempts</span>
                     <span className="text-base font-extrabold text-emerald-700">Unlimited</span>
                   </div>
@@ -1486,18 +1476,14 @@ export const MyCoursePage: React.FC = () => {
                   <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-between">
                     <div>
                       <p className="text-xs font-bold text-slate-800">
-                        Previous Attempt Result: {pastAssessmentResult.scorePercent}% ({pastAssessmentResult.passed ? 'PASSED' : 'RETAKE RECOMMENDED'})
+                        Module Test Status: Completed ✓
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        {pastAssessmentResult.correctAnswersCount} of {pastAssessmentResult.totalQuestions} questions answered correctly.
+                        You have completed the assessment for this module.
                       </p>
                     </div>
-                    <span className={`text-xs font-extrabold px-3 py-1 rounded-xl ${
-                      pastAssessmentResult.passed
-                        ? 'bg-emerald-200 text-emerald-900'
-                        : 'bg-amber-200 text-amber-900'
-                    }`}>
-                      {pastAssessmentResult.passed ? 'Passed ✓' : 'Retry Quiz'}
+                    <span className="text-xs font-extrabold px-3 py-1 rounded-xl bg-emerald-200 text-emerald-900">
+                      Completed ✓
                     </span>
                   </div>
                 )}

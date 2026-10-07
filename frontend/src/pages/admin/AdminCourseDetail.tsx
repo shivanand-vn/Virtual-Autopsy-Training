@@ -260,7 +260,7 @@ export const AdminCourseDetail: React.FC = () => {
                                 </span>
                               </div>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-900">
-                                100 Marks • Required
+                                Required Submission
                               </span>
                             </div>
 
@@ -306,7 +306,7 @@ export const AdminCourseDetail: React.FC = () => {
                             </p>
 
                             <div className="text-[11px] text-emerald-800 font-medium">
-                              ✓ Passing Score: {mod.test?.passingScorePercent || 70}% • Students can retake freely for mastery.
+                              ✓ Completion Requirement • Students can retake freely for mastery.
                             </div>
                           </div>
                         </div>

@@ -232,7 +232,11 @@ export const FinalExamPage: React.FC = () => {
           return { ...prev, [qId]: [...currentSelected, optionId] };
         }
       } else {
-        return { ...prev, [qId]: [optionId] };
+        if (currentSelected.includes(optionId)) {
+          return { ...prev, [qId]: [] };
+        } else {
+          return { ...prev, [qId]: [optionId] };
+        }
       }
     });
   };

@@ -1246,9 +1246,8 @@ export const AdminCourseForm: React.FC = () => {
                       onChange={(e) => setTopicContentType(e.target.value as ContentType)}
                       className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
                     >
-                      <option value="theory">Theory / Reading Lesson</option>
-                      <option value="video">Video Lesson</option>
-                      <option value="assignment">Assignment / Case Exercise</option>
+                      <option value="video">Video</option>
+                      <option value="theory">Theory</option>
                     </select>
                   </div>
 

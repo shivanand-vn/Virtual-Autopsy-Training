@@ -1004,23 +1004,22 @@ export const AdminCourseForm: React.FC = () => {
                           >
                             Delete
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => openAddTopicModal(mod.id)}
-                            className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Topic</span>
-                          </button>
                         </div>
                       </div>
 
                       {/* Topics List within Module */}
                       <div className="space-y-3 pl-2 sm:pl-4">
                         {mod.topics.length === 0 ? (
-                          <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-1">
+                          <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
                             <p className="text-xs font-semibold text-slate-500">No topics added to Module {mod.moduleNumber} yet.</p>
-                            <p className="text-[11px] text-slate-400">Click "+ Topic" above to add topics to this module.</p>
+                            <button
+                              type="button"
+                              onClick={() => openAddTopicModal(mod.id)}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Add Topic</span>
+                            </button>
                           </div>
                         ) : (
                           <>
@@ -1246,9 +1245,8 @@ export const AdminCourseForm: React.FC = () => {
                       onChange={(e) => setTopicContentType(e.target.value as ContentType)}
                       className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
                     >
-                      <option value="theory">Theory / Reading Lesson</option>
-                      <option value="video">Video Lesson</option>
-                      <option value="assignment">Assignment / Case Exercise</option>
+                      <option value="video">Video</option>
+                      <option value="theory">Theory</option>
                     </select>
                   </div>
 

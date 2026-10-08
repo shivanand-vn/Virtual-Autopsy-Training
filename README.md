@@ -14,11 +14,11 @@
 ### Student Features
 ---
 
-- Student registration and eligibility application
-- Admin approval and rejection workflow
+- Student registration.
+- Make payment 
 - Student login and authentication UI
 - Student dashboard
-- Course enrollment and progress tracking
+- Course enrollment 
 - Sequential course modules
 - Video-based learning
 - Learning resources and documents
@@ -36,7 +36,6 @@
 
 - Admin dashboard
 - Student application management
-- Application approval and rejection
 - Student management
 - Course management
 - Module management

@@ -46,34 +46,14 @@ export const MyCoursePage: React.FC = () => {
 
   const { getAssessmentResult } = useCourseProgress();
 
-  if (!activeCourse || !activeCourse.modules || activeCourse.modules.length === 0) {
-    return (
-      <DashboardLayout headerSubtitle="MY COURSE">
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center space-y-4 max-w-xl mx-auto my-12">
-          <div className="w-16 h-16 bg-slate-100 border border-slate-300 text-slate-500 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
-            <BookOpen className="w-8 h-8 text-slate-400" />
-          </div>
-          <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 font-bold text-xs rounded-full uppercase tracking-wider">
-            My Course
-          </span>
-          <h2 className="text-xl font-extrabold text-[#0A192F]">
-            No course enrolled yet.
-          </h2>
-          <p className="text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
-            There are currently no active courses available. Once an admin creates and publishes a course, it will appear here.
-          </p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  const modules = activeCourse.modules;
+  const hasCourseData = Boolean(activeCourse && activeCourse.modules && activeCourse.modules.length > 0);
+  const modules = activeCourse?.modules || [];
 
   // 1. DYNAMIC MODULE SELECTION
   const currentModule =
     modules.find((m) => m.id === paramModuleId) ||
     modules.find((m) => m.status === 'published') ||
-    modules[0];
+    modules[0] || { id: '', moduleNumber: 1, title: '', topics: [] };
 
   const [activeSection, setActiveSection] = useState<'topic' | 'assignment' | 'test'>(
     paramLessonId === 'assignment' ? 'assignment' : paramLessonId === 'test' ? 'test' : 'topic'
@@ -89,37 +69,85 @@ export const MyCoursePage: React.FC = () => {
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
   const [hasDownloadedTemplate, setHasDownloadedTemplate] = useState<boolean>(false);
 
-  // 2. DYNAMIC TOPIC SELECTION & SEQUENTIAL GATING
-  const totalTopics = currentModule.topics.length;
-  let currentTopicIndex = 0;
+  // Synchronize active section with URL param
+  useEffect(() => {
+    if (paramLessonId === 'assignment') {
+      setActiveSection('assignment');
+    } else if (paramLessonId === 'test') {
+      setActiveSection('test');
+    } else if (paramLessonId) {
+      setActiveSection('topic');
+    }
+  }, [paramLessonId]);
 
-  if (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test') {
-    const idx = currentModule.topics.findIndex((t) => t.id === paramLessonId);
-    if (idx !== -1) {
-      if (isTopicUnlocked(currentModule.id, currentModule.topics[idx].id)) {
-        currentTopicIndex = idx;
-      } else {
-        const firstUnlockedIdx = currentModule.topics.findIndex((t) => isTopicUnlocked(currentModule.id, t.id));
-        currentTopicIndex = firstUnlockedIdx !== -1 ? firstUnlockedIdx : 0;
+  // Ref tracking completed topic IDs to avoid tearing down video event listeners during playback
+  const completedTopicIdsRef = useRef(completedTopicIds);
+  useEffect(() => {
+    completedTopicIdsRef.current = completedTopicIds;
+  }, [completedTopicIds]);
+
+  // 2. STABLE TOPIC SELECTION & SEQUENTIAL GATING
+  const totalTopics = currentModule.topics.length;
+
+  // Selected topic ID state ensures active video never auto-switches when 99% progress is achieved
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(() => {
+    if (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test') {
+      const match = currentModule.topics.find((t) => t.id === paramLessonId);
+      if (match && isTopicUnlocked(currentModule.id, match.id)) {
+        return match.id;
       }
     }
-  } else {
-    // New student / default visit: select first non-completed topic that is unlocked
-    const firstNonCompUnlockedIdx = currentModule.topics.findIndex((t) => !completedTopicIds[t.id] && isTopicUnlocked(currentModule.id, t.id));
-    if (firstNonCompUnlockedIdx !== -1) {
-      currentTopicIndex = firstNonCompUnlockedIdx;
-    } else {
-      currentTopicIndex = 0;
+    // New student / default visit: start at first non-completed topic that is unlocked
+    const firstNonComp = currentModule.topics.find((t) => !completedTopicIds[t.id] && isTopicUnlocked(currentModule.id, t.id));
+    return firstNonComp?.id || currentModule.topics[0]?.id || null;
+  });
+
+  // Keep selectedTopicId in sync when URL paramLessonId explicitly changes
+  useEffect(() => {
+    if (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test') {
+      const match = currentModule.topics.find((t) => t.id === paramLessonId);
+      if (match && isTopicUnlocked(currentModule.id, match.id)) {
+        setSelectedTopicId(match.id);
+      }
+    }
+  }, [paramLessonId, currentModule.id, currentModule.topics, isTopicUnlocked]);
+
+  // If module changes and current selectedTopicId does not belong to the module, pick its first non-completed topic
+  useEffect(() => {
+    const belongs = currentModule.topics.some((t) => t.id === selectedTopicId);
+    if (!belongs) {
+      const firstNonComp = currentModule.topics.find((t) => !completedTopicIdsRef.current[t.id] && isTopicUnlocked(currentModule.id, t.id));
+      const targetId = firstNonComp?.id || currentModule.topics[0]?.id || null;
+      if (targetId) {
+        setSelectedTopicId(targetId);
+      }
+    }
+  }, [currentModule.id]);
+
+  // Pin URL to active module & topic when visiting /my-course or /my-course/:moduleId without a lessonId
+  useEffect(() => {
+    if (!paramLessonId && activeSection === 'topic' && selectedTopicId) {
+      navigate(`/my-course/${currentModule.id}/${selectedTopicId}`, { replace: true });
+    }
+  }, [paramLessonId, activeSection, currentModule.id, selectedTopicId, navigate]);
+
+  // Resolve current active topic
+  let currentTopic =
+    (paramLessonId && paramLessonId !== 'assignment' && paramLessonId !== 'test'
+      ? currentModule.topics.find((t) => t.id === paramLessonId)
+      : null) ||
+    (selectedTopicId ? currentModule.topics.find((t) => t.id === selectedTopicId) : null) ||
+    currentModule.topics[0];
+
+  // Safety check: ensure currentTopic is unlocked
+  if (currentTopic && !isTopicUnlocked(currentModule.id, currentTopic.id)) {
+    const firstUnlocked = currentModule.topics.find((t) => isTopicUnlocked(currentModule.id, t.id)) || currentModule.topics[0];
+    if (firstUnlocked) {
+      currentTopic = firstUnlocked;
     }
   }
 
-  // Safety check: ensure currentTopicIndex is not locked
-  if (currentModule.topics[currentTopicIndex] && !isTopicUnlocked(currentModule.id, currentModule.topics[currentTopicIndex].id)) {
-    const firstUnlockedIdx = currentModule.topics.findIndex((t) => isTopicUnlocked(currentModule.id, t.id));
-    currentTopicIndex = firstUnlockedIdx !== -1 ? firstUnlockedIdx : 0;
-  }
-
-  const currentTopic = currentModule.topics[currentTopicIndex] || currentModule.topics[0];
+  const currentTopicIndex = Math.max(0, currentModule.topics.findIndex((t) => t.id === currentTopic?.id));
 
   // Auto-redirect if student URL is pointing to a locked topic
   useEffect(() => {
@@ -241,16 +269,18 @@ export const MyCoursePage: React.FC = () => {
           setVideoProgressMap((prev) => {
             const curr = prev[currentTopic.id] || 0;
             const newPct = Math.max(curr, pct);
-            if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
-              markTopicCompleted(currentTopic.id);
-            }
             return { ...prev, [currentTopic.id]: newPct };
           });
+          if (pct >= requiredWatchPct && !completedTopicIdsRef.current[currentTopic.id]) {
+            markTopicCompleted(currentTopic.id);
+          }
         }
 
         if (data.event === 'ended' || (data.context === 'player.js' && data.event === 'ended')) {
           setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
-          markTopicCompleted(currentTopic.id);
+          if (!completedTopicIdsRef.current[currentTopic.id]) {
+            markTopicCompleted(currentTopic.id);
+          }
         }
       } catch {
         // Safe ignore
@@ -276,17 +306,19 @@ export const MyCoursePage: React.FC = () => {
               setVideoProgressMap((prev) => {
                 const curr = prev[currentTopic.id] || 0;
                 const newPct = Math.max(curr, pct);
-                if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
-                  markTopicCompleted(currentTopic.id);
-                }
                 return { ...prev, [currentTopic.id]: newPct };
               });
+              if (pct >= requiredWatchPct && !completedTopicIdsRef.current[currentTopic.id]) {
+                markTopicCompleted(currentTopic.id);
+              }
             }
           });
 
           playerInstance.on('ended', () => {
             setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
-            markTopicCompleted(currentTopic.id);
+            if (!completedTopicIdsRef.current[currentTopic.id]) {
+              markTopicCompleted(currentTopic.id);
+            }
           });
         } catch (err) {
           console.warn('[Bunny Player] Player.js initialization notice:', err);
@@ -298,7 +330,7 @@ export const MyCoursePage: React.FC = () => {
       window.removeEventListener('message', handleMessage);
       clearTimeout(timer);
     };
-  }, [activeVideoUrl, currentTopic?.id, currentTopic?.contentType, requiredWatchPct, completedTopicIds, markTopicCompleted]);
+  }, [activeVideoUrl, currentTopic?.id, currentTopic?.contentType, requiredWatchPct, markTopicCompleted]);
 
   // Fallback simulator for non-iframe / placeholder playback
   useEffect(() => {
@@ -308,7 +340,7 @@ export const MyCoursePage: React.FC = () => {
         setVideoProgressMap((prev) => {
           const curr = prev[currentTopic.id] || 0;
           const next = Math.min(100, curr + 2);
-          if (next >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
+          if (next >= requiredWatchPct && !completedTopicIdsRef.current[currentTopic.id]) {
             markTopicCompleted(currentTopic.id);
           }
           return { ...prev, [currentTopic.id]: next };
@@ -318,7 +350,7 @@ export const MyCoursePage: React.FC = () => {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [isPlaying, currentTopic?.id, currentTopic?.contentType, isCurrentTopicCompleted, completedTopicIds, requiredWatchPct, markTopicCompleted]);
+  }, [isPlaying, currentTopic?.id, currentTopic?.contentType, isCurrentTopicCompleted, requiredWatchPct, markTopicCompleted]);
 
   // HTML5 Video Playback Handlers
   const handleHtml5TimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -328,18 +360,20 @@ export const MyCoursePage: React.FC = () => {
       setVideoProgressMap((prev) => {
         const curr = prev[currentTopic.id] || 0;
         const newPct = Math.max(curr, pct);
-        if (newPct >= requiredWatchPct && !completedTopicIds[currentTopic.id]) {
-          markTopicCompleted(currentTopic.id);
-        }
         return { ...prev, [currentTopic.id]: newPct };
       });
+      if (pct >= requiredWatchPct && !completedTopicIdsRef.current[currentTopic.id]) {
+        markTopicCompleted(currentTopic.id);
+      }
     }
   };
 
   const handleHtml5VideoEnded = () => {
     if (currentTopic) {
       setVideoProgressMap((prev) => ({ ...prev, [currentTopic.id]: 100 }));
-      markTopicCompleted(currentTopic.id);
+      if (!completedTopicIdsRef.current[currentTopic.id]) {
+        markTopicCompleted(currentTopic.id);
+      }
     }
   };
 
@@ -349,7 +383,7 @@ export const MyCoursePage: React.FC = () => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     if (scrollHeight - scrollTop - clientHeight <= 30) {
       setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
-      if (!completedTopicIds[currentTopic.id]) {
+      if (!completedTopicIdsRef.current[currentTopic.id]) {
         markTopicCompleted(currentTopic.id);
       }
     }
@@ -368,21 +402,21 @@ export const MyCoursePage: React.FC = () => {
         const isShortContent = container.scrollHeight <= container.clientHeight + 25;
         if (isShortContent) {
           setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
-          if (!completedTopicIds[currentTopic.id]) {
+          if (!completedTopicIdsRef.current[currentTopic.id]) {
             markTopicCompleted(currentTopic.id);
           }
         }
       } else if (currentTopic.pdfUrl) {
         // PDF document view: marked read without auto-advancing
         setTheoryReadMap((prev) => ({ ...prev, [currentTopic.id]: true }));
-        if (!completedTopicIds[currentTopic.id]) {
+        if (!completedTopicIdsRef.current[currentTopic.id]) {
           markTopicCompleted(currentTopic.id);
         }
       }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [currentTopic?.id, currentTopic?.contentType, currentTopic?.content, currentTopic?.pdfUrl, completedTopicIds, markTopicCompleted]);
+  }, [currentTopic, markTopicCompleted]);
 
   // Formatted 2-digit module number
   const formattedModuleNumber =
@@ -401,6 +435,7 @@ export const MyCoursePage: React.FC = () => {
       showGatingMessage('This lesson is locked. Please watch preceding videos completely or finish reading lessons to unlock.');
       return;
     }
+    setSelectedTopicId(topId);
     setActiveSection('topic');
     setExpandedModuleId(modId);
     navigate(`/my-course/${modId}/${topId}`);
@@ -413,9 +448,7 @@ export const MyCoursePage: React.FC = () => {
     }
     setActiveSection('assignment');
     setExpandedModuleId(modId);
-    if (modId !== currentModule.id) {
-      navigate(`/my-course/${modId}`);
-    }
+    navigate(`/my-course/${modId}/assignment`);
   };
 
   const goToTest = (modId: string) => {
@@ -425,15 +458,13 @@ export const MyCoursePage: React.FC = () => {
     }
     setActiveSection('test');
     setExpandedModuleId(modId);
-    if (modId !== currentModule.id) {
-      navigate(`/my-course/${modId}`);
-    }
+    navigate(`/my-course/${modId}/test`);
   };
 
   // Previous & Next Button Actions
   const handlePrevious = () => {
     if (activeSection === 'test') {
-      setActiveSection('assignment');
+      goToAssignment(currentModule.id);
     } else if (activeSection === 'assignment') {
       setActiveSection('topic');
       const lastTopic = currentModule.topics[currentModule.topics.length - 1];
@@ -460,10 +491,10 @@ export const MyCoursePage: React.FC = () => {
           showGatingMessage('Please complete this lesson before unlocking the next topic.');
         }
       } else {
-        setActiveSection('assignment');
+        goToAssignment(currentModule.id);
       }
     } else if (activeSection === 'assignment') {
-      setActiveSection('test');
+      goToTest(currentModule.id);
     } else if (activeSection === 'test') {
       if (!isCurrentModuleUnlocked) {
         showGatingMessage('Please complete all module topics before starting the test.');
@@ -509,6 +540,27 @@ export const MyCoursePage: React.FC = () => {
       setUploadSuccessMessage(`Successfully submitted "${selectedFile.name}" for forensic evaluation.`);
     }, 700);
   };
+
+  if (!hasCourseData) {
+    return (
+      <DashboardLayout headerSubtitle="MY COURSE">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center space-y-4 max-w-xl mx-auto my-12">
+          <div className="w-16 h-16 bg-slate-100 border border-slate-300 text-slate-500 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+            <BookOpen className="w-8 h-8 text-slate-400" />
+          </div>
+          <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 font-bold text-xs rounded-full uppercase tracking-wider">
+            My Course
+          </span>
+          <h2 className="text-xl font-extrabold text-[#0A192F]">
+            No course enrolled yet.
+          </h2>
+          <p className="text-sm text-slate-500 leading-relaxed max-w-md mx-auto">
+            There are currently no active courses available. Once an admin creates and publishes a course, it will appear here.
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout headerSubtitle="MY COURSE">

@@ -9,7 +9,7 @@ import {
   type SubmissionStatus,
   INITIAL_COURSES
 } from '../types/course';
-import { api } from '../lib/api';
+import { api, getAuthToken } from '../lib/api';
 
 export interface CourseContextType {
   courses: Course[];
@@ -271,15 +271,20 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     localStorage.setItem(ASSIGNMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assignmentSubmissions));
   }, [assignmentSubmissions]);
 
-  // Fetch assignment submissions directly from Backend API
+  // Fetch assignment submissions directly from Backend API (only if user is authenticated)
   const refreshAssignmentSubmissions = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) return;
+
     try {
       const res = await api.get<AssignmentSubmission[]>('/assignments/submissions');
       if (res && res.data && Array.isArray(res.data)) {
         setAssignmentSubmissions(res.data);
       }
-    } catch (err) {
-      console.warn('Failed to fetch assignment submissions from backend API, using cached data:', err);
+    } catch (err: any) {
+      if (err?.message && !err.message.includes('Authentication required')) {
+        console.warn('Failed to fetch assignment submissions from backend API, using cached data:', err);
+      }
     }
   }, []);
 

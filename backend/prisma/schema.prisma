@@ -357,15 +357,18 @@ model ModuleTestAttempt {
 // ------------------------------------------
 
 model Assignment {
-  id           String       @id @default(uuid())
-  moduleId     String
-  module       Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  title        String
-  instructions String
-  maxScore     Int          @default(100)
-  dueDate      DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id               String       @id @default(uuid())
+  moduleId         String
+  module           Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?
+  instructions     String
+  templateFileName String?
+  templateFileUrl  String?
+  maxScore         Int          @default(100)
+  dueDate          DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   submissions  Submission[]
 
@@ -378,13 +381,15 @@ model Submission {
   assignment   Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   userId       String
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fileUrl      String           // Uploaded document in R2
-  status       SubmissionStatus @default(SUBMITTED)
-  score        Float?
-  feedback     String?
-  gradedBy     String?
-  gradedAt     DateTime?
-  submittedAt  DateTime         @default(now())
+  fileUrl        String           // Uploaded document in R2
+  responseText   String?          // Student response text / executive remarks
+  isResubmission Boolean          @default(false)
+  status         SubmissionStatus @default(SUBMITTED)
+  score          Float?
+  feedback       String?
+  gradedBy       String?
+  gradedAt       DateTime?
+  submittedAt    DateTime         @default(now())
 
   @@map("submissions")
 }

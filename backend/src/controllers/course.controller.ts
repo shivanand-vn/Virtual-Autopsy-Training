@@ -367,6 +367,11 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    if (type === 'DOWNLOADABLE_BRIEF' || type === 'assignment') {
+      sendError(res, 'Assignment content type is not supported for topics. Use Assignment Creation for module assignments.', 400);
+      return;
+    }
+
     const effectiveVideoId = bunnyVideoId || (videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
     const signedVideoUrl = videoUrl ? signBunnyEmbedUrlIfNeeded(videoUrl, effectiveVideoId) : null;
 

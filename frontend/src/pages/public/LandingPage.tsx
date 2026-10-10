@@ -179,7 +179,7 @@ export const LandingPage: React.FC = () => {
               onClick={() => navigate('/register')}
               className="px-4 sm:px-5 py-2.5 text-xs font-extrabold text-slate-950 bg-[#F5A623] hover:bg-[#E0951C] rounded-lg shadow-xs transition-all cursor-pointer"
             >
-              Register / Enroll Now
+              Enroll Now
             </button>
           </div>
         </div>
@@ -402,7 +402,7 @@ export const LandingPage: React.FC = () => {
           {/* RIGHT COLUMN: PROMINENT ENROLLMENT CARD */}
           <div className="lg:col-span-4 sticky top-28 space-y-6">
 
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden text-left space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden text-left space-y-4 pb-5">
 
               {/* Card Header Image */}
               <div className="relative h-44 bg-slate-950 overflow-hidden">
@@ -444,7 +444,7 @@ export const LandingPage: React.FC = () => {
               </div>
 
               {/* Included Verified Features Checklist */}
-              <div className="px-5 pb-5 pt-2 space-y-2 border-t border-slate-100 text-xs">
+              <div className="px-5 pt-2 pb-1 space-y-2 border-t border-slate-100 text-xs">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">INCLUDED IN ENROLLMENT:</span>
 
                 <div className="flex items-start space-x-2 text-slate-700">
@@ -474,7 +474,7 @@ export const LandingPage: React.FC = () => {
               </div>
 
               {/* Security Note */}
-              <div className="mx-5 mb-5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 text-center flex items-center justify-center space-x-1.5">
+              <div className="mx-5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 text-center flex items-center justify-center space-x-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
                 <span>
                   <strong>Instant LMS Portal Activation</strong><br />
@@ -598,7 +598,7 @@ export const LandingPage: React.FC = () => {
 
             {/* Center: Copyright Notice */}
             <div className="text-center font-medium">
-              <span>© 2025 Virtual Autopsy Global Solutions Academy. All rights reserved.</span>
+              <span>© 2026 Virtual Autopsy Global Solutions Academy. All rights reserved.</span>
             </div>
 
             {/* Right: Diagnostics Portal Text */}

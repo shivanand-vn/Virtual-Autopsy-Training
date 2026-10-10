@@ -60,7 +60,7 @@ export const TermsConditionsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-slate-800 font-sans selection:bg-amber-400 selection:text-slate-950 overflow-x-hidden flex flex-col justify-between">
-      
+
       <div>
         {/* Navigation Header */}
         <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -78,7 +78,7 @@ export const TermsConditionsPage: React.FC = () => {
                 to="/register"
                 className="px-4 sm:px-5 py-2.5 text-xs font-extrabold text-slate-950 bg-[#F5A623] hover:bg-[#E0951C] rounded-lg shadow-xs transition-all cursor-pointer"
               >
-                Register / Enroll Now
+                Enroll Now
               </Link>
             </div>
           </div>
@@ -97,7 +97,7 @@ export const TermsConditionsPage: React.FC = () => {
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-4 text-left">
-            
+
             <Link
               to="/"
               className="inline-flex items-center space-x-2 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors mb-2"
@@ -139,12 +139,12 @@ export const TermsConditionsPage: React.FC = () => {
 
         {/* MAIN CONTENT AREA: CONTENT DIRECTLY ON WEB PAGE (LEFT: 9 SPANS), CARD INDEX (RIGHT: 3 SPANS) */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* LEFT COLUMN: MAIN TERMS CONTENT DIRECTLY ON PAGE (LG: 9 SPANS) */}
             <div className="lg:col-span-9 space-y-8 text-left">
-              
+
               {/* Preamble Callout directly on page */}
               <div className="space-y-4">
                 <div className="p-4 sm:p-5 bg-amber-100/80 border border-amber-300/80 rounded-xl">
@@ -609,17 +609,16 @@ export const TermsConditionsPage: React.FC = () => {
                   <FileText className="w-4 h-4 text-amber-600" />
                   <span>Document Index</span>
                 </h4>
-                
+
                 <div className="max-h-[calc(100vh-220px)] overflow-y-auto space-y-1 text-xs pr-1 font-medium">
                   {sectionsList.map((sec) => (
                     <button
                       key={sec.id}
                       onClick={() => scrollToSection(sec.id)}
-                      className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
-                        activeSection === sec.id
-                          ? 'bg-amber-100/90 text-amber-950 font-bold border border-amber-300/80'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      }`}
+                      className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${activeSection === sec.id
+                        ? 'bg-amber-100/90 text-amber-950 font-bold border border-amber-300/80'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
                     >
                       <span className="truncate">{sec.title}</span>
                       <ChevronRight className="w-3 h-3 shrink-0 opacity-60" />

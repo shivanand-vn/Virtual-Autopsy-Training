@@ -310,7 +310,7 @@ export const AdminCourseDetail: React.FC = () => {
                             </p>
 
                             <div className="text-[11px] text-emerald-800 font-medium">
-                              ✓ Passing Score: {mod.test?.passingScorePercent || 70}% • Students can retake freely for mastery.
+                              ✓ Completion Requirement • Students can retake freely for mastery.
                             </div>
                           </div>
                         </div>

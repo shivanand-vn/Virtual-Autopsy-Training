@@ -7,10 +7,28 @@ import { Role, SubmissionStatus } from '@prisma/client';
 export async function getAssignments(req: Request, res: Response): Promise<void> {
   try {
     const moduleId = req.query.moduleId as string | undefined;
+    const courseId = req.query.courseId as string | undefined;
+
+    let whereClause: any = {};
+    if (moduleId) {
+      whereClause.moduleId = moduleId;
+    }
+    if (courseId) {
+      whereClause.module = { courseId };
+    }
+
     const assignments = await prisma.assignment.findMany({
-      where: moduleId ? { moduleId } : {},
+      where: whereClause,
       include: {
-        module: { select: { id: true, title: true, order: true } },
+        module: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            courseId: true,
+            course: { select: { id: true, title: true } },
+          },
+        },
         submissions: {
           select: { id: true, userId: true, status: true, score: true, submittedAt: true },
         },
@@ -21,6 +39,35 @@ export async function getAssignments(req: Request, res: Response): Promise<void>
     sendSuccess(res, assignments, 'Assignments retrieved successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to fetch assignments', 500);
+  }
+}
+
+export async function getAssignmentById(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    const assignment = await prisma.assignment.findUnique({
+      where: { id },
+      include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            courseId: true,
+            course: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      sendError(res, 'Assignment not found', 404);
+      return;
+    }
+
+    sendSuccess(res, assignment, 'Assignment retrieved successfully');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to fetch assignment', 500);
   }
 }
 
@@ -102,7 +149,7 @@ export async function upsertModuleAssignment(req: Request, res: Response): Promi
 
 export async function createAssignment(req: Request, res: Response): Promise<void> {
   try {
-    const { moduleId, title, instructions, maxScore, dueDate } = req.body;
+    const { moduleId, title, instructions, submissionGuidelines, attachmentUrl, status, maxScore, dueDate } = req.body;
 
     if (!moduleId || !title || !instructions) {
       sendError(res, 'Module ID, title, and instructions are required', 400);
@@ -114,14 +161,110 @@ export async function createAssignment(req: Request, res: Response): Promise<voi
         moduleId,
         title,
         instructions,
+        submissionGuidelines: submissionGuidelines || null,
+        attachmentUrl: attachmentUrl || null,
+        status: status === 'DRAFT' ? 'DRAFT' : 'PUBLISHED',
         maxScore: maxScore ? Number(maxScore) : 100,
         dueDate: dueDate ? new Date(dueDate) : null,
+      } as any,
+      include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            courseId: true,
+            course: { select: { id: true, title: true } },
+          },
+        },
       },
     });
 
     sendSuccess(res, assignment, 'Assignment created successfully', 201);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to create assignment', 500);
+  }
+}
+
+export async function updateAssignment(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    const { moduleId, title, instructions, submissionGuidelines, attachmentUrl, status, maxScore, dueDate } = req.body;
+
+    const existing = await prisma.assignment.findUnique({ where: { id } });
+    if (!existing) {
+      sendError(res, 'Assignment not found', 404);
+      return;
+    }
+
+    const updated = await prisma.assignment.update({
+      where: { id },
+      data: {
+        ...(moduleId && { moduleId }),
+        ...(title && { title }),
+        ...(instructions && { instructions }),
+        submissionGuidelines: submissionGuidelines !== undefined ? submissionGuidelines : (existing as any).submissionGuidelines,
+        attachmentUrl: attachmentUrl !== undefined ? attachmentUrl : (existing as any).attachmentUrl,
+        ...(status && { status: status === 'DRAFT' ? 'DRAFT' : 'PUBLISHED' }),
+        ...(maxScore !== undefined && { maxScore: Number(maxScore) }),
+        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+      } as any,
+      include: {
+        module: {
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            courseId: true,
+            course: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+
+    sendSuccess(res, updated, 'Assignment updated successfully');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to update assignment', 500);
+  }
+}
+
+export async function deleteAssignment(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    const existing = await prisma.assignment.findUnique({ where: { id } });
+    if (!existing) {
+      sendError(res, 'Assignment not found', 404);
+      return;
+    }
+
+    await prisma.assignment.delete({ where: { id } });
+    sendSuccess(res, null, 'Assignment deleted successfully');
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to delete assignment', 500);
+  }
+}
+
+export async function updateAssignmentStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const id = req.params.id as string;
+    const { status } = req.body;
+
+    const existing = await prisma.assignment.findUnique({ where: { id } });
+    if (!existing) {
+      sendError(res, 'Assignment not found', 404);
+      return;
+    }
+
+    const updated = await prisma.assignment.update({
+      where: { id },
+      data: {
+        status: status === 'DRAFT' ? 'DRAFT' : 'PUBLISHED',
+      } as any,
+    });
+
+    sendSuccess(res, updated, `Assignment status updated to ${status}`);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to update assignment status', 500);
   }
 }
 

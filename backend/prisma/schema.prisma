@@ -357,20 +357,23 @@ model ModuleTestAttempt {
 // ------------------------------------------
 
 model Assignment {
-  id               String       @id @default(uuid())
-  moduleId         String
-  module           Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  title            String
-  description      String?
-  instructions     String
-  templateFileName String?
-  templateFileUrl  String?
-  maxScore         Int          @default(100)
-  dueDate          DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  id                   String       @id @default(uuid())
+  moduleId             String
+  module               Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  instructions         String
+  submissionGuidelines String?
+  attachmentUrl        String?
+  templateFileName     String?
+  templateFileUrl      String?
+  status               CourseStatus @default(PUBLISHED)
+  maxScore             Int          @default(100)
+  dueDate              DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  submissions  Submission[]
+  submissions          Submission[]
 
   @@map("assignments")
 }

@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { uploadDocument } from '../services/storage.service.js';
 import { Role, SubmissionStatus } from '@prisma/client';
+import { sendAssignmentEvaluationEmail } from '../services/email.service.js';
 
 export async function getAssignments(req: Request, res: Response): Promise<void> {
   try {
@@ -432,7 +433,22 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
 
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
-      include: { assignment: true },
+      include: {
+        user: {
+          select: { id: true, fullName: true, email: true },
+        },
+        assignment: {
+          include: {
+            module: {
+              include: {
+                course: {
+                  select: { id: true, title: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     if (!submission) {
       sendError(res, 'Submission not found', 404);
@@ -472,6 +488,23 @@ export async function gradeSubmission(req: Request, res: Response): Promise<void
         gradedAt: new Date(),
       },
     });
+
+    // Notify student via email about the evaluation result
+    if (submission.user?.email && (finalStatus === SubmissionStatus.GRADED || finalStatus === SubmissionStatus.RESUBMISSION_REQUESTED)) {
+      sendAssignmentEvaluationEmail({
+        studentEmail: submission.user.email,
+        studentName: submission.user.fullName || 'Student',
+        assignmentTitle: submission.assignment?.title || 'Case Evaluation Report',
+        moduleTitle: submission.assignment?.module?.title || 'Module Assignment',
+        courseTitle: submission.assignment?.module?.course?.title || 'Virtual Autopsy (PMCT) Online Fellowship',
+        status: finalStatus === SubmissionStatus.GRADED ? 'APPROVED' : 'REJECTED',
+        score: calculatedScore,
+        maxScore,
+        feedback: feedback !== undefined ? feedback : (submission.feedback || undefined),
+      }).catch((emailErr) => {
+        console.warn('⚠️ Non-fatal: failed to dispatch assignment evaluation email:', emailErr?.message || emailErr);
+      });
+    }
 
     sendSuccess(res, updated, 'Submission evaluated successfully');
   } catch (error: any) {

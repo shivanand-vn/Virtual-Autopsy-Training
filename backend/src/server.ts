@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './config/prisma.js';
+import { verifyEmailService } from './services/email.service.js';
 
 const app = createApp();
 
@@ -8,6 +9,17 @@ const app = createApp();
 prisma.$connect()
   .then(() => console.log('  Database    : Connected to Supabase PostgreSQL (Ready)'))
   .catch((err) => console.warn('  Database    : Supabase warmup warning (will retry on query):', err.message));
+
+// Verify Email Service connectivity (Brevo) on server boot
+verifyEmailService()
+  .then((mailStatus) => {
+    if (mailStatus.connected) {
+      console.log(`  Mail Service: Connected to ${mailStatus.provider} (${mailStatus.accountEmail || mailStatus.sender}) (Ready)`);
+    } else {
+      console.warn(`  Mail Service: Offline (${mailStatus.error})`);
+    }
+  })
+  .catch((err) => console.warn('  Mail Service: Connectivity check failed:', err?.message || err));
 
 const server = app.listen(env.PORT, () => {
   console.log(`

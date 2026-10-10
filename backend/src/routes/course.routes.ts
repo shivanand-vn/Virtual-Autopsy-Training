@@ -18,7 +18,8 @@ import {
   uploadCourseMediaHandler,
   deleteCourseMediaHandler,
 } from '../controllers/course.controller.js';
-import { uploadCourseMedia } from '../middlewares/upload.middleware.js';
+import { getModuleAssignment, upsertModuleAssignment, submitAssignment } from '../controllers/assignment.controller.js';
+import { uploadCourseMedia, uploadFileOrImage } from '../middlewares/upload.middleware.js';
 
 const router = Router();
 
@@ -36,6 +37,10 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), deleteCourse);
 router.post('/:courseId/modules', requireAuth, requireRole('ADMIN'), createModule);
 router.put('/modules/:moduleId', requireAuth, requireRole('ADMIN'), updateModule);
 router.delete('/modules/:moduleId', requireAuth, requireRole('ADMIN'), deleteModule);
+router.get('/modules/:moduleId/assignment', optionalAuth, getModuleAssignment);
+router.put('/modules/:moduleId/assignment', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
+router.post('/modules/:moduleId/assignment', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
+router.post('/modules/:moduleId/assignment/submit', requireAuth, uploadFileOrImage.single('file'), submitAssignment);
 
 // Admin Topic / Resource CRUD
 router.post('/upload-media', requireAuth, requireRole('ADMIN'), uploadCourseMedia.single('file'), uploadCourseMediaHandler);

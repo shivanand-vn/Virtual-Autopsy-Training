@@ -23,7 +23,9 @@ import {
   Award,
   Calendar,
   AlertCircle,
-  Paperclip
+  Paperclip,
+  Loader2,
+  Eye
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
@@ -39,9 +41,12 @@ export const MyCoursePage: React.FC = () => {
     markTopicCompleted,
     isModuleCompletedByStudent,
     isModuleUnlocked,
+    isModuleAssessmentUnlocked,
+    isModuleTopicsCompleted,
     getModuleStatus,
     isTopicUnlocked,
-    updateModuleAssignment
+    updateModuleAssignment,
+    refreshCourses
   } = useCourse();
 
   const { getAssessmentResult } = useCourseProgress();
@@ -65,9 +70,15 @@ export const MyCoursePage: React.FC = () => {
 
   // File Upload State for Assignment
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [studentResponseText, setStudentResponseText] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [hasDownloadedTemplate, setHasDownloadedTemplate] = useState<boolean>(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState<boolean>(false);
+  const [isDownloadingSubmission, setIsDownloadingSubmission] = useState<boolean>(false);
+  const [hasDownloadedSubmission, setHasDownloadedSubmission] = useState<boolean>(false);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
 
   // Synchronize active section with URL param
   useEffect(() => {
@@ -494,17 +505,21 @@ export const MyCoursePage: React.FC = () => {
         goToAssignment(currentModule.id);
       }
     } else if (activeSection === 'assignment') {
+      if (!isCurrentModuleTestUnlocked) {
+        showGatingMessage('Please wait for faculty evaluation and grading of your assignment before proceeding to the quiz.');
+        return;
+      }
       goToTest(currentModule.id);
     } else if (activeSection === 'test') {
-      if (!isCurrentModuleUnlocked) {
-        showGatingMessage('Please complete all module topics before starting the test.');
+      if (!isCurrentModuleTestUnlocked) {
+        showGatingMessage('Please complete all module topics and have your assignment evaluated before starting the test.');
         return;
       }
       navigate(`/assessment/${currentModule.id}`);
     }
   };
 
-  const isCurrentModuleUnlocked = isModuleCompletedByStudent(currentModule.id);
+  const isCurrentModuleTestUnlocked = isModuleAssessmentUnlocked(currentModule.id);
 
   const toggleModuleAccordion = (id: string) => {
     setExpandedModuleId(expandedModuleId === id ? null : id);
@@ -512,33 +527,212 @@ export const MyCoursePage: React.FC = () => {
 
   const handleAssignmentFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+        setUploadError('Only PDF documents are allowed for assignment submission.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setUploadError('File exceeds the 10MB limit. Please upload a smaller PDF.');
+        return;
+      }
+      setSelectedFile(file);
+      setUploadError(null);
     }
   };
 
-  const handleDownloadTemplate = () => {
-    setHasDownloadedTemplate(true);
-    alert(`Downloading template dossier: ${currentModule.assignment?.templateFileName || 'Module_Assignment_Case_Template.pdf'}`);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(true);
   };
 
-  const handleSubmitAssignment = (e: React.FormEvent) => {
+  const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!selectedFile) return;
+    e.stopPropagation();
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+        setUploadError('Only PDF documents are allowed for assignment submission.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setUploadError('File exceeds the 10MB limit. Please upload a smaller PDF.');
+        return;
+      }
+      setSelectedFile(file);
+      setUploadError(null);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    const fileUrl = currentModule.assignment?.templateFileUrl;
+    const rawFileName =
+      currentModule.assignment?.templateFileName ||
+      (currentModule.assignment?.templateFileUrl ? currentModule.assignment.templateFileUrl.split('/').pop()?.split('?')[0] : '') ||
+      'Assignment_Document.pdf';
+    const fileName = rawFileName.replace(/^[a-f0-9-]+_\d+_/, '');
+
+    if (!fileUrl) return;
+
+    setIsDownloadingTemplate(true);
+
+    try {
+      if (fileUrl.startsWith('data:') || fileUrl.startsWith('blob:')) {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setHasDownloadedTemplate(true);
+        setTimeout(() => setHasDownloadedTemplate(false), 2500);
+        return;
+      }
+
+      const response = await fetch(fileUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error('Download request failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      setHasDownloadedTemplate(true);
+      setTimeout(() => setHasDownloadedTemplate(false), 2500);
+    } catch (err) {
+      console.warn('Direct blob download failed, falling back to window.open / anchor:', err);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setHasDownloadedTemplate(true);
+      setTimeout(() => setHasDownloadedTemplate(false), 2500);
+    } finally {
+      setTimeout(() => {
+        setIsDownloadingTemplate(false);
+      }, 600);
+    }
+  };
+
+  const handleDownloadSubmission = async () => {
+    const fileUrl = currentModule.assignment?.submittedFileUrl;
+    if (!fileUrl) return;
+
+    const rawFileName =
+      currentModule.assignment?.submittedFileName ||
+      fileUrl.split('/').pop()?.split('?')[0] ||
+      'Submitted_Case_Report.pdf';
+    let fileName = rawFileName.replace(/^[a-f0-9-]+_\d+_/, '');
+    if (!fileName.toLowerCase().endsWith('.pdf')) {
+      fileName = `${fileName}.pdf`;
+    }
+
+    setIsDownloadingSubmission(true);
+
+    try {
+      const response = await fetch(fileUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error('Download request failed');
+      const blob = await response.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
+
+      setHasDownloadedSubmission(true);
+      setTimeout(() => setHasDownloadedSubmission(false), 2500);
+    } catch (err) {
+      console.warn('Direct blob fetch download failed, fallback to anchor download:', err);
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setHasDownloadedSubmission(true);
+      setTimeout(() => setHasDownloadedSubmission(false), 2500);
+    } finally {
+      setTimeout(() => {
+        setIsDownloadingSubmission(false);
+      }, 500);
+    }
+  };
+
+  const handleSubmitAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile || !currentModule) return;
+
+    if (
+      currentModule.assignment?.submissionStatus === 'submitted' ||
+      currentModule.assignment?.submissionStatus === 'graded'
+    ) {
+      setUploadError('This assignment has already been submitted and cannot be resubmitted.');
+      return;
+    }
 
     setIsUploading(true);
-    setTimeout(() => {
+    setUploadError(null);
+    setUploadSuccessMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      if (studentResponseText.trim()) {
+        formData.append('studentResponseText', studentResponseText.trim());
+        formData.append('responseText', studentResponseText.trim());
+      }
+
+      const targetId = currentModule.assignment?.id || currentModule.id;
+      const res = await api.upload<{ fileUrl: string; status: string; id: string }>(
+        `/assignments/${targetId}/submit`,
+        formData
+      );
+
+      const nowFormatted = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
       updateModuleAssignment(activeCourse.id, currentModule.id, {
         submissionStatus: 'submitted',
         submittedFileName: selectedFile.name,
-        submittedAt: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        })
+        submittedFileUrl: res?.data?.fileUrl,
+        submittedAt: nowFormatted,
+        studentResponseText: studentResponseText.trim() || undefined,
       });
+
+      setSelectedFile(null);
+      setStudentResponseText('');
+      setUploadSuccessMessage(`Successfully submitted "${selectedFile.name}" for evaluation.`);
+      await refreshCourses();
+    } catch (err: any) {
+      console.error('Assignment submission failed:', err);
+      setUploadError(err.message || 'Failed to submit assignment. Please try again.');
+    } finally {
       setIsUploading(false);
-      setUploadSuccessMessage(`Successfully submitted "${selectedFile.name}" for forensic evaluation.`);
-    }, 700);
+    }
   };
 
   if (!hasCourseData) {
@@ -667,14 +861,25 @@ export const MyCoursePage: React.FC = () => {
                 );
               })()
             ) : activeSection === 'assignment' ? (
-              <button
-                onClick={handleNext}
-                className="inline-flex items-center space-x-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
-              >
-                <span>Next: Module Test</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : isCurrentModuleUnlocked ? (
+              isCurrentModuleTestUnlocked ? (
+                <button
+                  onClick={handleNext}
+                  className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  <span>Next: Module Quiz</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => showGatingMessage('Please wait for faculty evaluation and grading before proceeding to the quiz.')}
+                  className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl cursor-pointer border border-amber-300 shadow-2xs transition-colors"
+                  title="Click to view unlock requirements"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Next: Module Quiz</span>
+                </button>
+              )
+            ) : isCurrentModuleTestUnlocked ? (
               <button
                 onClick={() => navigate(`/assessment/${currentModule.id}`)}
                 className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-md transition-all cursor-pointer"
@@ -684,7 +889,9 @@ export const MyCoursePage: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={() => showGatingMessage('Please complete all module topics before starting the test.')}
+                onClick={() =>
+                  showGatingMessage('Please complete all module topics and have your assignment evaluated before starting the test.')
+                }
                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl cursor-pointer border border-amber-300 shadow-2xs transition-colors"
                 title="Click to view unlock requirements"
               >
@@ -947,17 +1154,25 @@ export const MyCoursePage: React.FC = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-slate-800 truncate">
-                          {currentModule.assignment?.title || 'Case Report Assignment'}
+                          {currentModule.assignment?.title || `Module ${currentModule.moduleNumber || 1} Assignment`}
                         </p>
-                        <p className="text-[11px] text-slate-500">100 Marks • Required submission</p>
+                        <p className="text-[11px] text-slate-500">
+                          {currentModule.assignment?.totalMarks || 100} Marks • Required submission
+                        </p>
                       </div>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      currentModule.assignment?.submissionStatus === 'submitted'
+                      currentModule.assignment?.submissionStatus === 'graded'
+                        ? 'bg-purple-100 text-purple-800'
+                        : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {currentModule.assignment?.submissionStatus === 'submitted' ? 'Submitted' : 'Pending'}
+                      {currentModule.assignment?.submissionStatus === 'graded'
+                        ? 'Graded'
+                        : currentModule.assignment?.submissionStatus === 'submitted'
+                        ? 'Submitted'
+                        : 'Pending'}
                     </span>
                   </div>
                 </div>
@@ -1335,143 +1550,394 @@ export const MyCoursePage: React.FC = () => {
                       Level 2: Module Assignment
                     </span>
                     <h2 className="text-xl font-extrabold text-[#0A192F] mt-1.5">
-                      {currentModule.assignment?.title || 'Module Case Study & Evidentiary Report'}
+                      {currentModule.assignment?.title || `Module ${currentModule.moduleNumber || 1} Assignment`}
                     </h2>
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700">
-                      100 Marks
-                    </span>
+                    {currentModule.assignment?.submissionStatus === 'graded' && currentModule.assignment?.score !== undefined ? (
+                      <span className="text-xs font-black px-3.5 py-1.5 rounded-xl bg-purple-700 text-white shadow-xs">
+                        Score: {currentModule.assignment.score} / {currentModule.assignment.totalMarks || 100} Marks
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700">
+                        {currentModule.assignment?.totalMarks || 100} Marks
+                      </span>
+                    )}
                     <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${
-                      currentModule.assignment?.submissionStatus === 'submitted'
+                      currentModule.assignment?.submissionStatus === 'graded'
+                        ? 'bg-purple-50 text-purple-800 border-purple-200'
+                        : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : currentModule.assignment?.submissionStatus === 'rejected'
+                        ? 'bg-rose-50 text-rose-800 border-rose-200'
                         : 'bg-amber-50 text-amber-800 border-amber-200'
                     }`}>
-                      {currentModule.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending Submission'}
+                      {currentModule.assignment?.submissionStatus === 'graded'
+                        ? '✓ Evaluated & Graded'
+                        : currentModule.assignment?.submissionStatus === 'submitted'
+                        ? '✓ Submitted'
+                        : currentModule.assignment?.submissionStatus === 'rejected'
+                        ? '⚠️ Resubmission Requested'
+                        : 'Pending Submission'}
                     </span>
+
+                    {currentModule.assignment?.submissionStatus === 'graded' && (
+                      <button
+                        type="button"
+                        onClick={() => goToTest(currentModule.id)}
+                        className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-sm transition-all cursor-pointer shrink-0"
+                      >
+                        <span>Next: Module Quiz</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Faculty Evaluation Result (Prominently displayed at the top if graded) */}
+                {currentModule.assignment?.submissionStatus === 'graded' && currentModule.assignment?.score !== undefined && (
+                  <div className="p-5 bg-gradient-to-r from-purple-50 via-indigo-50/50 to-purple-50/30 border border-purple-200 rounded-2xl space-y-2.5 shadow-xs animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Award className="w-4 h-4 text-purple-700 shrink-0" />
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-purple-900">Faculty Evaluation</span>
+                      </div>
+                      <span className="text-xs font-black text-white bg-purple-700 px-3 py-1 rounded-xl shadow-xs">
+                        Score: {currentModule.assignment.score} / {currentModule.assignment.totalMarks || 100} Marks
+                      </span>
+                    </div>
+                    {currentModule.assignment?.feedback && (
+                      <p className="text-xs text-purple-950 leading-relaxed font-medium">
+                        <b className="text-purple-900">Instructor Feedback:</b> {currentModule.assignment.feedback}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Case Scenario & Instructions */}
                 <div className="space-y-4">
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Case Briefing & Scenario</h4>
-                    <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                      {currentModule.assignment?.description ||
-                        'Review the provided post-mortem volumetric acquisition. Formulate a structured diagnostic report adhering to medicolegal standards.'}
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Submission Guidelines</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {currentModule.assignment?.instructions ||
-                        'Download the case dossier worksheet. Complete all theoretical interpretations and upload your completed report in PDF format.'}
-                    </p>
-                    <div className="pt-2 flex items-center space-x-3 text-xs text-slate-500 font-medium">
-                      <span>• Format: PDF Document (Max 10MB)</span>
-                      <span>• Due Date: {currentModule.assignment?.dueDate || '14 Days from Enrollment'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Template Download Button (Fulfills assignment download requirement) */}
-                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <FileText className="w-5 h-5 text-amber-600" />
-                    <div>
-                      <p className="text-xs font-bold text-amber-950">
-                        {currentModule.assignment?.templateFileName || 'Module_Assignment_Case_Template.pdf'}
+                  {currentModule.assignment?.description && (
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Case Briefing & Scenario</h4>
+                      <p className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-line">
+                        {currentModule.assignment.description}
                       </p>
-                      <p className="text-[11px] text-amber-800/80">Forensic reporting worksheet and rubric guide</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleDownloadTemplate}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{hasDownloadedTemplate ? 'Downloaded ✓' : 'Download'}</span>
-                  </button>
-                </div>
-
-                {/* Upload & Submission Form */}
-                <form onSubmit={handleSubmitAssignment} className="space-y-4 pt-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Upload Completed Case Report</h4>
-
-                  {uploadSuccessMessage && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-2 text-xs text-emerald-800 font-bold">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>{uploadSuccessMessage}</span>
                     </div>
                   )}
 
-                  {currentModule.assignment?.submissionStatus === 'submitted' && !selectedFile && (
-                    <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <FileCheck className="w-6 h-6 text-emerald-600" />
-                        <div>
-                          <p className="text-xs font-extrabold text-emerald-950">
-                            {currentModule.assignment?.submittedFileName || 'PMCT_Forensic_Case_Report.pdf'}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Guidelines & Instructions</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed font-medium whitespace-pre-line">
+                      {currentModule.assignment?.instructions ||
+                        'Please review the case assignment requirements and upload your completed report in PDF format.'}
+                    </p>
+                    <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                      <span>• Format: PDF Document (Max 10MB)</span>
+                      {currentModule.assignment?.dueDate && (
+                        <span>• Due Date: {currentModule.assignment.dueDate}</span>
+                      )}
+                      <span>• Total Marks: {currentModule.assignment?.totalMarks || 100}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Template Download Button (ONLY RENDER IF ADMIN ATTACHED A PDF DOCUMENT) */}
+                {Boolean(currentModule.assignment?.templateFileUrl) && (
+                  <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-amber-100/90 border border-amber-200/80 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5 text-amber-700 shrink-0" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-amber-950 truncate">
+                          {(currentModule.assignment?.templateFileName ||
+                            currentModule.assignment?.templateFileUrl?.split('/').pop()?.split('?')[0] ||
+                            'Assignment_Document.pdf').replace(/^[a-f0-9-]+_\d+_/, '')}
+                        </p>
+                        <p className="text-[11px] text-amber-800/80">
+                          Official briefing dossier & evidentiary worksheet attached by instructor
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      disabled={isDownloadingTemplate}
+                      className={`inline-flex items-center space-x-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all duration-300 cursor-pointer shrink-0 ml-3 ${
+                        isDownloadingTemplate
+                          ? 'bg-amber-400 text-slate-950 cursor-wait shadow-inner'
+                          : hasDownloadedTemplate
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 active:scale-95'
+                      }`}
+                    >
+                      {isDownloadingTemplate ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : hasDownloadedTemplate ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white animate-in zoom-in-75 duration-200" />
+                          <span>Downloaded ✓</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* SUBMISSION STATE HANDLING: LOCKED IF ALREADY SUBMITTED, FORM IF NOT */}
+                {currentModule.assignment?.submissionStatus === 'submitted' || currentModule.assignment?.submissionStatus === 'graded' ? (
+                  <div className="space-y-4 pt-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">Submitted Case Report</h4>
+
+                    {uploadSuccessMessage && (
+                      <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center space-x-2 text-xs text-emerald-800 font-bold animate-in fade-in duration-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{uploadSuccessMessage}</span>
+                      </div>
+                    )}
+
+                    <div className="p-5 bg-gradient-to-r from-emerald-50/80 to-teal-50/40 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                      <div className="flex items-center space-x-3.5 min-w-0">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0">
+                          <FileCheck className="w-6 h-6 text-emerald-600 shrink-0" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-emerald-950 truncate">
+                            {(() => {
+                              const raw = (currentModule.assignment?.submittedFileName || 'Submitted_Case_Report.pdf').replace(/^[a-f0-9-]+_\d+_/, '');
+                              return raw.toLowerCase().endsWith('.pdf') ? raw : `${raw}.pdf`;
+                            })()}
                           </p>
-                          <p className="text-[11px] text-emerald-700">
-                            Submitted on {currentModule.assignment?.submittedAt || 'Recent'} • Under Faculty Review
+                          <p className="text-xs text-emerald-700/90 font-medium mt-0.5">
+                            Submitted on {currentModule.assignment?.submittedAt || 'Recently'} • Formal Academic Dossier
                           </p>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-300 px-3 py-1 rounded-xl">
-                        Awaiting Marks
-                      </span>
+
+                      <div className="flex items-center space-x-2.5 shrink-0 self-end sm:self-center">
+                        <span className="text-xs font-bold text-emerald-800 bg-white border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs flex items-center space-x-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>{currentModule.assignment?.submissionStatus === 'graded' ? 'Evaluated' : 'Awaiting Marks'}</span>
+                        </span>
+
+                        {currentModule.assignment?.submittedFileUrl && (
+                          <button
+                            type="button"
+                            onClick={handleDownloadSubmission}
+                            disabled={isDownloadingSubmission}
+                            className={`inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl shadow-xs transition-all duration-300 cursor-pointer disabled:opacity-75 ${
+                              hasDownloadedSubmission
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200'
+                                : isDownloadingSubmission
+                                ? 'bg-emerald-800 text-white cursor-wait'
+                                : 'bg-emerald-700 hover:bg-emerald-800 text-white active:scale-95'
+                            }`}
+                          >
+                            {isDownloadingSubmission ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Downloading...</span>
+                              </>
+                            ) : hasDownloadedSubmission ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-white animate-in zoom-in-75 duration-200" />
+                                <span>Downloaded ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Download</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  <div className="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center hover:border-amber-400 transition-colors bg-slate-50/60">
-                    <UploadCloud className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                    <label className="cursor-pointer block">
-                      <span className="text-xs font-bold text-amber-700 hover:underline">
-                        Choose a PDF case report
-                      </span>
-                      <span className="text-xs text-slate-500"> or drag and drop</span>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleAssignmentFileSelect}
-                        className="hidden"
-                      />
-                    </label>
-                    <p className="text-[11px] text-slate-400 mt-1">PDF up to 10MB</p>
+                    {currentModule.assignment?.studentResponseText && (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                          Submitted Case Response / Executive Summary:
+                        </label>
+                        <p className="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+                          {currentModule.assignment.studentResponseText}
+                        </p>
+                      </div>
+                    )}
 
-                    {selectedFile && (
-                      <div className="mt-3 inline-flex items-center space-x-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-[#0A192F]">
-                        <FileText className="w-4 h-4 text-amber-600" />
-                        <span>{selectedFile.name}</span>
-                        <span className="text-slate-400 text-[10px]">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                    {currentModule.assignment?.submissionStatus === 'graded' && (
+                      <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs mt-3">
+                        <div className="flex items-center space-x-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-extrabold text-emerald-950">Assignment Evaluated & Passed</p>
+                            <p className="text-[11px] text-emerald-800 font-medium">Your submission has been approved. You are ready to launch the Level 3 Module Quiz.</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => goToTest(currentModule.id)}
+                          className="inline-flex items-center justify-center space-x-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer shrink-0 active:scale-95"
+                        >
+                          <span>Next: Module Quiz</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
                   </div>
+                ) : (
+                  /* Upload & Submission Form (ONLY RENDER IF NOT YET SUBMITTED) */
+                  <form onSubmit={handleSubmitAssignment} className="space-y-4 pt-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">
+                      {currentModule.assignment?.submissionStatus === 'rejected'
+                        ? 'Upload Revised Case Report'
+                        : 'Upload Completed Case Report'}
+                    </h4>
 
-                  <div className="flex items-center justify-between pt-2">
-                    <span className="text-[11px] text-slate-400">
-                      Assignments are reviewed by the accredited forensic pathology faculty.
-                    </span>
+                    {currentModule.assignment?.submissionStatus === 'rejected' && (
+                      <div className="p-4 bg-rose-50/80 border border-rose-300 rounded-2xl space-y-2 animate-in fade-in duration-300">
+                        <div className="flex items-center space-x-2 text-rose-900 font-extrabold text-xs">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Faculty Review Notice: Resubmission Requested</span>
+                        </div>
+                        {currentModule.assignment?.feedback && (
+                          <div className="pl-6 text-xs text-rose-950 font-medium">
+                            <span className="font-bold">Faculty Feedback: </span>
+                            <span>{currentModule.assignment.feedback}</span>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-rose-800/90 font-medium pl-6">
+                          Please review the feedback above and submit your revised PDF report below for re-evaluation.
+                        </p>
+                      </div>
+                    )}
 
-                    <button
-                      type="submit"
-                      disabled={!selectedFile || isUploading}
-                      className={`inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                        !selectedFile || isUploading
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                          : 'bg-[#0A192F] hover:bg-slate-800 text-white font-extrabold shadow-md cursor-pointer'
-                      }`}
-                    >
-                      <FileCheck className="w-4 h-4 text-amber-400" />
-                      <span>{isUploading ? 'Uploading...' : 'Submit Report'}</span>
-                    </button>
-                  </div>
-                </form>
+                    {uploadError && (
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center space-x-2 text-xs text-rose-800 font-bold">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{uploadError}</span>
+                      </div>
+                    )}
+
+                    {isUploading ? (
+                      /* ACTIVE UPLOADING ANIMATION CARD */
+                      <div className="border-2 border-amber-400 bg-amber-50/50 rounded-2xl p-8 text-center transition-all animate-in fade-in duration-300">
+                        <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 flex items-center justify-center mb-3 animate-upload-pulse">
+                          <UploadCloud className="w-7 h-7 text-amber-600 animate-bounce" />
+                        </div>
+                        <h5 className="text-sm font-extrabold text-[#0A192F]">
+                          Uploading & Encrypting Case Report...
+                        </h5>
+                        <p className="text-xs text-slate-500 mt-1 font-medium">
+                          Transmitting document to the forensic review registry. Please do not close this window.
+                        </p>
+
+                        <div className="max-w-xs mx-auto mt-4 h-2 bg-slate-200 rounded-full overflow-hidden relative">
+                          <div className="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-full w-full animate-shimmer-wave" />
+                        </div>
+                      </div>
+                    ) : (
+                      /* DROPZONE */
+                      <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200 ${
+                          isDraggingFile
+                            ? 'border-amber-500 bg-amber-100/50 scale-[1.01]'
+                            : 'border-slate-300 bg-slate-50/60 hover:border-amber-400 hover:bg-amber-50/20'
+                        }`}
+                      >
+                        <UploadCloud className={`w-8 h-8 mx-auto mb-2 transition-transform duration-200 ${
+                          isDraggingFile ? 'text-amber-600 scale-110' : 'text-slate-400'
+                        }`} />
+                        <label className="cursor-pointer block">
+                          <span className="text-xs font-bold text-amber-700 hover:underline">
+                            Choose a PDF case report
+                          </span>
+                          <span className="text-xs text-slate-500"> or drag and drop</span>
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            onChange={handleAssignmentFileSelect}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[11px] text-slate-400 mt-1">PDF up to 10MB</p>
+
+                        {selectedFile && (
+                          <div className="mt-3.5 inline-flex items-center space-x-2.5 bg-white px-3.5 py-2 rounded-xl border border-amber-200 text-xs font-bold text-[#0A192F] shadow-xs animate-in zoom-in-95 duration-200">
+                            <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span className="truncate max-w-xs">{selectedFile.name}</span>
+                            <span className="text-slate-400 text-[10px]">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFile(null)}
+                              className="text-slate-400 hover:text-rose-600 transition-colors p-0.5 rounded cursor-pointer ml-1"
+                              title="Remove selected file"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Student Response Text / Executive Summary Field */}
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-xs font-bold text-[#0A192F] flex items-center justify-between">
+                        <span>Student Response Text / Case Summary & Findings</span>
+                        <span className="text-[11px] font-normal text-slate-400">Optional executive notes</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={studentResponseText}
+                        onChange={(e) => setStudentResponseText(e.target.value)}
+                        placeholder="Provide executive case findings, summary notes, or methodology highlights for the faculty evaluation..."
+                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-y custom-scrollbar transition-all font-medium"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        Assignments are reviewed by the accredited forensic pathology faculty.
+                      </span>
+
+                      <button
+                        type="submit"
+                        disabled={!selectedFile || isUploading}
+                        className={`inline-flex items-center justify-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                          !selectedFile || isUploading
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                            : 'bg-[#0A192F] hover:bg-slate-800 text-white font-extrabold shadow-md cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                            <span>Uploading Report...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileCheck className="w-4 h-4 text-amber-400" />
+                            <span>Submit Report</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
 
@@ -1557,12 +2023,14 @@ export const MyCoursePage: React.FC = () => {
                 {/* Launch Button */}
                 <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <span className="text-xs text-slate-500">
-                    {isCurrentModuleUnlocked
-                      ? 'All educational topics are completed. You can launch your quiz now.'
-                      : 'Please complete the educational lessons above before taking this quiz.'}
+                    {isCurrentModuleTestUnlocked
+                      ? 'All educational topics and assignment evaluation are completed. You can launch your quiz now.'
+                      : !isModuleTopicsCompleted(currentModule.id)
+                      ? 'Please complete all educational lessons above before taking this quiz.'
+                      : 'Please wait for your case assignment to be evaluated and approved before taking this quiz.'}
                   </span>
 
-                  {isCurrentModuleUnlocked ? (
+                  {isCurrentModuleTestUnlocked ? (
                     <button
                       onClick={() => navigate(`/assessment/${currentModule.id}`)}
                       className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
@@ -1573,12 +2041,22 @@ export const MyCoursePage: React.FC = () => {
                     </button>
                   ) : (
                     <button
-                      onClick={() => showGatingMessage('Please complete all educational lessons (at least 99% video watch) before taking this quiz.')}
+                      onClick={() =>
+                        showGatingMessage(
+                          !isModuleTopicsCompleted(currentModule.id)
+                            ? 'Please complete all educational lessons (at least 99% video watch) before taking this quiz.'
+                            : 'Please wait for faculty evaluation and grading before launching the quiz.'
+                        )
+                      }
                       className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-300 cursor-pointer transition-colors shadow-2xs"
                       title="Click to view unlock requirements"
                     >
                       <Lock className="w-4 h-4 text-amber-700" />
-                      <span>Quiz Locked (Complete Lessons First)</span>
+                      <span>
+                        {!isModuleTopicsCompleted(currentModule.id)
+                          ? 'Quiz Locked (Complete Lessons First)'
+                          : 'Quiz Locked (Awaiting Assignment Evaluation)'}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -1788,17 +2266,23 @@ export const MyCoursePage: React.FC = () => {
                                 <div className="flex items-center space-x-2 min-w-0">
                                   <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
                                   <span className="truncate font-bold text-slate-800 text-xs">
-                                    {mod.assignment?.title || 'Case Report Assignment'}
+                                    {mod.assignment?.title || `Module ${mod.moduleNumber} Assignment`}
                                   </span>
                                 </div>
 
                                 <div className="flex items-center space-x-1.5 shrink-0">
                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    mod.assignment?.submissionStatus === 'submitted'
+                                    mod.assignment?.submissionStatus === 'graded'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : mod.assignment?.submissionStatus === 'submitted'
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : 'bg-amber-100 text-amber-800'
                                   }`}>
-                                    {mod.assignment?.submissionStatus === 'submitted' ? '✓ Submitted' : 'Pending'}
+                                    {mod.assignment?.submissionStatus === 'graded'
+                                      ? '✓ Graded'
+                                      : mod.assignment?.submissionStatus === 'submitted'
+                                      ? '✓ Submitted'
+                                      : 'Pending'}
                                   </span>
                                 </div>
                               </div>
@@ -1810,27 +2294,51 @@ export const MyCoursePage: React.FC = () => {
                                 3. Module Test (Practice Quiz)
                               </span>
 
-                              <div
-                                onClick={() => goToTest(mod.id)}
-                                className={`p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
-                                  mod.id === currentModule.id && activeSection === 'test'
-                                    ? 'bg-amber-50 border-2 border-amber-400 text-slate-950 font-bold'
-                                    : 'bg-white border border-slate-200 hover:border-amber-300'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-2 min-w-0">
-                                  <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span className="truncate font-bold text-slate-800 text-xs">
-                                    {mod.test?.title || 'Practice Quiz'}
-                                  </span>
-                                </div>
+                              {(() => {
+                                const isModTestUnlocked = isModuleAssessmentUnlocked(mod.id);
+                                return (
+                                  <div
+                                    onClick={() => {
+                                      if (isModTestUnlocked) {
+                                        goToTest(mod.id);
+                                      } else {
+                                        showGatingMessage(
+                                          !isModuleTopicsCompleted(mod.id)
+                                            ? 'Please complete all module topics before opening the test.'
+                                            : 'Please wait for faculty evaluation and grading of your assignment before opening the test.'
+                                        );
+                                      }
+                                    }}
+                                    className={`p-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer transition-all ${
+                                      mod.id === currentModule.id && activeSection === 'test'
+                                        ? 'bg-amber-50 border-2 border-amber-400 text-slate-950 font-bold'
+                                        : !isModTestUnlocked
+                                        ? 'bg-slate-50 border border-slate-200/70 text-slate-400 opacity-70'
+                                        : 'bg-white border border-slate-200 hover:border-amber-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-2 min-w-0">
+                                      <Award className={`w-4 h-4 shrink-0 ${isModTestUnlocked ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                      <span className={`truncate font-bold text-xs ${isModTestUnlocked ? 'text-slate-800' : 'text-slate-400'}`}>
+                                        {mod.test?.title || 'Practice Quiz'}
+                                      </span>
+                                    </div>
 
-                                <div className="flex items-center space-x-1.5 shrink-0">
-                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                                    Unlimited
-                                  </span>
-                                </div>
-                              </div>
+                                    <div className="flex items-center space-x-1.5 shrink-0">
+                                      {isModTestUnlocked ? (
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                          Unlimited
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-medium text-slate-400 flex items-center">
+                                          <Lock className="w-2.5 h-2.5 mr-0.5 inline" />
+                                          <span>LOCKED</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         )}

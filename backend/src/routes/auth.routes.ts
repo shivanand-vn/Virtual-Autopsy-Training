@@ -7,6 +7,9 @@ import {
   uploadAvatar,
   removeAvatar,
   updateProfile,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { uploadAvatarImage } from '../middlewares/upload.middleware.js';
@@ -17,6 +20,11 @@ router.post('/login', login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, getCurrentUser);
 router.post('/change-password', requireAuth, changePassword);
+
+// Password recovery & OTP verification routes
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOtp);
+router.post('/reset-password', resetPassword);
 
 // Profile & Avatar management
 router.put('/profile', requireAuth, updateProfile);

@@ -505,3 +505,76 @@ export async function sendAssignmentEvaluationEmail({
   });
 }
 
+export async function sendPasswordResetOtpEmail({
+  email,
+  name,
+  otp,
+}: {
+  email: string;
+  name: string;
+  otp: string;
+}): Promise<boolean> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Password Reset OTP - Virtual Autopsy Global Solutions</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #0f172a; }
+        .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .header { background: #0A192F; padding: 26px; text-align: center; color: #ffffff; }
+        .header h1 { margin: 0 0 6px 0; font-size: 20px; font-weight: 800; }
+        .header p { margin: 0; font-size: 12px; color: #f59e0b; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .content { padding: 30px; text-align: center; }
+        .otp-box { background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; margin: 24px 0; letter-spacing: 12px; font-size: 32px; font-weight: 800; color: #0A192F; font-family: monospace; }
+        .footer { background: #f1f5f9; padding: 18px 30px; text-align: center; font-size: 12px; color: #64748b; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Virtual Autopsy Global Solutions</h1>
+          <p>Account Security & Password Recovery</p>
+        </div>
+        <div class="content">
+          <p style="font-size: 15px; color: #334155; text-align: left;">Dear ${name},</p>
+          <p style="font-size: 14px; line-height: 1.6; color: #475569; text-align: left;">
+            We received a request to reset the password for your Virtual Autopsy LMS account. Use the 6-digit verification code below to authorize your password reset:
+          </p>
+
+          <div class="otp-box">
+            ${otp}
+          </div>
+
+          <p style="font-size: 13px; color: #b45309; font-weight: 600;">
+            ⏱ This code is valid for 10 minutes and can only be used once.
+          </p>
+
+          <p style="font-size: 12px; color: #64748b; line-height: 1.5; text-align: left; margin-top: 24px;">
+            If you did not request a password reset, please ignore this email or contact administrative support immediately. Your password will remain unchanged.
+          </p>
+        </div>
+        <div class="footer">
+          &copy; ${new Date().getFullYear()} Virtual Autopsy Global Solutions Ltd, United Kingdom.<br/>
+          Secure Portal Authentication Services.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  console.log('====================================================');
+  console.log(`🔑 DISPATCHING PASSWORD RESET OTP EMAIL`);
+  console.log(`To: ${name} <${email}> | OTP Code: ${otp}`);
+  console.log('====================================================');
+
+  return sendEmail({
+    toEmail: email,
+    toName: name,
+    subject: `Virtual Autopsy Training - Your Password Reset OTP (${otp})`,
+    htmlContent: html,
+  });
+}
+
+

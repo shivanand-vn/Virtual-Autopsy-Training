@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
-import { type ContentType, type CourseModule, type Topic } from '../../types/course';
+import { type ContentType, type CourseModule, type Topic, type ModuleAssignment } from '../../types/course';
 import { api } from '../../lib/api';
 import {
   ArrowLeft,
@@ -21,7 +21,9 @@ import {
   Upload,
   Loader2,
   Shield,
-  Image as ImageIcon
+  Image as ImageIcon,
+  FileCheck,
+  Paperclip
 } from 'lucide-react';
 
 export const AdminCourseForm: React.FC = () => {
@@ -38,6 +40,13 @@ export const AdminCourseForm: React.FC = () => {
   const [status, setStatus] = useState<'draft' | 'published'>('published');
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [initialModules, setInitialModules] = useState<CourseModule[]>([]);
+  const [initialCourseMeta, setInitialCourseMeta] = useState<{
+    name: string;
+    shortDescription: string;
+    description: string;
+    duration: string;
+    status: 'draft' | 'published';
+  } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Module Modal / Inline State
@@ -45,6 +54,20 @@ export const AdminCourseForm: React.FC = () => {
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [moduleTitle, setModuleTitle] = useState('');
   const [moduleDescription, setModuleDescription] = useState('');
+
+  // Module Assignment Modal & State
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [targetModuleIdForAssignment, setTargetModuleIdForAssignment] = useState<string | null>(null);
+  const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [assignmentDescription, setAssignmentDescription] = useState('');
+  const [assignmentInstructionsInput, setAssignmentInstructionsInput] = useState('');
+  const [assignmentDueDate, setAssignmentDueDate] = useState('');
+  const [assignmentTotalMarks, setAssignmentTotalMarks] = useState<number>(100);
+  const [assignmentPdfUrl, setAssignmentPdfUrl] = useState('');
+  const [assignmentPdfFileName, setAssignmentPdfFileName] = useState<string | null>(null);
+  const [isUploadingAssignmentPdf, setIsUploadingAssignmentPdf] = useState(false);
+  const [assignmentPdfProgress, setAssignmentPdfProgress] = useState<number>(0);
+  const [assignmentPdfError, setAssignmentPdfError] = useState<string | null>(null);
 
   // Topic Modal State
   const [showTopicModal, setShowTopicModal] = useState(false);
@@ -365,13 +388,21 @@ export const AdminCourseForm: React.FC = () => {
     if (isEditing && courseId) {
       const existing = getCourse(courseId);
       if (existing) {
-        setCourseName(existing.name || existing.title || '');
-        setShortDescription(existing.shortDescription || '');
-        setDescription(existing.description || '');
-        setDuration(existing.duration || '6 Months');
-        setStatus(existing.status);
-        setModules(existing.modules || []);
-        setInitialModules(existing.modules || []);
+        const meta = {
+          name: existing.name || existing.title || '',
+          shortDescription: existing.shortDescription || '',
+          description: existing.description || '',
+          duration: existing.duration || '6 Months',
+          status: existing.status,
+        };
+        setCourseName(meta.name);
+        setShortDescription(meta.shortDescription);
+        setDescription(meta.description);
+        setDuration(meta.duration);
+        setStatus(meta.status);
+        setInitialCourseMeta(meta);
+        setModules(JSON.parse(JSON.stringify(existing.modules || [])));
+        setInitialModules(JSON.parse(JSON.stringify(existing.modules || [])));
       }
     }
   }, [isEditing, courseId, getCourse]);
@@ -452,6 +483,139 @@ export const AdminCourseForm: React.FC = () => {
         order: idx + 1
       }));
     });
+  };
+
+  // MODULE ASSIGNMENT HANDLERS
+  const openEditAssignmentModal = (modId: string) => {
+    const mod = modules.find((m) => m.id === modId);
+    if (!mod) return;
+    setTargetModuleIdForAssignment(modId);
+    if (mod.assignment) {
+      setAssignmentTitle(mod.assignment.title || `Module ${mod.moduleNumber} Case Assignment`);
+      setAssignmentDescription(mod.assignment.description || '');
+      setAssignmentInstructionsInput(mod.assignment.instructions || '');
+      setAssignmentDueDate(mod.assignment.dueDate || '');
+      setAssignmentTotalMarks(mod.assignment.totalMarks || 100);
+      setAssignmentPdfUrl(mod.assignment.templateFileUrl || '');
+      setAssignmentPdfFileName(mod.assignment.templateFileName || null);
+    } else {
+      setAssignmentTitle(`Module ${mod.moduleNumber} Case Assignment`);
+      setAssignmentDescription('');
+      setAssignmentInstructionsInput('');
+      setAssignmentDueDate('');
+      setAssignmentTotalMarks(100);
+      setAssignmentPdfUrl('');
+      setAssignmentPdfFileName(null);
+    }
+    setIsUploadingAssignmentPdf(false);
+    setAssignmentPdfProgress(0);
+    setAssignmentPdfError(null);
+    setShowAssignmentModal(true);
+  };
+
+  const handleAssignmentPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.type !== 'application/pdf') {
+      setAssignmentPdfError('Please select a valid PDF file (.pdf only).');
+      return;
+    }
+
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setAssignmentPdfError('PDF file exceeds maximum allowed size of 50MB.');
+      return;
+    }
+
+    setAssignmentPdfFileName(file.name);
+    setIsUploadingAssignmentPdf(true);
+    setAssignmentPdfProgress(0);
+    setAssignmentPdfError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.upload<{ url: string; fileName: string }>(
+        '/courses/upload-media',
+        formData,
+        (percent) => setAssignmentPdfProgress(percent)
+      );
+      if (res && res.data && res.data.url) {
+        setAssignmentPdfUrl(res.data.url);
+        setAssignmentPdfFileName(res.data.fileName || file.name);
+        setAssignmentPdfProgress(100);
+      } else {
+        throw new Error(res?.message || 'Failed to upload assignment document.');
+      }
+    } catch (err: any) {
+      console.warn('Backend upload failed, converting to Data URL fallback:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAssignmentPdfUrl(reader.result as string);
+        setAssignmentPdfFileName(file.name);
+        setAssignmentPdfProgress(100);
+        setIsUploadingAssignmentPdf(false);
+      };
+      reader.onerror = () => {
+        setAssignmentPdfError('Failed to read and process PDF file.');
+        setIsUploadingAssignmentPdf(false);
+      };
+      reader.readAsDataURL(file);
+      return;
+    } finally {
+      setIsUploadingAssignmentPdf(false);
+    }
+  };
+
+  const handleRemoveAssignmentPdf = async () => {
+    const urlToDelete = assignmentPdfUrl;
+    setAssignmentPdfUrl('');
+    setAssignmentPdfFileName(null);
+    setAssignmentPdfError(null);
+    if (urlToDelete && urlToDelete.startsWith('http')) {
+      try {
+        await api.post('/courses/delete-media', { url: urlToDelete, provider: 'cloudinary' });
+      } catch (err) {
+        console.warn('Failed to delete assignment PDF from storage:', err);
+      }
+    }
+  };
+
+  const handleSaveAssignment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetModuleIdForAssignment) return;
+    if (!assignmentTitle.trim()) {
+      setAssignmentPdfError('Please provide an assignment title.');
+      return;
+    }
+
+    setModules((prev) =>
+      prev.map((m) => {
+        if (m.id === targetModuleIdForAssignment) {
+          const updatedAssignment: ModuleAssignment = {
+            id: m.assignment?.id || `asgn-${m.id}`,
+            moduleId: m.id,
+            title: assignmentTitle.trim(),
+            description: assignmentDescription.trim(),
+            instructions: assignmentInstructionsInput.trim(),
+            totalMarks: Number(assignmentTotalMarks) || 100,
+            dueDate: assignmentDueDate.trim() || undefined,
+            templateFileName: assignmentPdfFileName || undefined,
+            templateFileUrl: assignmentPdfUrl || undefined,
+            submissionStatus: m.assignment?.submissionStatus || 'pending',
+          };
+          return {
+            ...m,
+            assignment: updatedAssignment,
+          };
+        }
+        return m;
+      })
+    );
+
+    setShowAssignmentModal(false);
   };
 
   // TOPIC HANDLERS
@@ -570,9 +734,9 @@ export const AdminCourseForm: React.FC = () => {
                   videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
                   bunnyVideoId: extractedBunnyId,
                   requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
-                  assignmentInstructions: assignmentInstructions.trim() ? assignmentInstructions : undefined,
-                  submissionInstructions: submissionInstructions.trim() ? submissionInstructions : undefined,
-                  referenceAttachmentName: referenceAttachmentName.trim() ? referenceAttachmentName : undefined,
+                  assignmentInstructions: topicContentType === 'assignment' ? (assignmentInstructions.trim() || undefined) : undefined,
+                  submissionInstructions: topicContentType === 'assignment' ? (submissionInstructions.trim() || undefined) : undefined,
+                  referenceAttachmentName: topicContentType === 'assignment' ? (referenceAttachmentName.trim() || undefined) : undefined,
                   thumbnail: topicThumbnail || undefined,
                   status: topicStatus
                 }
@@ -592,9 +756,9 @@ export const AdminCourseForm: React.FC = () => {
               videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
               bunnyVideoId: extractedBunnyId,
               requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
-              assignmentInstructions: assignmentInstructions.trim() ? assignmentInstructions : undefined,
-              submissionInstructions: submissionInstructions.trim() ? submissionInstructions : undefined,
-              referenceAttachmentName: referenceAttachmentName.trim() ? referenceAttachmentName : undefined,
+              assignmentInstructions: topicContentType === 'assignment' ? (assignmentInstructions.trim() || undefined) : undefined,
+              submissionInstructions: topicContentType === 'assignment' ? (submissionInstructions.trim() || undefined) : undefined,
+              referenceAttachmentName: topicContentType === 'assignment' ? (referenceAttachmentName.trim() || undefined) : undefined,
               thumbnail: topicThumbnail || undefined,
               order: nextOrder,
               status: topicStatus
@@ -687,14 +851,23 @@ export const AdminCourseForm: React.FC = () => {
 
     try {
       if (isEditing && courseId) {
-        // 1. Update Course metadata
-        await api.put(`/courses/${courseId}`, {
-          title: courseName,
-          shortDescription: shortDescription || null,
-          description,
-          duration,
-          status: status === 'draft' ? 'DRAFT' : 'PUBLISHED',
-        });
+        // 1. Update Course metadata ONLY IF CHANGED
+        const isCourseMetaChanged = !initialCourseMeta ||
+          courseName.trim() !== initialCourseMeta.name.trim() ||
+          (shortDescription || '').trim() !== (initialCourseMeta.shortDescription || '').trim() ||
+          description.trim() !== initialCourseMeta.description.trim() ||
+          duration.trim() !== initialCourseMeta.duration.trim() ||
+          status !== initialCourseMeta.status;
+
+        if (isCourseMetaChanged) {
+          await api.put(`/courses/${courseId}`, {
+            title: courseName,
+            shortDescription: shortDescription || null,
+            description,
+            duration,
+            status: status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+          });
+        }
 
         // 2. Identify deleted modules and delete them from DB
         const currentModuleIds = new Set(modules.map((m) => m.id));
@@ -708,7 +881,7 @@ export const AdminCourseForm: React.FC = () => {
           }
         }
 
-        // 3. Process current modules (Create new ones, update existing ones)
+        // 3. Process current modules (Create new ones, update existing ones ONLY IF CHANGED)
         for (let modIdx = 0; modIdx < modules.length; modIdx++) {
           const mod = modules[modIdx];
           let activeModId = mod.id;
@@ -726,19 +899,31 @@ export const AdminCourseForm: React.FC = () => {
             });
             activeModId = modRes.data.id;
           } else {
-            // Existing Module -> Update in DB
-            await api.put(`/courses/modules/${mod.id}`, {
-              title: mod.title,
-              subtitle: mod.subtitle || null,
-              description: mod.description || null,
-              duration: mod.duration || '2h 00m',
-              cmeCredits: mod.cmeCredits ?? 4,
-              order: modIdx + 1,
-              status: mod.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
-            });
+            // Check if existing module has actually changed
+            const initialMod = initialModules.find((im) => im.id === mod.id);
+            const isModuleChanged = !initialMod ||
+              initialMod.title !== mod.title ||
+              (initialMod.subtitle || '') !== (mod.subtitle || '') ||
+              (initialMod.description || '') !== (mod.description || '') ||
+              initialMod.order !== (modIdx + 1) ||
+              initialMod.status !== mod.status ||
+              initialMod.duration !== mod.duration ||
+              initialMod.cmeCredits !== mod.cmeCredits;
+
+            if (isModuleChanged) {
+              await api.put(`/courses/modules/${mod.id}`, {
+                title: mod.title,
+                subtitle: mod.subtitle || null,
+                description: mod.description || null,
+                duration: mod.duration || '2h 00m',
+                cmeCredits: mod.cmeCredits ?? 4,
+                order: modIdx + 1,
+                status: mod.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+              });
+            }
           }
 
-          // Handle topics within this module
+          // Handle deleted topics within this module
           const initialMod = initialModules.find((im) => im.id === mod.id);
           if (initialMod) {
             const currentTopicIds = new Set(mod.topics.map((t) => t.id));
@@ -753,16 +938,18 @@ export const AdminCourseForm: React.FC = () => {
             }
           }
 
-          // Create or update topics
+          // Create or update topics ONLY IF CHANGED
           for (let topIdx = 0; topIdx < mod.topics.length; topIdx++) {
             const top = mod.topics[topIdx];
             const extractedBunnyId = top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
+            const newType = top.contentType === 'video' ? 'VIDEO_STREAM' : (top.contentType === 'assignment' ? 'DOWNLOADABLE_BRIEF' : 'PROTECTED_DOCUMENT');
+
             if (top.id.startsWith('t-')) {
               // New Topic -> Create in DB
               await api.post(`/courses/modules/${activeModId}/topics`, {
                 title: top.title,
                 description: top.description || null,
-                type: top.contentType === 'video' ? 'VIDEO_STREAM' : (top.contentType === 'assignment' ? 'DOWNLOADABLE_BRIEF' : 'PROTECTED_DOCUMENT'),
+                type: newType,
                 videoUrl: top.videoUrl || null,
                 bunnyVideoId: extractedBunnyId,
                 content: top.content || null,
@@ -770,21 +957,78 @@ export const AdminCourseForm: React.FC = () => {
                 status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
               });
             } else {
-              // Existing Topic -> Update in DB
-              await api.put(`/courses/topics/${top.id}`, {
-                title: top.title,
-                description: top.description || null,
-                type: top.contentType === 'video' ? 'VIDEO_STREAM' : (top.contentType === 'assignment' ? 'DOWNLOADABLE_BRIEF' : 'PROTECTED_DOCUMENT'),
-                videoUrl: top.videoUrl || null,
-                bunnyVideoId: extractedBunnyId,
-                content: top.content || null,
-                fileUrl: top.pdfUrl || null,
-                order: topIdx + 1,
-                status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
-              });
+              // Check if topic actually changed compared to initial state
+              const initTop = initialMod?.topics.find((it) => it.id === top.id);
+              const isTopicChanged = !initTop ||
+                initTop.title !== top.title ||
+                (initTop.description || '') !== (top.description || '') ||
+                initTop.contentType !== top.contentType ||
+                (initTop.content || '') !== (top.content || '') ||
+                (initTop.pdfUrl || '') !== (top.pdfUrl || '') ||
+                (initTop.videoUrl || '') !== (top.videoUrl || '') ||
+                (initTop.bunnyVideoId || '') !== (extractedBunnyId || '') ||
+                initTop.order !== (topIdx + 1) ||
+                initTop.status !== top.status;
+
+              if (isTopicChanged) {
+                await api.put(`/courses/topics/${top.id}`, {
+                  title: top.title,
+                  description: top.description || null,
+                  type: newType,
+                  videoUrl: top.videoUrl || null,
+                  bunnyVideoId: extractedBunnyId,
+                  content: top.content || null,
+                  fileUrl: top.pdfUrl || null,
+                  order: topIdx + 1,
+                  status: top.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+                });
+              }
+            }
+          }
+
+          // Save or update Module Assignment ONLY IF CHANGED or new
+          if (mod.assignment) {
+            const initialMod = initialModules.find((im) => im.id === mod.id);
+            const initAsgn = initialMod?.assignment;
+            const curAsgn = mod.assignment;
+
+            const isAssignmentChanged = !initAsgn ||
+              (initAsgn.title || '') !== (curAsgn.title || '') ||
+              (initAsgn.description || '') !== (curAsgn.description || '') ||
+              (initAsgn.instructions || '') !== (curAsgn.instructions || '') ||
+              (initAsgn.totalMarks || 100) !== (curAsgn.totalMarks || 100) ||
+              (initAsgn.dueDate || '') !== (curAsgn.dueDate || '') ||
+              (initAsgn.templateFileName || '') !== (curAsgn.templateFileName || '') ||
+              (initAsgn.templateFileUrl || '') !== (curAsgn.templateFileUrl || '');
+
+            if (isAssignmentChanged || mod.id.startsWith('mod-')) {
+              try {
+                await api.put(`/courses/modules/${activeModId}/assignment`, {
+                  title: curAsgn.title,
+                  description: curAsgn.description || null,
+                  instructions: curAsgn.instructions || '',
+                  maxScore: curAsgn.totalMarks || 100,
+                  dueDate: curAsgn.dueDate || null,
+                  templateFileName: curAsgn.templateFileName || null,
+                  templateFileUrl: curAsgn.templateFileUrl || null,
+                });
+              } catch (asgnErr) {
+                console.warn(`Could not save assignment for module ${activeModId}:`, asgnErr);
+              }
             }
           }
         }
+
+        // Sync modules with client context and local cache without duplicate backend PUT
+        await updateCourse(courseId, {
+          name: courseName,
+          title: courseName,
+          shortDescription,
+          description,
+          duration,
+          status,
+          modules,
+        }, false);
 
         await refreshCourses();
         navigate(`/admin/courses/${courseId}`);
@@ -1109,6 +1353,78 @@ export const AdminCourseForm: React.FC = () => {
                             </div>
                           </>
                         )}
+                      </div>
+
+                      {/* Tier 2: Module Assignment Card */}
+                      <div className="pt-3 border-t border-slate-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A192F] flex items-center space-x-1.5">
+                            <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center">
+                              2
+                            </span>
+                            <span>Module Assignment (Case Evaluation)</span>
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditAssignmentModal(mod.id)}
+                            className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{mod.assignment ? 'Edit Assignment' : 'Configure Assignment'}</span>
+                          </button>
+                        </div>
+
+                        <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/80 space-y-2 text-xs">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span className="font-extrabold text-slate-900 truncate">
+                                {mod.assignment?.title || `Module ${mod.moduleNumber} Case Assignment`}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900">
+                                {mod.assignment?.totalMarks || 100} Marks
+                              </span>
+                              {mod.assignment?.dueDate && (
+                                <span className="text-[10px] font-semibold text-slate-500">
+                                  Due: {mod.assignment.dueDate}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {mod.assignment?.description && (
+                            <p className="text-[11px] text-slate-600 line-clamp-2">
+                              <strong className="text-slate-700">Scenario:</strong> {mod.assignment.description}
+                            </p>
+                          )}
+
+                          {mod.assignment?.instructions && (
+                            <p className="text-[11px] text-slate-600 line-clamp-2">
+                              <strong className="text-slate-700">Instructions:</strong> {mod.assignment.instructions}
+                            </p>
+                          )}
+
+                          <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px]">
+                            {mod.assignment?.templateFileUrl ? (
+                              <div className="flex items-center space-x-1.5 text-emerald-800 font-bold">
+                                <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="truncate max-w-[260px]">
+                                  {mod.assignment.templateFileName || 'Assignment_Document.pdf'}
+                                </span>
+                                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono">
+                                  PDF Attached
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">
+                                No PDF document attached (Optional — students will read text instructions)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1548,52 +1864,6 @@ export const AdminCourseForm: React.FC = () => {
                         </div>
                       </div>
                     )}
-
-                    {/* ASSIGNMENT & REFERENCE ATTACHMENT DETAILS (OPTIONAL FOR THEORY LESSONS) */}
-                    <div className="pt-4 border-t border-slate-200 space-y-3.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
-                          <FileText className="w-4 h-4 text-amber-500" />
-                          <span>Assignment Details & Instructions (Optional)</span>
-                        </label>
-                        <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded-md">
-                          Theory Companion
-                        </span>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Assignment Instructions / Question</label>
-                        <textarea
-                          rows={3}
-                          value={assignmentInstructions}
-                          onChange={(e) => setAssignmentInstructions(e.target.value)}
-                          placeholder="Detail the case analysis task or exercise questions student must answer..."
-                          className="w-full text-xs p-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium shadow-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Submission Guidelines / Instructions</label>
-                        <input
-                          type="text"
-                          value={submissionInstructions}
-                          onChange={(e) => setSubmissionInstructions(e.target.value)}
-                          placeholder="e.g. Upload your findings PDF or type summary text below..."
-                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800 font-medium shadow-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Optional Reference Attachment File Name</label>
-                        <input
-                          type="text"
-                          value={referenceAttachmentName}
-                          onChange={(e) => setReferenceAttachmentName(e.target.value)}
-                          placeholder="e.g. Case_Dataset_Reference.pdf"
-                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono shadow-xs"
-                        />
-                      </div>
-                    </div>
                   </div>
                 ) : topicContentType === 'video' ? (
                   <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
@@ -1921,6 +2191,157 @@ export const AdminCourseForm: React.FC = () => {
                       <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
                     )}
                     {isUploadingVideo || isUploadingThumbnail ? 'Uploading Media...' : 'Save Topic'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODULE ASSIGNMENT MODAL */}
+        {showAssignmentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center space-x-2">
+                  <FileCheck className="w-5 h-5 text-amber-500" />
+                  <h3 className="text-base font-extrabold text-[#0A192F]">
+                    Configure Module Assignment
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAssignmentModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {assignmentPdfError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-bold flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{assignmentPdfError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveAssignment} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1">Assignment Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={assignmentTitle}
+                    onChange={(e) => setAssignmentTitle(e.target.value)}
+                    placeholder="e.g. Forensic PMCT Case Study Analysis"
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1">Case Briefing / Scenario (Optional)</label>
+                  <textarea
+                    rows={3}
+                    value={assignmentDescription}
+                    onChange={(e) => setAssignmentDescription(e.target.value)}
+                    placeholder="Provide the case context or medical briefing scenario..."
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1">Guidelines & Instructions *</label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={assignmentInstructionsInput}
+                    onChange={(e) => setAssignmentInstructionsInput(e.target.value)}
+                    placeholder="Detail the analysis required, steps to complete, and submission criteria..."
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Total Marks</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={assignmentTotalMarks}
+                      onChange={(e) => setAssignmentTotalMarks(Number(e.target.value))}
+                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Due Date (Optional)</label>
+                    <input
+                      type="date"
+                      value={assignmentDueDate}
+                      onChange={(e) => setAssignmentDueDate(e.target.value)}
+                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* OPTIONAL ASSIGNMENT DOCUMENT UPLOAD (PDF ONLY) */}
+                <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
+                  <label className="block text-xs font-bold text-[#0A192F]">
+                    Assignment Document / Worksheet (.pdf only) (Optional)
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    If attached, students can download this PDF directly from their assignment page. If omitted, no download prompt is displayed.
+                  </p>
+
+                  {assignmentPdfUrl ? (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-xs">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">PDF</span>
+                        <span className="text-xs font-medium text-slate-800 truncate">
+                          {assignmentPdfFileName || 'Assignment_Document.pdf'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveAssignmentPdf}
+                        className="text-xs font-bold text-red-600 hover:text-red-700 cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : isUploadingAssignmentPdf ? (
+                    <div className="p-3 bg-white rounded-xl border border-amber-200 text-xs text-amber-700 font-semibold flex items-center space-x-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading Assignment PDF ({assignmentPdfProgress}%)...</span>
+                    </div>
+                  ) : (
+                    <label className="p-3 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex items-center justify-center cursor-pointer space-x-2 text-xs text-slate-600 transition-colors">
+                      <Upload className="w-4 h-4 text-amber-600" />
+                      <span>+ Upload Assignment PDF (.pdf)</span>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleAssignmentPdfUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAssignmentModal(false)}
+                    className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUploadingAssignmentPdf}
+                    className="px-5 py-2 bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    Save Assignment
                   </button>
                 </div>
               </form>

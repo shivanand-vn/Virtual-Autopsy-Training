@@ -256,20 +256,24 @@ export const AdminCourseDetail: React.FC = () => {
                               <div className="flex items-center space-x-2">
                                 <FileCheck className="w-4 h-4 text-amber-600" />
                                 <span className="font-extrabold text-slate-900">
-                                  {mod.assignment?.title || 'Medicolegal Case Study Report'}
+                                  {mod.assignment?.title || `Module ${mod.moduleNumber} Assignment`}
                                 </span>
                               </div>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-900">
-                                100 Marks • Required
+                                {mod.assignment?.totalMarks || 100} Marks • Required
                               </span>
                             </div>
 
                             <p className="text-[11px] text-slate-600 leading-relaxed">
-                              {mod.assignment?.description || 'Comprehensive case analysis and PDF submission.'}
+                              {mod.assignment?.description || <span className="text-slate-400 italic">No case briefing scenario specified.</span>}
                             </p>
 
                             <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1 font-medium">
-                              <span>📄 Worksheet: {mod.assignment?.templateFileName || 'Assignment_Case_Briefing.pdf'}</span>
+                              {mod.assignment?.templateFileName || mod.assignment?.templateFileUrl ? (
+                                <span>📄 Worksheet: {mod.assignment.templateFileName || (mod.assignment.templateFileUrl ? mod.assignment.templateFileUrl.split('/').pop()?.split('?')[0] : 'Assignment_Document.pdf')}</span>
+                              ) : (
+                                <span className="text-slate-400">📄 No document attached (Optional)</span>
+                              )}
                               <span>•</span>
                               <span>Submission Status: {mod.assignment?.submissionStatus || 'pending'}</span>
                             </div>

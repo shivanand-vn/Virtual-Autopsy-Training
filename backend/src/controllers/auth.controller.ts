@@ -7,6 +7,7 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { env } from '../config/env.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary.service.js';
+import { sendPasswordResetOtpEmail } from '../services/email.service.js';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -314,3 +315,146 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
     sendError(res, error.message || 'Failed to update profile.', 500);
   }
 }
+
+interface PasswordResetOtpEntry {
+  otp: string;
+  expiresAt: number;
+  verified: boolean;
+}
+
+const passwordResetOtpMap = new Map<string, PasswordResetOtpEntry>();
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      sendError(res, 'Valid email address is required', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      sendError(res, 'No account found registered with this email address.', 404);
+      return;
+    }
+
+    // Generate secure 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    passwordResetOtpMap.set(normalizedEmail, {
+      otp,
+      expiresAt,
+      verified: false,
+    });
+
+    // Dispatch email
+    await sendPasswordResetOtpEmail({
+      email: user.email,
+      name: user.fullName || 'Medical Scholar',
+      otp,
+    });
+
+    sendSuccess(res, 'Verification OTP has been sent to your email.', { email: user.email });
+  } catch (error: any) {
+    console.error('Error in forgotPassword:', error);
+    sendError(res, error.message || 'Failed to send password reset OTP', 500);
+  }
+}
+
+export async function verifyOtp(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      sendError(res, 'Email and OTP code are required', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const entry = passwordResetOtpMap.get(normalizedEmail);
+
+    if (!entry) {
+      sendError(res, 'No OTP request found for this email. Please request a new code.', 400);
+      return;
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      passwordResetOtpMap.delete(normalizedEmail);
+      sendError(res, 'Verification code has expired. Please request a new code.', 400);
+      return;
+    }
+
+    if (entry.otp !== String(otp).trim()) {
+      sendError(res, 'Invalid verification code. Please check your email and try again.', 400);
+      return;
+    }
+
+    entry.verified = true;
+    sendSuccess(res, 'OTP code verified successfully.', { verified: true });
+  } catch (error: any) {
+    console.error('Error in verifyOtp:', error);
+    sendError(res, error.message || 'Failed to verify OTP', 500);
+  }
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      sendError(res, 'Email, OTP, and new password are required', 400);
+      return;
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      sendError(res, 'New password must be at least 8 characters long', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const entry = passwordResetOtpMap.get(normalizedEmail);
+
+    if (!entry) {
+      sendError(res, 'No active OTP verification session. Please request a new code.', 400);
+      return;
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      passwordResetOtpMap.delete(normalizedEmail);
+      sendError(res, 'Verification code has expired. Please request a new code.', 400);
+      return;
+    }
+
+    if (entry.otp !== String(otp).trim() || !entry.verified) {
+      sendError(res, 'Please verify your 6-digit OTP code before resetting password.', 400);
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      sendError(res, 'User account not found', 404);
+      return;
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash },
+    });
+
+    // Invalidate OTP entry after successful reset
+    passwordResetOtpMap.delete(normalizedEmail);
+
+    sendSuccess(res, 'Password reset successfully. You can now log in with your new credentials.', null);
+  } catch (error: any) {
+    console.error('Error in resetPassword:', error);
+    sendError(res, error.message || 'Failed to reset password', 500);
+  }
+}
+

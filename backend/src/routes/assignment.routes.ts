@@ -9,12 +9,19 @@ import {
   deleteAssignment,
   updateAssignmentStatus,
   submitAssignment,
+  getAllSubmissions,
   gradeSubmission,
+  getModuleAssignment,
+  upsertModuleAssignment,
 } from '../controllers/assignment.controller.js';
 
 const router = Router();
 
 router.get('/', requireAuth, getAssignments);
+router.get('/submissions', requireAuth, getAllSubmissions);
+router.get('/module/:moduleId', getModuleAssignment);
+router.put('/module/:moduleId', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
+router.post('/module/:moduleId', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
 router.get('/:id', requireAuth, getAssignmentById);
 router.post('/', requireAuth, requireRole('ADMIN'), createAssignment);
 router.put('/:id', requireAuth, requireRole('ADMIN'), updateAssignment);

@@ -12,19 +12,28 @@ import {
   XCircle,
   AlertCircle,
   User,
-  BookOpen
+  BookOpen,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
 import { type AssignmentSubmission, type SubmissionStatus } from '../../types/course';
 
 export const AdminAssignmentsPage: React.FC = () => {
-  const { assignmentSubmissions, updateSubmissionStatus } = useCourse();
+  const { assignmentSubmissions, updateSubmissionStatus, refreshAssignmentSubmissions } = useCourse();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<AssignmentSubmission | null>(null);
   const [adminFeedbackInput, setAdminFeedbackInput] = useState('');
+  const [adminScoreInput, setAdminScoreInput] = useState<number | string>(100);
   const [feedbackError, setFeedbackError] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Fetch real submissions on mount
+  React.useEffect(() => {
+    refreshAssignmentSubmissions();
+  }, [refreshAssignmentSubmissions]);
 
   const totalCount = assignmentSubmissions.length;
   const pendingCount = assignmentSubmissions.filter((s) => s.status === 'PENDING').length;
@@ -40,30 +49,117 @@ export const AdminAssignmentsPage: React.FC = () => {
       s.moduleTitle.toLowerCase().includes(q) ||
       s.topicTitle.toLowerCase().includes(q);
 
-    const matchesStatus = statusFilter === 'ALL' || s.status === statusFilter;
+    const isResub = (s as any).status === 'RESUBMITTED' || Boolean((s as any).isResubmission);
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      s.status === statusFilter ||
+      (statusFilter === 'PENDING' && isResub && s.status !== 'APPROVED');
     return matchesSearch && matchesStatus;
   });
 
   const handleOpenReview = (submission: AssignmentSubmission) => {
     setSelectedSubmission(submission);
     setAdminFeedbackInput(submission.adminFeedback || '');
+    const currentScore = (submission as any).score;
+    const maxAllowed = submission.maxScore || 100;
+    setAdminScoreInput(
+      currentScore !== undefined && currentScore !== null
+        ? Math.min(maxAllowed, Number(currentScore))
+        : maxAllowed
+    );
     setFeedbackError('');
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedSubmission) return;
-    updateSubmissionStatus(selectedSubmission.id, 'APPROVED', adminFeedbackInput);
-    setSelectedSubmission(null);
-  };
+    const maxMarks = selectedSubmission.maxScore || 100;
+    const scoreVal = Number(adminScoreInput);
 
-  const handleReject = () => {
-    if (!selectedSubmission) return;
-    if (!adminFeedbackInput.trim()) {
-      setFeedbackError('Please provide feedback explaining why the assignment is rejected.');
+    if (isNaN(scoreVal) || scoreVal < 0) {
+      setFeedbackError('Please enter a valid non-negative score.');
       return;
     }
-    updateSubmissionStatus(selectedSubmission.id, 'REJECTED', adminFeedbackInput);
-    setSelectedSubmission(null);
+
+    if (scoreVal > maxMarks) {
+      setFeedbackError(`Score cannot exceed maximum allowed marks of ${maxMarks}.`);
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      await updateSubmissionStatus(
+        selectedSubmission.id,
+        'APPROVED',
+        adminFeedbackInput,
+        scoreVal
+      );
+      setSelectedSubmission(null);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedSubmission) return;
+    const feedback =
+      adminFeedbackInput.trim() ||
+      'Case assignment rejected. Please review faculty guidelines and submit a revised report.';
+    setIsSubmittingReview(true);
+    try {
+      await updateSubmissionStatus(selectedSubmission.id, 'REJECTED', feedback, 0);
+      setSelectedSubmission(null);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadedSubmissionId, setDownloadedSubmissionId] = useState<string | null>(null);
+
+  const handleDownloadFile = async () => {
+    if (!selectedSubmission) return;
+    const fileUrl = selectedSubmission.uploadedFileUrl;
+    const rawName = selectedSubmission.uploadedFileName || 'Assignment_Submission.pdf';
+    let fileName = rawName.replace(/^[a-f0-9-]+_\d+_/, '');
+    if (!fileName.toLowerCase().endsWith('.pdf')) {
+      fileName = `${fileName}.pdf`;
+    }
+
+    if (!fileUrl) {
+      alert(`No download file available for ${fileName}`);
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(fileUrl, { mode: 'cors' });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      setDownloadedSubmissionId(selectedSubmission.id);
+      setTimeout(() => setDownloadedSubmissionId(null), 2500);
+    } catch {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setDownloadedSubmissionId(selectedSubmission.id);
+      setTimeout(() => setDownloadedSubmissionId(null), 2500);
+    } finally {
+      setTimeout(() => setIsDownloading(false), 500);
+    }
   };
 
   return (
@@ -194,13 +290,22 @@ export const AdminAssignmentsPage: React.FC = () => {
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                               : item.status === 'REJECTED'
                               ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                              : (item as any).status === 'RESUBMITTED' || (item as any).isResubmission
+                              ? 'bg-purple-100 text-purple-800 border border-purple-300'
                               : 'bg-amber-100 text-amber-900 border border-amber-300'
                           }`}
                         >
                           {item.status === 'APPROVED' && <Check className="w-3 h-3 text-emerald-600" />}
                           {item.status === 'REJECTED' && <X className="w-3 h-3 text-rose-600" />}
-                          {item.status === 'PENDING' && <Clock className="w-3 h-3 text-amber-600" />}
-                          <span>{item.status}</span>
+                          {((item as any).status === 'RESUBMITTED' || (item as any).isResubmission) && item.status !== 'APPROVED' && item.status !== 'REJECTED' && (
+                            <RefreshCw className="w-3 h-3 text-purple-600" />
+                          )}
+                          {item.status === 'PENDING' && !((item as any).isResubmission) && <Clock className="w-3 h-3 text-amber-600" />}
+                          <span>
+                            {((item as any).status === 'RESUBMITTED' || (item as any).isResubmission) && item.status !== 'APPROVED' && item.status !== 'REJECTED'
+                              ? 'RESUBMITTED'
+                              : item.status}
+                          </span>
                         </span>
                       </td>
 
@@ -231,12 +336,20 @@ export const AdminAssignmentsPage: React.FC = () => {
       {/* Review Submission Detailed Modal */}
       {selectedSubmission && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-start justify-between pb-4 border-b border-slate-100">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                  Assignment Review
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                    Assignment Review
+                  </span>
+                  {((selectedSubmission as any).status === 'RESUBMITTED' || (selectedSubmission as any).isResubmission) && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100 border border-purple-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                      <RefreshCw className="w-3 h-3 text-purple-600" />
+                      <span>Resubmitted Case Report</span>
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-lg font-black text-[#0A192F] mt-1">{selectedSubmission.topicTitle}</h3>
                 <p className="text-xs text-slate-500">
                   Submitted by <strong className="text-slate-800">{selectedSubmission.studentName}</strong> ({selectedSubmission.studentEmail})
@@ -280,7 +393,7 @@ export const AdminAssignmentsPage: React.FC = () => {
                 <span className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wider">
                   Student Response Text:
                 </span>
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-serif leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 font-sans leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar">
                   {selectedSubmission.studentResponseText || 'No text response submitted.'}
                 </div>
               </div>
@@ -288,24 +401,79 @@ export const AdminAssignmentsPage: React.FC = () => {
               {/* Student Uploaded File */}
               {selectedSubmission.uploadedFileName && (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs">
-                      FILE
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0">
+                      PDF
                     </div>
-                    <div>
-                      <p className="font-extrabold text-slate-900">{selectedSubmission.uploadedFileName}</p>
-                      <p className="text-[10px] text-slate-500">Submitted Attachment</p>
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-slate-900 truncate">
+                        {selectedSubmission.uploadedFileName.replace(/^[a-f0-9-]+_\d+_/, '')}
+                      </p>
+                      <p className="text-[10px] text-slate-500">Submitted Case Evidentiary Dossier</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => alert(`Downloading attachment: ${selectedSubmission.uploadedFileName}`)}
-                    className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                    onClick={handleDownloadFile}
+                    disabled={isDownloading}
+                    className={`px-3.5 py-2 font-bold rounded-xl text-xs transition-all duration-300 inline-flex items-center space-x-1.5 cursor-pointer shrink-0 disabled:opacity-75 active:scale-95 ${
+                      downloadedSubmissionId === selectedSubmission.id
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-slate-950 hover:bg-slate-800 text-amber-400'
+                    }`}
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                        <span>Downloading...</span>
+                      </>
+                    ) : downloadedSubmissionId === selectedSubmission.id ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white animate-in zoom-in-75 duration-200" />
+                        <span>Downloaded ✓</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </>
+                    )}
                   </button>
                 </div>
               )}
+
+              {/* Evaluation Score Input */}
+              <div className="space-y-1.5 pt-2">
+                <label className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wider block">
+                  Evaluation Marks / Score:
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    min={0}
+                    max={selectedSubmission.maxScore || 100}
+                    value={adminScoreInput}
+                    onChange={(e) => {
+                      const maxAllowed = selectedSubmission.maxScore || 100;
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setAdminScoreInput('');
+                        return;
+                      }
+                      const num = Number(raw);
+                      if (num > maxAllowed) {
+                        setAdminScoreInput(maxAllowed);
+                      } else if (num < 0) {
+                        setAdminScoreInput(0);
+                      } else {
+                        setAdminScoreInput(raw);
+                      }
+                    }}
+                    placeholder={String(selectedSubmission.maxScore || 100)}
+                    className="w-28 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-xs font-bold text-slate-400">/ {selectedSubmission.maxScore || 100} Marks</span>
+                </div>
+              </div>
 
               {/* Admin Feedback Input */}
               <div className="space-y-1.5 pt-2">
@@ -336,7 +504,8 @@ export const AdminAssignmentsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedSubmission(null)}
-                className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                disabled={isSubmittingReview}
+                className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -345,18 +514,28 @@ export const AdminAssignmentsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleReject}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1 cursor-pointer"
+                  disabled={isSubmittingReview}
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <X className="w-4 h-4" />
+                  {isSubmittingReview ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
                   <span>Reject Assignment</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleApprove}
-                  className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1 cursor-pointer"
+                  disabled={isSubmittingReview}
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4" />
+                  {isSubmittingReview ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
                   <span>Approve Assignment</span>
                 </button>
               </div>

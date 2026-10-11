@@ -20,6 +20,8 @@ export interface AssignmentSubmission {
   uploadedFileUrl?: string;
   uploadedFileName?: string;
   adminFeedback?: string;
+  score?: number;
+  maxScore?: number;
   reviewedAt?: string;
 }
 
@@ -53,10 +55,11 @@ export interface ModuleAssignment {
   dueDate?: string;
   templateFileName?: string;
   templateFileUrl?: string;
-  submissionStatus: 'pending' | 'submitted' | 'graded';
+  submissionStatus: 'pending' | 'submitted' | 'graded' | 'rejected';
   submittedFileName?: string;
   submittedFileUrl?: string;
   submittedAt?: string;
+  studentResponseText?: string;
   score?: number;
   feedback?: string;
 }
@@ -163,7 +166,6 @@ export const INITIAL_COURSES: Course[] = [
           instructions: 'Review the provided case summary briefing. Complete sections A through D adhering to Daubert/Frye admissibility requirements. Upload your completed report in PDF format (max 10MB).',
           totalMarks: 100,
           dueDate: '2026-10-15',
-          templateFileName: 'Forensic_Admissibility_Template_M1.pdf',
           submissionStatus: 'pending'
         },
         test: {
@@ -228,7 +230,6 @@ export const INITIAL_COURSES: Course[] = [
           instructions: 'Formulate a windowing guideline sheet for bone kernel vs. soft tissue windowing. Provide sample HU measurements and submit as a PDF case report.',
           totalMarks: 100,
           dueDate: '2026-10-22',
-          templateFileName: 'MPR_Reconstruction_Worksheet_M2.pdf',
           submissionStatus: 'pending'
         },
         test: {
@@ -291,7 +292,6 @@ export const INITIAL_COURSES: Course[] = [
           instructions: 'Using the provided high-resolution orthogonal PMCT slices, map the projectile trajectory vector, evaluate secondary fracture lines, and submit your forensic autopsy addendum.',
           totalMarks: 100,
           dueDate: '2026-10-29',
-          templateFileName: 'Ballistic_Traumatology_Report_M3.pdf',
           submissionStatus: 'pending'
         },
         test: {
@@ -354,7 +354,6 @@ export const INITIAL_COURSES: Course[] = [
           instructions: 'Analyze intravascular gas distribution, organ hypostasis, and fluid sedimentation across thoracic/abdominal PMCT views. Submit your completed differential evaluation report in PDF format.',
           totalMarks: 100,
           dueDate: '2026-11-05',
-          templateFileName: 'Decomposition_Artifact_Analysis_M4.pdf',
           submissionStatus: 'pending'
         },
         test: {

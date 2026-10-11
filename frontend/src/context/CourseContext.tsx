@@ -18,7 +18,7 @@ export interface CourseContextType {
   refreshCourses: () => Promise<void>;
   getCourse: (courseId: string) => Course | undefined;
   addCourse: (course: Partial<Course> & { name: string; description: string; modules?: CourseModule[] }) => Promise<Course>;
-  updateCourse: (courseId: string, updated: Partial<Course>) => Promise<void>;
+  updateCourse: (courseId: string, updated: Partial<Course>, syncToBackend?: boolean) => Promise<void>;
   deleteCourse: (courseId: string) => Promise<void>;
 
   // Module Operations
@@ -39,8 +39,9 @@ export interface CourseContextType {
 
   // Assignment Submissions Operations
   assignmentSubmissions: AssignmentSubmission[];
+  refreshAssignmentSubmissions: () => Promise<void>;
   submitAssignment: (submissionData: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>) => void;
-  updateSubmissionStatus: (submissionId: string, status: SubmissionStatus, adminFeedback?: string) => void;
+  updateSubmissionStatus: (submissionId: string, status: SubmissionStatus, adminFeedback?: string, score?: number) => Promise<void>;
   getSubmissionForTopic: (topicId: string, studentId?: string) => AssignmentSubmission | undefined;
   getPendingSubmissionsCount: () => number;
 
@@ -65,30 +66,12 @@ export interface CourseContextType {
 
 const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'va_lms_courses_v4';
+const LOCAL_STORAGE_KEY = 'va_lms_courses_v5';
 const TOPICS_LOCAL_STORAGE_KEY = 'va_lms_completed_topic_ids_v3';
 const ASSESSMENTS_LOCAL_STORAGE_KEY = 'va_lms_assessment_results';
-const ASSIGNMENTS_LOCAL_STORAGE_KEY = 'va_lms_assignment_submissions';
+const ASSIGNMENTS_LOCAL_STORAGE_KEY = 'va_lms_assignment_submissions_v2';
 
-const INITIAL_SUBMISSIONS: AssignmentSubmission[] = [
-  {
-    id: 'sub-001',
-    studentId: 'std-001',
-    studentName: 'Dr. Sarah Jenkins',
-    studentEmail: 'sarah.jenkins@hospital.org',
-    courseId: 'crs-va-001',
-    courseName: 'Virtual Autopsy Online Training',
-    moduleId: 'mod-2',
-    moduleTitle: 'PMCT Acquisition Protocols & MPR Reconstruction',
-    topicId: 't-5',
-    topicTitle: 'Multi-Planar Reconstruction (MPR) Hands-on PACS Exercise',
-    submittedAt: '2025-02-28 14:30',
-    status: 'PENDING',
-    assignmentInstructions: 'Review the provided PMCT dataset for metallic artifact reduction. Perform coronal and sagittal MPR reformations and submit a summary of your findings including Hounsfield unit measurements and artifact mitigation strategy.',
-    studentResponseText: 'Observed streak reduction using 120kVp with iterative metal artifact reduction (iMAR). Multiplanar coronal view demonstrates clear petrous apex alignment without beam hardening artifact (+1420 HU max).',
-    uploadedFileName: 'Sarah_Jenkins_MPR_Analysis.pdf'
-  }
-];
+const INITIAL_SUBMISSIONS: AssignmentSubmission[] = [];
 
 // Sanitize courses to guarantee huge base64 data URIs never choke localStorage
 const sanitizeCoursesForStorage = (courseList: Course[]): Course[] => {
@@ -108,6 +91,8 @@ const sanitizeCoursesForStorage = (courseList: Course[]): Course[] => {
 
 const getInitialCourses = (): Course[] => {
   try {
+    localStorage.removeItem('va_lms_courses_v4');
+    localStorage.removeItem('va_lms_assignment_submissions');
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -120,8 +105,8 @@ const getInitialCourses = (): Course[] => {
             const fallbackMod = defaultCourse?.modules?.find((dm) => dm.id === mod.id);
             return {
               ...mod,
-              assignment: mod.assignment || fallbackMod?.assignment,
-              test: mod.test || fallbackMod?.test,
+              assignment: mod.assignment,
+              test: mod.test,
               // Strictly keep only true educational lessons (filter out any legacy quiz/assessment topics)
               topics: (mod.topics || [])
                 .filter((t: Topic) => !t.title.toLowerCase().includes('quiz') && !t.title.toLowerCase().includes('competency quiz') && !t.title.toLowerCase().includes('assessment:'))
@@ -158,35 +143,64 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
     thumbnailUrl: bCourse.thumbnailUrl || bCourse.thumbnail || '',
     status: (bCourse.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
     createdAt: bCourse.createdAt ? new Date(bCourse.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    modules: (bCourse.modules || []).map((m: any, idx: number) => ({
-      id: m.id,
-      moduleNumber: m.order || (idx + 1),
-      title: m.title || '',
-      subtitle: m.subtitle || '',
-      description: m.description || '',
-      duration: m.duration || '2h 00m',
-      cmeCredits: m.cmeCredits ?? 4,
-      order: m.order || (idx + 1),
-      status: (m.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
-      topics: (m.resources || m.topics || []).map((r: any, rIdx: number) => ({
-        id: r.id,
-        title: r.title || '',
-        description: r.description || '',
-        contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : (r.type === 'DOWNLOADABLE_BRIEF' || r.contentType === 'assignment' ? 'assignment' : 'theory')) as ContentType,
-        content: r.content || '',
-        pdfUrl: r.fileUrl || r.pdfUrl || '',
-        pdfFileName: r.pdfFileName || (r.fileUrl ? r.fileUrl.split('/').pop()?.split('?')[0] : ''),
-        videoUrl: r.videoUrl || '',
-        bunnyVideoId: r.bunnyVideoId || (r.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]),
-        thumbnail: r.thumbnail || '',
-        requiredWatchPercentage: 99,
-        assignmentInstructions: r.assignmentInstructions || '',
-        submissionInstructions: r.submissionInstructions || '',
-        referenceAttachmentName: r.referenceAttachmentName || '',
-        order: r.order || (rIdx + 1),
-        status: (r.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
-      })),
-    })),
+    modules: (bCourse.modules || []).map((m: any, idx: number) => {
+      const bAssignment = m.assignment || (m.assignments && m.assignments[0]);
+      const resolvedAssignment = bAssignment
+        ? {
+            id: bAssignment.id || `asgn-${m.id}`,
+            moduleId: m.id,
+            title: bAssignment.title || `Module ${m.order || (idx + 1)} Assignment`,
+            description: bAssignment.description || '',
+            instructions: bAssignment.instructions || '',
+            totalMarks: bAssignment.totalMarks || bAssignment.maxScore || 100,
+            dueDate: bAssignment.dueDate
+              ? (typeof bAssignment.dueDate === 'string'
+                  ? bAssignment.dueDate.split('T')[0]
+                  : new Date(bAssignment.dueDate).toISOString().split('T')[0])
+              : undefined,
+            templateFileName: bAssignment.templateFileName || bAssignment.fileName || undefined,
+            templateFileUrl: bAssignment.templateFileUrl || bAssignment.fileUrl || undefined,
+            submissionStatus: (bAssignment.submissionStatus || 'pending') as 'pending' | 'submitted' | 'graded',
+            submittedFileName: bAssignment.submittedFileName || undefined,
+            submittedFileUrl: bAssignment.submittedFileUrl || undefined,
+            submittedAt: bAssignment.submittedAt || undefined,
+            studentResponseText: bAssignment.studentResponseText || bAssignment.responseText || undefined,
+            score: bAssignment.score !== undefined ? bAssignment.score : undefined,
+            feedback: bAssignment.feedback || undefined,
+          }
+        : undefined;
+
+      return {
+        id: m.id,
+        moduleNumber: m.order || (idx + 1),
+        title: m.title || '',
+        subtitle: m.subtitle || '',
+        description: m.description || '',
+        duration: m.duration || '2h 00m',
+        cmeCredits: m.cmeCredits ?? 4,
+        order: m.order || (idx + 1),
+        status: (m.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+        topics: (m.resources || m.topics || []).map((r: any, rIdx: number) => ({
+          id: r.id,
+          title: r.title || '',
+          description: r.description || '',
+          contentType: ((r.type === 'VIDEO_STREAM' || r.contentType === 'video') ? 'video' : (r.type === 'DOWNLOADABLE_BRIEF' || r.contentType === 'assignment' ? 'assignment' : 'theory')) as ContentType,
+          content: r.content || '',
+          pdfUrl: r.fileUrl || r.pdfUrl || '',
+          pdfFileName: r.pdfFileName || (r.fileUrl ? r.fileUrl.split('/').pop()?.split('?')[0] : ''),
+          videoUrl: r.videoUrl || '',
+          bunnyVideoId: r.bunnyVideoId || (r.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]),
+          thumbnail: r.thumbnail || '',
+          requiredWatchPercentage: 99,
+          assignmentInstructions: r.assignmentInstructions || '',
+          submissionInstructions: r.submissionInstructions || '',
+          referenceAttachmentName: r.referenceAttachmentName || '',
+          order: r.order || (rIdx + 1),
+          status: (r.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+        })),
+        assignment: resolvedAssignment,
+      };
+    }),
   };
 };
 
@@ -257,6 +271,18 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     localStorage.setItem(ASSIGNMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assignmentSubmissions));
   }, [assignmentSubmissions]);
 
+  // Fetch assignment submissions directly from Backend API
+  const refreshAssignmentSubmissions = useCallback(async () => {
+    try {
+      const res = await api.get<AssignmentSubmission[]>('/assignments/submissions');
+      if (res && res.data && Array.isArray(res.data)) {
+        setAssignmentSubmissions(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch assignment submissions from backend API, using cached data:', err);
+    }
+  }, []);
+
   // Fetch courses directly from Supabase / Backend API on mount
   const refreshCourses = useCallback(async () => {
     try {
@@ -265,19 +291,36 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (res && res.data && Array.isArray(res.data)) {
         const mapped = res.data.map(mapBackendCourseToFrontend);
         if (mapped.length > 0) {
-          setCourses(mapped);
+          setCourses((prevCourses) => {
+            return mapped.map((mCourse) => {
+              const existingCourse = prevCourses.find((pc) => pc.id === mCourse.id);
+              return {
+                ...mCourse,
+                modules: mCourse.modules.map((mod) => {
+                  const existingMod = existingCourse?.modules.find((em) => em.id === mod.id);
+                  return {
+                    ...mod,
+                    assignment: mod.assignment !== undefined ? mod.assignment : undefined,
+                    test: mod.test || existingMod?.test,
+                  };
+                }),
+              };
+            });
+          });
         }
       }
+      await refreshAssignmentSubmissions();
     } catch (err) {
       console.warn('Failed to fetch courses from backend API, using cached data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshAssignmentSubmissions]);
 
   useEffect(() => {
     refreshCourses();
-  }, [refreshCourses]);
+    refreshAssignmentSubmissions();
+  }, [refreshCourses, refreshAssignmentSubmissions]);
 
   const activeCourse = courses[0] || INITIAL_COURSES[0];
 
@@ -353,6 +396,30 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               }
             }
 
+            let createdAssignment = mod.assignment;
+            if (mod.assignment) {
+              try {
+                const asgnRes = await api.put(`/courses/modules/${bMod.id}/assignment`, {
+                  title: mod.assignment.title,
+                  description: mod.assignment.description || null,
+                  instructions: mod.assignment.instructions || '',
+                  maxScore: mod.assignment.totalMarks || 100,
+                  dueDate: mod.assignment.dueDate || null,
+                  templateFileName: mod.assignment.templateFileName || null,
+                  templateFileUrl: mod.assignment.templateFileUrl || null,
+                });
+                if (asgnRes?.data) {
+                  createdAssignment = {
+                    ...mod.assignment,
+                    id: asgnRes.data.id,
+                    moduleId: bMod.id,
+                  };
+                }
+              } catch (asgnErr) {
+                console.error('Failed to persist assignment to DB:', asgnErr);
+              }
+            }
+
             createdModules.push({
               id: bMod.id,
               moduleNumber: bMod.order || (createdModules.length + 1),
@@ -364,6 +431,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               order: bMod.order || (createdModules.length + 1),
               status: bMod.status?.toLowerCase() === 'draft' ? 'draft' : 'published',
               topics: createdTopics,
+              assignment: createdAssignment,
             });
           } catch (modErr) {
             console.error('Failed to persist module to DB:', modErr);
@@ -400,25 +468,27 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // UPDATE COURSE (persists metadata and optionally syncs modules)
-  const updateCourse = async (courseId: string, updatedData: Partial<Course>): Promise<void> => {
-    const payload: any = {};
-    if (updatedData.name !== undefined || updatedData.title !== undefined) {
-      payload.title = updatedData.name || updatedData.title;
-    }
-    if (updatedData.shortDescription !== undefined) payload.shortDescription = updatedData.shortDescription;
-    if (updatedData.description !== undefined) payload.description = updatedData.description;
-    if (updatedData.duration !== undefined) payload.duration = updatedData.duration;
-    if (updatedData.thumbnailUrl !== undefined || updatedData.thumbnail !== undefined) {
-      payload.thumbnailUrl = updatedData.thumbnailUrl || updatedData.thumbnail;
-    }
-    if (updatedData.status !== undefined) {
-      payload.status = updatedData.status.toUpperCase();
-    }
+  const updateCourse = async (courseId: string, updatedData: Partial<Course>, syncToBackend: boolean = true): Promise<void> => {
+    if (syncToBackend) {
+      const payload: any = {};
+      if (updatedData.name !== undefined || updatedData.title !== undefined) {
+        payload.title = updatedData.name || updatedData.title;
+      }
+      if (updatedData.shortDescription !== undefined) payload.shortDescription = updatedData.shortDescription;
+      if (updatedData.description !== undefined) payload.description = updatedData.description;
+      if (updatedData.duration !== undefined) payload.duration = updatedData.duration;
+      if (updatedData.thumbnailUrl !== undefined || updatedData.thumbnail !== undefined) {
+        payload.thumbnailUrl = updatedData.thumbnailUrl || updatedData.thumbnail;
+      }
+      if (updatedData.status !== undefined) {
+        payload.status = updatedData.status.toUpperCase();
+      }
 
-    try {
-      await api.put(`/courses/${courseId}`, payload);
-    } catch (e) {
-      console.warn('API updateCourse failed or course is client-only:', e);
+      try {
+        await api.put(`/courses/${courseId}`, payload);
+      } catch (e) {
+        console.warn('API updateCourse failed or course is client-only:', e);
+      }
     }
 
     setCourses((prev) =>
@@ -775,6 +845,19 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     moduleId: string,
     assignmentData: Partial<import('../types/course').ModuleAssignment>
   ) => {
+    // Sync with backend if updating assignment content
+    if (assignmentData.title || assignmentData.description !== undefined || assignmentData.instructions !== undefined || assignmentData.templateFileUrl !== undefined) {
+      api.put(`/courses/modules/${moduleId}/assignment`, {
+        title: assignmentData.title,
+        description: assignmentData.description || null,
+        instructions: assignmentData.instructions || '',
+        maxScore: assignmentData.totalMarks,
+        dueDate: assignmentData.dueDate || null,
+        templateFileName: assignmentData.templateFileName || null,
+        templateFileUrl: assignmentData.templateFileUrl || null,
+      }).catch((e) => console.warn('Failed to sync assignment to backend:', e));
+    }
+
     setCourses((prev) =>
       prev.map((c) => {
         if (c.id === courseId) {
@@ -922,9 +1005,15 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return Boolean(completedTopicIds[prevTopic.id]);
   };
 
-  // Rule: Module Assessment unlocks ONLY after ALL topics in that module are completed!
+  // Rule: Module Assessment unlocks ONLY after ALL topics in that module are completed and assignment is evaluated (if present)!
   const isModuleAssessmentUnlocked = (moduleId: string): boolean => {
-    return isModuleUnlocked(moduleId) && isModuleTopicsCompleted(moduleId);
+    if (!isModuleUnlocked(moduleId)) return false;
+    if (!isModuleTopicsCompleted(moduleId)) return false;
+    const targetMod = activeCourse.modules.find((m) => m.id === moduleId);
+    if (targetMod?.assignment && targetMod.assignment.submissionStatus !== 'graded') {
+      return false;
+    }
+    return true;
   };
 
   const getModuleStatus = (
@@ -975,10 +1064,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   };
 
-  const updateSubmissionStatus = (
+  const updateSubmissionStatus = async (
     submissionId: string,
     status: SubmissionStatus,
-    adminFeedback?: string
+    adminFeedback?: string,
+    score?: number
   ) => {
     const targetSub = assignmentSubmissions.find((s) => s.id === submissionId);
     if (targetSub) {
@@ -1000,11 +1090,24 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               ...s,
               status,
               adminFeedback,
+              score: score !== undefined ? score : s.score,
               reviewedAt: new Date().toISOString().split('T')[0]
             }
           : s
       )
     );
+
+    try {
+      await api.put(`/assignments/submissions/${submissionId}/grade`, {
+        status,
+        feedback: adminFeedback,
+        score,
+      });
+      await refreshAssignmentSubmissions();
+      await refreshCourses();
+    } catch (err) {
+      console.error('Failed to update submission status on backend:', err);
+    }
   };
 
   const getSubmissionForTopic = (
@@ -1046,6 +1149,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateModuleTest,
 
         assignmentSubmissions,
+        refreshAssignmentSubmissions,
         submitAssignment,
         updateSubmissionStatus,
         getSubmissionForTopic,

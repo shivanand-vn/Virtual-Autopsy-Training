@@ -615,7 +615,7 @@ export const AdminUsersPage: React.FC = () => {
                     className="inline-flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download Document</span>
+                    <span>Download</span>
                   </a>
                 ) : null}
               </div>

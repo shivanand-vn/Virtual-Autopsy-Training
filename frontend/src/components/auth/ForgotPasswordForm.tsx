@@ -6,6 +6,7 @@ import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { FormErrors } from '../../types/auth';
 import { Mail, KeyRound, CheckCircle2, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import { api } from '../../lib/api';
 
 export const ForgotPasswordForm: React.FC = () => {
   const navigate = useNavigate();
@@ -61,7 +62,7 @@ export const ForgotPasswordForm: React.FC = () => {
   };
 
   // Step 1: Send OTP
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
@@ -74,30 +75,38 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      await api.post('/auth/forgot-password', { email });
       setStep(2);
       setResendCooldown(60);
       setCanResend(false);
       setBannerMessage(`Verification code sent to ${email}`);
-    }, 1000);
+    } catch (err: any) {
+      setErrors({ email: err.message || 'Failed to dispatch verification OTP. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 2: Resend OTP
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (!canResend) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      await api.post('/auth/forgot-password', { email });
       setResendCooldown(60);
       setCanResend(false);
       setBannerMessage(`A new OTP has been sent to ${email}`);
-    }, 1000);
+    } catch (err: any) {
+      setErrors({ otp: err.message || 'Failed to resend code.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 2: Verify OTP
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
@@ -107,16 +116,20 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      await api.post('/auth/verify-otp', { email, otp: otpCode });
       setStep(3);
       setBannerMessage(null);
-    }, 1000);
+    } catch (err: any) {
+      setErrors({ otp: err.message || 'Invalid or expired OTP code.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 3: Reset Password
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: FormErrors = {};
 
@@ -137,9 +150,10 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const otpCode = otp.join('');
+      await api.post('/auth/reset-password', { email, otp: otpCode, newPassword });
       if (email) {
         try {
           localStorage.removeItem(`vat_temp_pwd_${email.toLowerCase().trim()}`);
@@ -153,7 +167,11 @@ export const ForgotPasswordForm: React.FC = () => {
       setTimeout(() => {
         navigate('/login');
       }, 3000);
-    }, 1200);
+    } catch (err: any) {
+      setErrors({ newPassword: err.message || 'Failed to reset password. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
@@ -17,7 +17,9 @@ import {
   ChevronUp,
   Sparkles,
   FileCheck,
-  Award
+  Award,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 export const AdminCourseDetail: React.FC = () => {
@@ -27,6 +29,28 @@ export const AdminCourseDetail: React.FC = () => {
 
   const course = courseId ? getCourse(courseId) : undefined;
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>('mod-1');
+
+  // Publication status dropdown and apply button state
+  const [selectedStatus, setSelectedStatus] = useState<'draft' | 'published'>(course?.status || 'draft');
+  const [isApplying, setIsApplying] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Synchronize dropdown state with course's saved status whenever course updates
+  useEffect(() => {
+    if (course) {
+      setSelectedStatus(course.status);
+    }
+  }, [course?.status]);
+
+  // Auto-dismiss notification after 4 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   if (!course) {
     return (
@@ -49,9 +73,31 @@ export const AdminCourseDetail: React.FC = () => {
     );
   }
 
-  const togglePublishStatus = async () => {
-    const nextStatus = course.status === 'published' ? 'draft' : 'published';
-    await updateCourse(course.id, { status: nextStatus });
+  const hasStatusChanged = selectedStatus !== course.status;
+
+  const handleApplyStatus = async () => {
+    if (!hasStatusChanged || isApplying) return;
+
+    setIsApplying(true);
+    setNotification(null);
+
+    try {
+      await updateCourse(course.id, { status: selectedStatus });
+      setNotification({
+        type: 'success',
+        message: `Course status successfully updated to ${selectedStatus === 'published' ? 'Published' : 'Unpublished (Draft)'}.`,
+      });
+    } catch (err: any) {
+      console.error('Failed to update course status:', err);
+      // Retain the actual saved status on error
+      setSelectedStatus(course.status);
+      setNotification({
+        type: 'error',
+        message: err?.response?.data?.message || err?.message || 'Failed to update course status. Please try again.',
+      });
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const totalTopics = course.modules.reduce((acc, m) => acc + m.topics.length, 0);
@@ -63,34 +109,88 @@ export const AdminCourseDetail: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <Link
             to="/admin/courses"
-            className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-colors shrink-0"
+            className="inline-flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2.5 rounded-xl transition-colors shrink-0 shadow-2xs"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Courses</span>
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Publication Status Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value as 'draft' | 'published')}
+                disabled={isApplying}
+                aria-label="Publication Status"
+                className={`h-10 pl-3.5 pr-8 rounded-xl text-xs font-bold border transition-all appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${
+                  selectedStatus === 'published'
+                    ? 'bg-emerald-50/70 text-emerald-900 border-emerald-300 hover:bg-emerald-50'
+                    : 'bg-amber-50/70 text-amber-900 border-amber-300 hover:bg-amber-50'
+                }`}
+              >
+                <option value="draft">Status: Unpublished (Draft)</option>
+                <option value="published">Status: Published</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            {/* Apply Button */}
             <button
-              onClick={togglePublishStatus}
-              className={`inline-flex items-center space-x-1.5 text-xs font-bold px-4 py-2 rounded-xl border transition-colors cursor-pointer ${
-                course.status === 'published'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+              type="button"
+              onClick={handleApplyStatus}
+              disabled={!hasStatusChanged || isApplying}
+              className={`h-10 px-4 inline-flex items-center justify-center space-x-1.5 text-xs font-black rounded-xl transition-all shadow-2xs ${
+                hasStatusChanged && !isApplying
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md cursor-pointer'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
               }`}
+              title={hasStatusChanged ? 'Apply publication status change' : 'No changes to apply'}
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>{course.status === 'published' ? 'Published' : 'Unpublished (Draft)'}</span>
+              {isApplying && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{isApplying ? 'Applying...' : 'Apply'}</span>
             </button>
 
+            {/* Edit Course & Curriculum Button */}
             <button
               onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
-              className="inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 py-2 rounded-xl shadow-md transition-all cursor-pointer"
+              className="h-10 inline-flex items-center space-x-1.5 text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 px-4 rounded-xl shadow-md transition-all cursor-pointer"
             >
               <Edit className="w-4 h-4" />
               <span>Edit Course & Curriculum</span>
             </button>
           </div>
         </div>
+
+        {/* Feedback Notification Banner */}
+        {notification && (
+          <div
+            className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs font-bold transition-all shadow-xs ${
+              notification.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : 'bg-rose-50 border-rose-200 text-rose-900'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {notification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{notification.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNotification(null)}
+              className="p-1 hover:opacity-70 text-slate-500 cursor-pointer"
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Course Header Overview Card (NO FEE OR PRICE) */}
         <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">

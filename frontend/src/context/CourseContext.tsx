@@ -491,8 +491,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       try {
         await api.put(`/courses/${courseId}`, payload);
-      } catch (e) {
+      } catch (e: any) {
         console.warn('API updateCourse failed or course is client-only:', e);
+        if (e?.response && e.response.status >= 400) {
+          throw e;
+        }
       }
     }
 

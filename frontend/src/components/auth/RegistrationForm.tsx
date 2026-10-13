@@ -5,7 +5,7 @@ import { StepIndicator } from './StepIndicator';
 import { FormInput } from '../common/FormInput';
 import { SelectInput } from '../common/SelectInput';
 import { PhoneInput } from '../common/PhoneInput';
-import { FileUpload } from '../common/FileUpload';
+import { FileUpload, MAX_FILE_SIZE, MAX_FILE_SIZE_ERROR } from '../common/FileUpload';
 import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
@@ -83,6 +83,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
     if (!formData.cvFile) {
       newErrors.cvFile = 'CV or Proof of Registration PDF is required.';
+    } else if (formData.cvFile.size > MAX_FILE_SIZE) {
+      newErrors.cvFile = MAX_FILE_SIZE_ERROR;
     }
 
     if (!formData.consent) {
@@ -269,7 +271,24 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           label="CV / Resume"
           required
           selectedFile={formData.cvFile}
-          onFileSelect={(file) => setFormData({ ...formData, cvFile: file })}
+          onFileSelect={(file) => {
+            if (file && file.size > MAX_FILE_SIZE) {
+              setFormData((prev) => ({ ...prev, cvFile: null }));
+              setErrors((prev) => ({
+                ...prev,
+                cvFile: MAX_FILE_SIZE_ERROR,
+              }));
+              return;
+            }
+            setFormData((prev) => ({ ...prev, cvFile: file }));
+            if (file) {
+              setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated.cvFile;
+                return updated;
+              });
+            }
+          }}
           error={errors.cvFile}
         />
 

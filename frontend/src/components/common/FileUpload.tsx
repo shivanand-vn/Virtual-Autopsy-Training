@@ -1,6 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { FileUp, FileText, CheckCircle2, X } from 'lucide-react';
 
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10,485,760 bytes (10 MB)
+export const MAX_FILE_SIZE_ERROR = 'File size must not exceed 10 MB. Please upload a smaller file.';
+
 interface FileUploadProps {
   label: string;
   required?: boolean;
@@ -25,11 +28,19 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
     if (file.type !== 'application/pdf') {
       setLocalError('Only PDF files are allowed.');
+      onFileSelect(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10 MB limit
-      setLocalError('File size exceeds maximum limit of 10 MB.');
+    if (file.size > MAX_FILE_SIZE) {
+      setLocalError(MAX_FILE_SIZE_ERROR);
+      onFileSelect(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 

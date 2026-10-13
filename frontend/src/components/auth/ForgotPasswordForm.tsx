@@ -17,6 +17,7 @@ export const ForgotPasswordForm: React.FC = () => {
   // Form State
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -26,6 +27,13 @@ export const ForgotPasswordForm: React.FC = () => {
   const [resendCooldown, setResendCooldown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+
+  // Security guard: Ensure Step 3 (password reset) is NEVER accessible without a verified resetToken
+  useEffect(() => {
+    if (step === 3 && !resetToken) {
+      setStep(1);
+    }
+  }, [step, resetToken]);
 
   // Resend OTP Cooldown Timer
   useEffect(() => {
@@ -51,6 +59,17 @@ export const ForgotPasswordForm: React.FC = () => {
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-input-${index + 1}`);
       nextInput?.focus();
+    }
+  };
+
+  // Support pasting full 6-digit OTP code directly
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim().replace(/[^0-9]/g, '');
+    if (pastedData.length >= 6) {
+      const newOtp = pastedData.slice(0, 6).split('');
+      setOtp(newOtp);
+      document.getElementById('otp-input-5')?.focus();
     }
   };
 
@@ -118,11 +137,18 @@ export const ForgotPasswordForm: React.FC = () => {
 
     try {
       setIsLoading(true);
-      await api.post('/auth/verify-otp', { email, otp: otpCode });
+      const res: any = await api.post('/auth/verify-otp', { email, otp: otpCode });
+      const token = res?.data?.resetToken || res?.resetToken;
+      if (token) {
+        setResetToken(token);
+      }
       setStep(3);
       setBannerMessage(null);
     } catch (err: any) {
       setErrors({ otp: err.message || 'Invalid or expired OTP code.' });
+      // Reset inputs so user can cleanly re-enter the code
+      setOtp(['', '', '', '', '', '']);
+      document.getElementById('otp-input-0')?.focus();
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +179,12 @@ export const ForgotPasswordForm: React.FC = () => {
     try {
       setIsLoading(true);
       const otpCode = otp.join('');
-      await api.post('/auth/reset-password', { email, otp: otpCode, newPassword });
+      await api.post('/auth/reset-password', {
+        email,
+        otp: otpCode,
+        resetToken,
+        newPassword,
+      });
       if (email) {
         try {
           localStorage.removeItem(`vat_temp_pwd_${email.toLowerCase().trim()}`);
@@ -253,12 +284,19 @@ export const ForgotPasswordForm: React.FC = () => {
             </div>
           )}
 
+          {errors.otp && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-xs text-rose-700 font-bold shadow-xs animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errors.otp}</span>
+            </div>
+          )}
+
           <form onSubmit={handleVerifyOtp} className="space-y-5" noValidate>
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-2">
                 Enter 6-Digit OTP *
               </label>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2" onPaste={handleOtpPaste}>
                 {otp.map((digit, idx) => (
                   <input
                     key={idx}
@@ -269,11 +307,15 @@ export const ForgotPasswordForm: React.FC = () => {
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    className="w-11 h-12 text-center text-lg font-bold text-navy-950 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 focus:bg-white transition-all font-mono"
+                    className={`w-11 h-12 text-center text-lg font-bold text-navy-950 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-all font-mono ${
+                      errors.otp
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/40 bg-rose-50/20'
+                        : 'border-slate-200 focus:border-amber-500 focus:ring-amber-500/40'
+                    }`}
                   />
                 ))}
               </div>
-              {errors.otp && <p className="text-xs text-red-500 font-medium mt-1.5">{errors.otp}</p>}
+              {errors.otp && <p className="text-xs text-rose-600 font-semibold mt-1.5">{errors.otp}</p>}
             </div>
 
             {/* Resend OTP Timer Controls */}

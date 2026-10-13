@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { comparePassword, hashPassword } from '../utils/password.js';
@@ -320,6 +321,8 @@ interface PasswordResetOtpEntry {
   otp: string;
   expiresAt: number;
   verified: boolean;
+  attempts: number;
+  resetToken?: string;
 }
 
 const passwordResetOtpMap = new Map<string, PasswordResetOtpEntry>();
@@ -350,6 +353,7 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
       otp,
       expiresAt,
       verified: false,
+      attempts: 0,
     });
 
     // Dispatch email
@@ -388,13 +392,30 @@ export async function verifyOtp(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (entry.otp !== String(otp).trim()) {
-      sendError(res, 'Invalid verification code. Please check your email and try again.', 400);
+    // Track verification attempts (Max 5 attempts allowed)
+    entry.attempts = (entry.attempts || 0) + 1;
+    if (entry.attempts > 5) {
+      passwordResetOtpMap.delete(normalizedEmail);
+      sendError(res, 'Too many invalid attempts. For security reasons, please request a new OTP code.', 429);
       return;
     }
 
+    const cleanInputOtp = String(otp).trim();
+    if (entry.otp !== cleanInputOtp) {
+      const remainingAttempts = 5 - entry.attempts;
+      const attemptNote = remainingAttempts > 0 
+        ? ` (${remainingAttempts} attempt${remainingAttempts > 1 ? 's' : ''} remaining)` 
+        : '';
+      sendError(res, `Invalid verification code. Please check your email and try again.${attemptNote}`, 400);
+      return;
+    }
+
+    // Generate cryptographic resetToken
+    const resetToken = crypto.randomBytes(32).toString('hex');
     entry.verified = true;
-    sendSuccess(res, 'OTP code verified successfully.', { verified: true });
+    entry.resetToken = resetToken;
+
+    sendSuccess(res, 'OTP code verified successfully.', { verified: true, resetToken });
   } catch (error: any) {
     console.error('Error in verifyOtp:', error);
     sendError(res, error.message || 'Failed to verify OTP', 500);
@@ -403,9 +424,9 @@ export async function verifyOtp(req: Request, res: Response): Promise<void> {
 
 export async function resetPassword(req: Request, res: Response): Promise<void> {
   try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      sendError(res, 'Email, OTP, and new password are required', 400);
+    const { email, otp, resetToken, newPassword } = req.body;
+    if (!email || !newPassword) {
+      sendError(res, 'Email and new password are required', 400);
       return;
     }
 
@@ -424,11 +445,15 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
     if (Date.now() > entry.expiresAt) {
       passwordResetOtpMap.delete(normalizedEmail);
-      sendError(res, 'Verification code has expired. Please request a new code.', 400);
+      sendError(res, 'Verification session has expired. Please request a new code.', 400);
       return;
     }
 
-    if (entry.otp !== String(otp).trim() || !entry.verified) {
+    // Verify authentication proof (either valid resetToken OR verified OTP)
+    const tokenMatch = resetToken && entry.resetToken && entry.resetToken === resetToken;
+    const otpMatch = otp && entry.otp === String(otp).trim() && entry.verified;
+
+    if (!tokenMatch && !otpMatch) {
       sendError(res, 'Please verify your 6-digit OTP code before resetting password.', 400);
       return;
     }
@@ -448,7 +473,7 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
       data: { passwordHash: newHash },
     });
 
-    // Invalidate OTP entry after successful reset
+    // Invalidate OTP entry immediately after successful reset
     passwordResetOtpMap.delete(normalizedEmail);
 
     sendSuccess(res, 'Password reset successfully. You can now log in with your new credentials.', null);

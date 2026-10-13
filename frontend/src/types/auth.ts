@@ -2,6 +2,7 @@ export interface RegistrationFormData {
   fullName: string;
   email: string;
   countryCode: string;
+  countryIso?: string;
   phoneNumber: string;
   qualification: string;
   qualificationOther: string;

@@ -6,6 +6,7 @@ import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { FormErrors } from '../../types/auth';
 import { Mail, KeyRound, CheckCircle2, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import { api } from '../../lib/api';
 
 export const ForgotPasswordForm: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export const ForgotPasswordForm: React.FC = () => {
   // Form State
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -25,6 +27,13 @@ export const ForgotPasswordForm: React.FC = () => {
   const [resendCooldown, setResendCooldown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+
+  // Security guard: Ensure Step 3 (password reset) is NEVER accessible without a verified resetToken
+  useEffect(() => {
+    if (step === 3 && !resetToken) {
+      setStep(1);
+    }
+  }, [step, resetToken]);
 
   // Resend OTP Cooldown Timer
   useEffect(() => {
@@ -53,6 +62,17 @@ export const ForgotPasswordForm: React.FC = () => {
     }
   };
 
+  // Support pasting full 6-digit OTP code directly
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim().replace(/[^0-9]/g, '');
+    if (pastedData.length >= 6) {
+      const newOtp = pastedData.slice(0, 6).split('');
+      setOtp(newOtp);
+      document.getElementById('otp-input-5')?.focus();
+    }
+  };
+
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       const prevInput = document.getElementById(`otp-input-${index - 1}`);
@@ -61,7 +81,7 @@ export const ForgotPasswordForm: React.FC = () => {
   };
 
   // Step 1: Send OTP
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
@@ -74,61 +94,87 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const cleanEmail = email.trim().toLowerCase();
+      await api.post('/auth/forgot-password', { email: cleanEmail });
+      setEmail(cleanEmail);
       setStep(2);
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`Verification code sent to ${email}`);
-    }, 1000);
+      setBannerMessage(`Verification code sent to ${cleanEmail}`);
+    } catch (err: any) {
+      setErrors({ email: err.message || 'Failed to dispatch verification OTP. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 2: Resend OTP
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (!canResend) return;
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const cleanEmail = email.trim().toLowerCase();
+      await api.post('/auth/forgot-password', { email: cleanEmail });
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`A new OTP has been sent to ${email}`);
-    }, 1000);
+      setBannerMessage(`A new OTP has been sent to ${cleanEmail}`);
+    } catch (err: any) {
+      setErrors({ otp: err.message || 'Failed to resend code.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 2: Verify OTP
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
-    const otpCode = otp.join('');
+    const otpCode = otp.join('').trim();
     if (otpCode.length < 6) {
       setErrors({ otp: 'Please enter the complete 6-digit verification code.' });
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const cleanEmail = email.trim().toLowerCase();
+      const res: any = await api.post('/auth/verify-otp', { email: cleanEmail, otp: otpCode });
+      const token = res?.data?.resetToken || res?.resetToken;
+      if (token) {
+        setResetToken(token);
+      }
       setStep(3);
       setBannerMessage(null);
-    }, 1000);
+    } catch (err: any) {
+      setErrors({ otp: err.message || 'Invalid or expired OTP code.' });
+      // Reset inputs so user can cleanly re-enter the code
+      setOtp(['', '', '', '', '', '']);
+      document.getElementById('otp-input-0')?.focus();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Step 3: Reset Password
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: FormErrors = {};
 
-    if (!newPassword) {
+    const cleanNewPassword = newPassword.trim();
+    const cleanConfirmPassword = confirmPassword.trim();
+
+    if (!cleanNewPassword) {
       newErrors.newPassword = 'New password is required.';
-    } else if (newPassword.length < 8) {
+    } else if (cleanNewPassword.length < 8) {
       newErrors.newPassword = 'Password must be at least 8 characters long.';
     }
 
-    if (!confirmPassword) {
+    if (!cleanConfirmPassword) {
       newErrors.confirmPassword = 'Please confirm your new password.';
-    } else if (newPassword !== confirmPassword) {
+    } else if (cleanNewPassword !== cleanConfirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match.';
     }
 
@@ -137,12 +183,20 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      if (email) {
+    try {
+      setIsLoading(true);
+      const cleanEmail = email.trim().toLowerCase();
+      const otpCode = otp.join('').trim();
+      await api.post('/auth/reset-password', {
+        email: cleanEmail,
+        otp: otpCode,
+        resetToken,
+        newPassword: cleanNewPassword,
+      });
+      if (cleanEmail) {
         try {
-          localStorage.removeItem(`vat_temp_pwd_${email.toLowerCase().trim()}`);
+          localStorage.removeItem(`vat_temp_pwd_${cleanEmail}`);
+          sessionStorage.removeItem(`vat_temp_pwd_${cleanEmail}`);
         } catch (e) {
           console.error('Failed to clear temp password flag', e);
         }
@@ -151,9 +205,13 @@ export const ForgotPasswordForm: React.FC = () => {
 
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        navigate('/login');
+        navigate('/login', { state: { email: cleanEmail, resetSuccess: true } });
       }, 3000);
-    }, 1200);
+    } catch (err: any) {
+      setErrors({ newPassword: err.message || 'Failed to reset password. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -235,12 +293,19 @@ export const ForgotPasswordForm: React.FC = () => {
             </div>
           )}
 
+          {errors.otp && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-xs text-rose-700 font-bold shadow-xs animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errors.otp}</span>
+            </div>
+          )}
+
           <form onSubmit={handleVerifyOtp} className="space-y-5" noValidate>
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-2">
                 Enter 6-Digit OTP *
               </label>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2" onPaste={handleOtpPaste}>
                 {otp.map((digit, idx) => (
                   <input
                     key={idx}
@@ -251,11 +316,15 @@ export const ForgotPasswordForm: React.FC = () => {
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    className="w-11 h-12 text-center text-lg font-bold text-navy-950 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 focus:bg-white transition-all font-mono"
+                    className={`w-11 h-12 text-center text-lg font-bold text-navy-950 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-all font-mono ${
+                      errors.otp
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/40 bg-rose-50/20'
+                        : 'border-slate-200 focus:border-amber-500 focus:ring-amber-500/40'
+                    }`}
                   />
                 ))}
               </div>
-              {errors.otp && <p className="text-xs text-red-500 font-medium mt-1.5">{errors.otp}</p>}
+              {errors.otp && <p className="text-xs text-rose-600 font-semibold mt-1.5">{errors.otp}</p>}
             </div>
 
             {/* Resend OTP Timer Controls */}
@@ -370,7 +439,7 @@ export const ForgotPasswordForm: React.FC = () => {
           </div>
 
           <div className="pt-2">
-            <Link to="/login">
+            <Link to="/login" state={{ email: email.trim().toLowerCase(), resetSuccess: true }}>
               <PrimaryButton fullWidth={false}>
                 Sign In Now
               </PrimaryButton>

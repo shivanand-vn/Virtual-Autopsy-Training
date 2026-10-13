@@ -6,7 +6,7 @@ import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { LoginFormData, FormErrors } from '../../types/auth';
-import { Mail, AlertCircle } from 'lucide-react';
+import { Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface LoginFormProps {
@@ -17,12 +17,19 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const passedEmail = (location.state as any)?.email || '';
+  const resetSuccess = Boolean((location.state as any)?.resetSuccess);
   const { login } = useAuth();
   const [formData, setFormData] = useState<LoginFormData>({
     email: passedEmail,
     password: '',
     rememberMe: false,
   });
+
+  React.useEffect(() => {
+    if (passedEmail) {
+      setFormData((prev) => ({ ...prev, email: passedEmail }));
+    }
+  }, [passedEmail]);
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -77,6 +84,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
             Sign in to continue to your Virtual Autopsy Global training portal.
           </p>
         </div>
+
+        {/* Password Reset Success Notification */}
+        {resetSuccess && !loginError && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-800 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span>Password reset successfully! Please sign in with your new password.</span>
+          </div>
+        )}
 
         {/* Login Error Notification if triggered */}
         {loginError && (

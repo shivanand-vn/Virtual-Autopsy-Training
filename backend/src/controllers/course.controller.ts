@@ -40,10 +40,20 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
             resources: {
               orderBy: { order: 'asc' },
             },
+            assignments: true,
           },
         },
       },
     });
+
+    const userId = (req as any).user?.userId;
+    const userSubmissions = userId
+      ? await prisma.submission.findMany({
+          where: { userId },
+          orderBy: { submittedAt: 'desc' },
+        })
+      : [];
+    const subMap = new Map<string, any>(userSubmissions.map((s) => [s.assignmentId, s]));
 
     const mappedCourses = courses.map((c) => ({
       ...c,
@@ -53,6 +63,30 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
           ...r,
           videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
         })),
+        assignments: ((m as any).assignments || []).map((asgn: any) => {
+          const userSub = subMap.get(asgn.id);
+          return {
+            ...asgn,
+            submissionStatus: userSub
+              ? userSub.status === 'GRADED'
+                ? 'graded'
+                : userSub.status === 'RESUBMISSION_REQUESTED'
+                ? 'rejected'
+                : 'submitted'
+              : 'pending',
+            submittedFileUrl: userSub?.fileUrl || null,
+            submittedFileName: userSub
+              ? (() => {
+                  const raw = (userSub.fileUrl.split('/').pop()?.split('?')[0] || '').replace(/^[a-f0-9-]+_\d+_/, '');
+                  return raw.toLowerCase().endsWith('.pdf') ? raw : `${raw}.pdf`;
+                })()
+              : null,
+            submittedAt: userSub?.submittedAt ? new Date(userSub.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null,
+            score: userSub?.score ?? null,
+            feedback: userSub?.feedback ?? null,
+            studentResponseText: (userSub as any)?.responseText ?? null,
+          };
+        }),
       })),
     }));
 
@@ -78,6 +112,7 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
             resources: {
               orderBy: { order: 'asc' },
             },
+            assignments: true,
           },
         },
       },
@@ -107,6 +142,14 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
       });
     }
 
+    const userSubmissions = userId
+      ? await prisma.submission.findMany({
+          where: { userId },
+          orderBy: { submittedAt: 'desc' },
+        })
+      : [];
+    const subMap = new Map<string, any>(userSubmissions.map((s) => [s.assignmentId, s]));
+
     let previousModuleCompleted = true;
     const modulesWithLockStatus = course.modules.map((mod, index) => {
       const progress = userProgress[mod.id] || { isCompleted: false, lastVideoTimestamp: 0 };
@@ -126,6 +169,25 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
         isCompleted: progress.isCompleted,
         lastVideoTimestamp: progress.lastVideoTimestamp,
         isLocked,
+        assignments: ((mod as any).assignments || []).map((asgn: any) => {
+          const userSub = subMap.get(asgn.id);
+          return {
+            ...asgn,
+            submissionStatus: userSub
+              ? userSub.status === 'GRADED'
+                ? 'graded'
+                : userSub.status === 'RESUBMISSION_REQUESTED'
+                ? 'rejected'
+                : 'submitted'
+              : 'pending',
+            submittedFileUrl: userSub?.fileUrl || null,
+            submittedFileName: userSub ? (userSub.fileUrl.split('/').pop()?.split('?')[0] || '').replace(/^[a-f0-9-]+_\d+_/, '') : null,
+            submittedAt: userSub?.submittedAt ? new Date(userSub.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null,
+            score: userSub?.score ?? null,
+            feedback: userSub?.feedback ?? null,
+            studentResponseText: (userSub as any)?.responseText ?? null,
+          };
+        }),
       };
     });
 

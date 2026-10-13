@@ -11,8 +11,29 @@ interface QuestionBankContextType {
 
 const QuestionBankContext = createContext<QuestionBankContextType | undefined>(undefined);
 
+const QB_LOCAL_STORAGE_KEY = 'va_lms_question_bank_questions';
+
 export const QuestionBankProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [questions, setQuestions] = useState<BankQuestion[]>(INITIAL_MOCK_QUESTIONS);
+  const [questions, setQuestions] = useState<BankQuestion[]>(() => {
+    try {
+      const saved = localStorage.getItem(QB_LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse question bank from localStorage', e);
+    }
+    return INITIAL_MOCK_QUESTIONS;
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(QB_LOCAL_STORAGE_KEY, JSON.stringify(questions));
+    } catch (e) {
+      console.warn('Failed to save question bank to localStorage', e);
+    }
+  }, [questions]);
 
   const addQuestion = (questionData: Omit<BankQuestion, 'id' | 'createdAt'>): BankQuestion => {
     const newId = `qb-${Date.now().toString().slice(-4)}`;

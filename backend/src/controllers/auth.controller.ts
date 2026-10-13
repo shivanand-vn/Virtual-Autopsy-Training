@@ -29,9 +29,16 @@ const updateProfileSchema = z.object({
 export async function login(req: Request, res: Response): Promise<void> {
   const { email, password } = loginSchema.parse(req.body);
 
-  const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase().trim() },
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
   });
+
+  if (!user) {
+    user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
+  }
 
   if (!user) {
     sendError(res, 'Invalid email or password', 401);
@@ -336,9 +343,15 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
+
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
+    }
 
     if (!user) {
       sendError(res, 'No account found registered with this email address.', 404);
@@ -430,7 +443,8 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    const cleanPassword = String(newPassword || '').trim();
+    if (cleanPassword.length < 8) {
       sendError(res, 'New password must be at least 8 characters long', 400);
       return;
     }
@@ -458,16 +472,22 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
+
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
+    }
 
     if (!user) {
       sendError(res, 'User account not found', 404);
       return;
     }
 
-    const newHash = await hashPassword(newPassword);
+    const newHash = await hashPassword(cleanPassword);
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash: newHash },

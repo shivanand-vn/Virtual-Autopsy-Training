@@ -96,11 +96,13 @@ export const ForgotPasswordForm: React.FC = () => {
 
     try {
       setIsLoading(true);
-      await api.post('/auth/forgot-password', { email });
+      const cleanEmail = email.trim().toLowerCase();
+      await api.post('/auth/forgot-password', { email: cleanEmail });
+      setEmail(cleanEmail);
       setStep(2);
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`Verification code sent to ${email}`);
+      setBannerMessage(`Verification code sent to ${cleanEmail}`);
     } catch (err: any) {
       setErrors({ email: err.message || 'Failed to dispatch verification OTP. Please try again.' });
     } finally {
@@ -113,10 +115,11 @@ export const ForgotPasswordForm: React.FC = () => {
     if (!canResend) return;
     try {
       setIsLoading(true);
-      await api.post('/auth/forgot-password', { email });
+      const cleanEmail = email.trim().toLowerCase();
+      await api.post('/auth/forgot-password', { email: cleanEmail });
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`A new OTP has been sent to ${email}`);
+      setBannerMessage(`A new OTP has been sent to ${cleanEmail}`);
     } catch (err: any) {
       setErrors({ otp: err.message || 'Failed to resend code.' });
     } finally {
@@ -129,7 +132,7 @@ export const ForgotPasswordForm: React.FC = () => {
     e.preventDefault();
     setErrors({});
 
-    const otpCode = otp.join('');
+    const otpCode = otp.join('').trim();
     if (otpCode.length < 6) {
       setErrors({ otp: 'Please enter the complete 6-digit verification code.' });
       return;
@@ -137,7 +140,8 @@ export const ForgotPasswordForm: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const res: any = await api.post('/auth/verify-otp', { email, otp: otpCode });
+      const cleanEmail = email.trim().toLowerCase();
+      const res: any = await api.post('/auth/verify-otp', { email: cleanEmail, otp: otpCode });
       const token = res?.data?.resetToken || res?.resetToken;
       if (token) {
         setResetToken(token);
@@ -159,15 +163,18 @@ export const ForgotPasswordForm: React.FC = () => {
     e.preventDefault();
     const newErrors: FormErrors = {};
 
-    if (!newPassword) {
+    const cleanNewPassword = newPassword.trim();
+    const cleanConfirmPassword = confirmPassword.trim();
+
+    if (!cleanNewPassword) {
       newErrors.newPassword = 'New password is required.';
-    } else if (newPassword.length < 8) {
+    } else if (cleanNewPassword.length < 8) {
       newErrors.newPassword = 'Password must be at least 8 characters long.';
     }
 
-    if (!confirmPassword) {
+    if (!cleanConfirmPassword) {
       newErrors.confirmPassword = 'Please confirm your new password.';
-    } else if (newPassword !== confirmPassword) {
+    } else if (cleanNewPassword !== cleanConfirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match.';
     }
 
@@ -178,16 +185,18 @@ export const ForgotPasswordForm: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const otpCode = otp.join('');
+      const cleanEmail = email.trim().toLowerCase();
+      const otpCode = otp.join('').trim();
       await api.post('/auth/reset-password', {
-        email,
+        email: cleanEmail,
         otp: otpCode,
         resetToken,
-        newPassword,
+        newPassword: cleanNewPassword,
       });
-      if (email) {
+      if (cleanEmail) {
         try {
-          localStorage.removeItem(`vat_temp_pwd_${email.toLowerCase().trim()}`);
+          localStorage.removeItem(`vat_temp_pwd_${cleanEmail}`);
+          sessionStorage.removeItem(`vat_temp_pwd_${cleanEmail}`);
         } catch (e) {
           console.error('Failed to clear temp password flag', e);
         }
@@ -196,7 +205,7 @@ export const ForgotPasswordForm: React.FC = () => {
 
       // Redirect to login after 3 seconds
       setTimeout(() => {
-        navigate('/login');
+        navigate('/login', { state: { email: cleanEmail, resetSuccess: true } });
       }, 3000);
     } catch (err: any) {
       setErrors({ newPassword: err.message || 'Failed to reset password. Please try again.' });
@@ -430,7 +439,7 @@ export const ForgotPasswordForm: React.FC = () => {
           </div>
 
           <div className="pt-2">
-            <Link to="/login">
+            <Link to="/login" state={{ email: email.trim().toLowerCase(), resetSuccess: true }}>
               <PrimaryButton fullWidth={false}>
                 Sign In Now
               </PrimaryButton>

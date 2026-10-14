@@ -114,6 +114,19 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.cookie('vat_auth_token', token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
     sendSuccess(res, 'Login successful', {
       user: {
         id: user.id,

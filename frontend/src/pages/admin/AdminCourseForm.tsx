@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { useCourse } from '../../context/CourseContext';
+import { useCourse, mapBackendCourseToFrontend } from '../../context/CourseContext';
 import { useQuestionBank } from '../../context/QuestionBankContext';
 import { type ContentType, type CourseModule, type Topic, type ModuleAssignment, type ModuleTest } from '../../types/course';
 import { type BankQuestion, type QuestionType, type QuestionOption } from '../../types/questionBank';
 import { api } from '../../lib/api';
+import { normalizeVideoUrl, isEmbedVideoUrl } from '../../lib/videoUtils';
 import {
   ArrowLeft,
   Plus,
@@ -131,16 +132,14 @@ export const AdminCourseForm: React.FC = () => {
   const [pdfUploadProgress, setPdfUploadProgress] = useState<number>(0);
   const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
 
-  // Video Source & Upload State
-  const [videoSourceMode, setVideoSourceMode] = useState<'url' | 'file'>('url');
+  // Video Upload State (Direct Application Upload Only)
   const [uploadedVideoFileName, setUploadedVideoFileName] = useState<string | null>(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState<number>(0);
   const [videoUploadError, setVideoUploadError] = useState<string | null>(null);
   const videoUploadAbortControllerRef = useRef<AbortController | null>(null);
 
-  // Thumbnail Source & Upload State
-  const [thumbnailSourceMode, setThumbnailSourceMode] = useState<'url' | 'file'>('url');
+  // Thumbnail Upload State (Direct Application Upload Only)
   const [uploadedThumbnailFileName, setUploadedThumbnailFileName] = useState<string | null>(null);
   const [thumbnailLocalPreview, setThumbnailLocalPreview] = useState<string | null>(null);
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
@@ -150,6 +149,7 @@ export const AdminCourseForm: React.FC = () => {
 
   const [isDeletingThumbnail, setIsDeletingThumbnail] = useState(false);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Auto-sign Bunny video URLs if an unsigned embed URL is present
@@ -422,25 +422,57 @@ export const AdminCourseForm: React.FC = () => {
 
   // Pre-populate if editing
   useEffect(() => {
-    if (isEditing && courseId) {
-      const existing = getCourse(courseId);
-      if (existing) {
-        const meta = {
-          name: existing.name || existing.title || '',
-          shortDescription: existing.shortDescription || '',
-          description: existing.description || '',
-          duration: existing.duration || '6 Months',
-          status: existing.status,
-        };
-        setCourseName(meta.name);
-        setShortDescription(meta.shortDescription);
-        setDescription(meta.description);
-        setDuration(meta.duration);
-        setStatus(meta.status);
-        setInitialCourseMeta(meta);
-        setModules(JSON.parse(JSON.stringify(existing.modules || [])));
-        setInitialModules(JSON.parse(JSON.stringify(existing.modules || [])));
-      }
+    if (!isEditing || !courseId) return;
+
+    const populateCourse = (existing: any) => {
+      const meta = {
+        name: existing.name || existing.title || '',
+        shortDescription: existing.shortDescription || '',
+        description: existing.description || '',
+        duration: existing.duration || '6 Months',
+        status: (existing.status?.toLowerCase() === 'draft' ? 'draft' : 'published') as 'draft' | 'published',
+      };
+      setCourseName(meta.name);
+      setShortDescription(meta.shortDescription);
+      setDescription(meta.description);
+      setDuration(meta.duration);
+      setStatus(meta.status);
+      setInitialCourseMeta(meta);
+
+      const mappedModules = (existing.modules || []).map((m: any, idx: number) => ({
+        ...m,
+        moduleNumber: m.moduleNumber || m.order || (idx + 1),
+        topics: (m.topics || m.resources || []).map((t: any, tIdx: number) => ({
+          ...t,
+          description: t.description || t.content || '',
+          content: t.content || t.description || '',
+          contentType: ((t.type === 'VIDEO_STREAM' || t.contentType === 'video') ? 'video' : (t.type === 'DOWNLOADABLE_BRIEF' || t.contentType === 'assignment' ? 'assignment' : 'theory')) as ContentType,
+          videoUrl: t.videoUrl || (t.bunnyVideoId?.startsWith('pmct-') ? '/autopsy.mp4' : (t.bunnyVideoId ? `https://iframe.mediadelivery.net/embed/764331/${t.bunnyVideoId}` : (t.contentType === 'video' ? '/autopsy.mp4' : ''))),
+          bunnyVideoId: t.bunnyVideoId || (t.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]),
+          thumbnail: t.thumbnail || (t.contentType === 'video' || t.type === 'VIDEO_STREAM' ? '/autop.png' : ''),
+          order: t.order || (tIdx + 1),
+          status: (t.status?.toLowerCase() === 'draft' ? 'draft' : 'published') as 'draft' | 'published',
+        }))
+      }));
+
+      setModules(mappedModules);
+      setInitialModules(JSON.parse(JSON.stringify(mappedModules)));
+    };
+
+    const existing = getCourse(courseId);
+    if (existing && existing.modules && existing.modules.length > 0) {
+      populateCourse(existing);
+    } else {
+      api.get(`/courses/${courseId}`)
+        .then((res) => {
+          if (res?.data) {
+            const mapped = mapBackendCourseToFrontend(res.data);
+            populateCourse(mapped);
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to load course details from API:', err);
+        });
     }
   }, [isEditing, courseId, getCourse]);
 
@@ -894,7 +926,6 @@ export const AdminCourseForm: React.FC = () => {
     setReferenceAttachmentName('');
     setTopicThumbnail('');
     setTopicStatus('published');
-    setVideoSourceMode('url');
     setUploadedVideoFileName(null);
     setIsUploadingVideo(false);
     setVideoUploadProgress(0);
@@ -903,7 +934,6 @@ export const AdminCourseForm: React.FC = () => {
       URL.revokeObjectURL(thumbnailLocalPreview);
       setThumbnailLocalPreview(null);
     }
-    setThumbnailSourceMode('url');
     setUploadedThumbnailFileName(null);
     setIsUploadingThumbnail(false);
     setThumbnailUploadProgress(0);
@@ -915,6 +945,7 @@ export const AdminCourseForm: React.FC = () => {
     setPdfUploadProgress(0);
     setPdfUploadError(null);
     setTopicBunnyVideoId(null);
+    setIsPreviewPlaying(false);
     setShowTopicModal(true);
   };
 
@@ -925,25 +956,38 @@ export const AdminCourseForm: React.FC = () => {
     }
     setTargetModuleIdForTopic(modId);
     setEditingTopicId(top.id);
-    setTopicTitle(top.title);
-    setTopicDescription(top.description);
+    setTopicTitle(top.title || '');
+    setTopicDescription(top.description || top.content || '');
     const normalizedType = ((top.contentType as string) === 'description' || top.contentType === 'theory') ? 'theory' : top.contentType;
     setTopicContentType(normalizedType);
-    setTopicContent(top.content || '');
+    setTopicContent(top.content || top.description || '');
     setTopicPdfUrl(top.pdfUrl || '');
-    setTopicPdfFileName(top.pdfFileName || (top.pdfUrl ? top.pdfUrl.split('/').pop() || 'Document.pdf' : null));
+    setTopicPdfFileName(top.pdfFileName || (top.pdfUrl ? top.pdfUrl.split('/').pop()?.split('?')[0] || 'Document.pdf' : null));
     setTopicTheoryFormat(top.pdfUrl ? 'pdf' : 'text');
     setIsUploadingPdf(false);
     setPdfUploadProgress(0);
     setPdfUploadError(null);
-    setTopicVideoUrl(top.videoUrl || '');
-    setTopicBunnyVideoId(top.bunnyVideoId || (top.videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null);
+    setIsPreviewPlaying(false);
+
+    // Resolve existing video URL & Bunny ID
+    const rawVideoUrl = top.videoUrl || (top.bunnyVideoId?.startsWith('pmct-') ? '/autopsy.mp4' : (top.bunnyVideoId ? `https://iframe.mediadelivery.net/embed/764331/${top.bunnyVideoId}` : (normalizedType === 'video' ? '/autopsy.mp4' : '')));
+    const norm = normalizeVideoUrl(rawVideoUrl);
+    const resolvedVideoUrl = norm.url || rawVideoUrl;
+    const resolvedBunnyId = top.bunnyVideoId || norm.bunnyVideoId || (resolvedVideoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
+    setTopicVideoUrl(resolvedVideoUrl);
+    setTopicBunnyVideoId(resolvedBunnyId);
+
     setRequiredWatchPercentage(99);
     setAssignmentInstructions(top.assignmentInstructions || '');
     setSubmissionInstructions(top.submissionInstructions || '');
     setReferenceAttachmentName(top.referenceAttachmentName || '');
-    setTopicThumbnail(top.thumbnail || '');
+
+    // Resolve existing thumbnail
+    const resolvedThumbnail = top.thumbnail || (normalizedType === 'video' ? '/autop.png' : '');
+    setTopicThumbnail(resolvedThumbnail);
     setTopicStatus(top.status || 'published');
+
+    // Always reset in-flight/stuck upload states
     setIsUploadingVideo(false);
     setVideoUploadProgress(0);
     setVideoUploadError(null);
@@ -951,20 +995,19 @@ export const AdminCourseForm: React.FC = () => {
     setThumbnailUploadProgress(0);
     setThumbnailUploadError(null);
 
-    // Detect if videoUrl or thumbnail is a hosted/uploaded file
-    if (top.videoUrl && (top.videoUrl.includes('mediadelivery.net') || top.videoUrl.includes('bunny') || top.videoUrl.includes('b-cdn.net') || top.videoUrl.includes('cloudinary') || top.videoUrl.startsWith('data:video'))) {
-      setVideoSourceMode('file');
-      setUploadedVideoFileName(top.videoUrl.split('/').pop() || 'Uploaded Video');
+    // Set display file name for uploaded video asset
+    if (resolvedBunnyId) {
+      setUploadedVideoFileName(`Bunny Stream DRM Video (${resolvedBunnyId.slice(0, 8)}...)`);
+    } else if (resolvedVideoUrl) {
+      setUploadedVideoFileName(resolvedVideoUrl.split('/').pop()?.split('?')[0] || 'Uploaded Video');
     } else {
-      setVideoSourceMode('url');
       setUploadedVideoFileName(null);
     }
 
-    if (top.thumbnail && (top.thumbnail.includes('cloudinary') || top.thumbnail.startsWith('data:image'))) {
-      setThumbnailSourceMode('file');
-      setUploadedThumbnailFileName(top.thumbnail.split('/').pop() || 'Uploaded Thumbnail');
+    // Set display file name for uploaded thumbnail asset
+    if (resolvedThumbnail) {
+      setUploadedThumbnailFileName(resolvedThumbnail.split('/').pop()?.split('?')[0] || 'Uploaded Thumbnail');
     } else {
-      setThumbnailSourceMode('url');
       setUploadedThumbnailFileName(null);
     }
 
@@ -976,7 +1019,14 @@ export const AdminCourseForm: React.FC = () => {
     if (!topicTitle.trim() || !targetModuleIdForTopic) return;
     if (isUploadingVideo || isUploadingThumbnail || isUploadingPdf) return;
 
-    const extractedBunnyId = topicContentType === 'video' ? (topicBunnyVideoId || (topicVideoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || undefined) : undefined;
+    let finalVideoUrl: string | undefined = undefined;
+    let extractedBunnyId: string | undefined = undefined;
+
+    if (topicContentType === 'video' && topicVideoUrl.trim()) {
+      const norm = normalizeVideoUrl(topicVideoUrl.trim());
+      finalVideoUrl = norm.url;
+      extractedBunnyId = topicBunnyVideoId || norm.bunnyVideoId || (finalVideoUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || undefined;
+    }
 
     setModules((prev) =>
       prev.map((m) => {
@@ -989,10 +1039,10 @@ export const AdminCourseForm: React.FC = () => {
                   title: topicTitle,
                   description: topicDescription,
                   contentType: topicContentType,
-                  content: topicContent.trim() ? topicContent : undefined,
+                  content: topicContentType === 'theory' ? (topicContent.trim() || undefined) : (topicContent.trim() || topicDescription || undefined),
                   pdfUrl: topicPdfUrl || undefined,
                   pdfFileName: topicPdfFileName || undefined,
-                  videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+                  videoUrl: finalVideoUrl,
                   bunnyVideoId: extractedBunnyId,
                   requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
                   assignmentInstructions: topicContentType === 'assignment' ? (assignmentInstructions.trim() || undefined) : undefined,
@@ -1011,10 +1061,10 @@ export const AdminCourseForm: React.FC = () => {
               title: topicTitle,
               description: topicDescription,
               contentType: topicContentType,
-              content: topicContent.trim() ? topicContent : undefined,
+              content: topicContentType === 'theory' ? (topicContent.trim() || undefined) : (topicContent.trim() || topicDescription || undefined),
               pdfUrl: topicPdfUrl || undefined,
               pdfFileName: topicPdfFileName || undefined,
-              videoUrl: topicContentType === 'video' ? topicVideoUrl : undefined,
+              videoUrl: finalVideoUrl,
               bunnyVideoId: extractedBunnyId,
               requiredWatchPercentage: topicContentType === 'video' ? 99 : undefined,
               assignmentInstructions: topicContentType === 'assignment' ? (assignmentInstructions.trim() || undefined) : undefined,
@@ -1844,22 +1894,29 @@ export const AdminCourseForm: React.FC = () => {
 
         {/* TOPIC MODAL */}
         {showTopicModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 className="text-base font-extrabold text-[#0A192F]">
-                  {editingTopicId ? 'Edit Topic' : 'Add Topic'}
-                </h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[88vh] overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+                    <Edit className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base font-extrabold text-[#0A192F]">
+                    {editingTopicId ? 'Edit Topic' : 'Add Topic'}
+                  </h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowTopicModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  title="Close modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveTopic} className="space-y-4">
+              <form onSubmit={handleSaveTopic} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
                 <div>
                   <label className="block text-xs font-bold text-[#0A192F] mb-1">Topic Title *</label>
                   <input
@@ -1909,37 +1966,14 @@ export const AdminCourseForm: React.FC = () => {
                   </div>
                 </div>
 
-                {/* THUMBNAIL IMAGE (DUAL-MODE: URL OR CLOUD UPLOAD) */}
+                {/* THUMBNAIL IMAGE (DIRECT APPLICATION UPLOAD ONLY) */}
                 <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
                     <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
                       <ImageIcon className="w-4 h-4 text-amber-500" />
                       <span>Thumbnail Image (Optional)</span>
                     </label>
-                    <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => setThumbnailSourceMode('url')}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          thumbnailSourceMode === 'url'
-                            ? 'bg-amber-500 text-slate-950 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Image URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setThumbnailSourceMode('file')}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          thumbnailSourceMode === 'file'
-                            ? 'bg-amber-500 text-slate-950 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Upload File
-                      </button>
-                    </div>
+                    <span className="text-[10px] text-slate-400 font-semibold">Direct upload only</span>
                   </div>
 
                   {thumbnailUploadError && (
@@ -1949,107 +1983,74 @@ export const AdminCourseForm: React.FC = () => {
                     </div>
                   )}
 
-                  {thumbnailSourceMode === 'url' ? (
-                    <div>
-                      <input
-                        type="url"
-                        value={topicThumbnail}
-                        onChange={(e) => setTopicThumbnail(e.target.value)}
-                        placeholder="https://example.com/topic-thumbnail.jpg"
-                        className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      {isUploadingThumbnail ? (
-                        <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-2">
-                          <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                            <div className="flex items-center space-x-2">
-                              <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                              <span>
-                                {thumbnailUploadProgress < 100
-                                  ? `Uploading thumbnail (${thumbnailUploadProgress}%)...`
-                                  : 'Finalizing image upload...'}
-                              </span>
-                            </div>
-                            <span className="font-mono text-amber-700">{thumbnailUploadProgress}%</span>
+                  <div>
+                    {isUploadingThumbnail ? (
+                      <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                            <span>
+                              {thumbnailUploadProgress < 100
+                                ? `Uploading thumbnail (${thumbnailUploadProgress}%)...`
+                                : 'Finalizing image upload...'}
+                            </span>
                           </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
-                            <div
-                              className="bg-amber-500 h-2 rounded-full transition-all duration-200 ease-out"
-                              style={{ width: `${Math.max(5, thumbnailUploadProgress)}%` }}
-                            />
-                          </div>
+                          <span className="font-mono text-amber-700">{thumbnailUploadProgress}%</span>
                         </div>
-                      ) : topicThumbnail ? (
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
-                              <ImageIcon className="w-6 h-6 text-slate-400" />
-                              {(thumbnailLocalPreview || topicThumbnail) && (
-                                <img
-                                  src={thumbnailLocalPreview || topicThumbnail}
-                                  alt="Thumbnail preview"
-                                  className="w-full h-full object-cover absolute inset-0"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
-                                  }}
-                                />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-800 truncate">{uploadedThumbnailFileName || 'Uploaded Thumbnail'}</p>
-                              <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
-                                <CheckCircle2 className="w-3 h-3 mr-1" />
-                                Uploaded successfully
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={isDeletingThumbnail}
-                            onClick={handleRemoveThumbnail}
-                            className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
-                          >
-                            {isDeletingThumbnail ? 'Removing...' : 'Remove'}
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
-                          <Upload className="w-6 h-6 text-amber-600" />
-                          <span className="text-xs font-bold text-slate-800">+ Select Image File (JPG, PNG, WebP)</span>
-                          <span className="text-[10px] text-slate-400">Direct upload to secure storage</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleThumbnailFileUpload}
-                            className="hidden"
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                          <div
+                            className="bg-amber-500 h-2 rounded-full transition-all duration-200 ease-out"
+                            style={{ width: `${Math.max(5, thumbnailUploadProgress)}%` }}
                           />
-                        </label>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Thumbnail Image preview in URL mode */}
-                  {thumbnailSourceMode === 'url' && topicThumbnail && (
-                    <div className="flex items-center space-x-3 p-2 bg-white rounded-xl border border-slate-200">
-                      <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
-                        <ImageIcon className="w-5 h-5 text-slate-400" />
-                        <img
-                          src={topicThumbnail}
-                          alt="Preview"
-                          className="w-full h-full object-cover absolute inset-0"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
+                        </div>
+                      </div>
+                    ) : (topicThumbnail || thumbnailLocalPreview) ? (
+                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
+                            <ImageIcon className="w-6 h-6 text-slate-400" />
+                            {(thumbnailLocalPreview || topicThumbnail) && (
+                              <img
+                                src={thumbnailLocalPreview || topicThumbnail}
+                                alt="Thumbnail preview"
+                                className="w-full h-full object-cover absolute inset-0"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">{uploadedThumbnailFileName || 'Uploaded Thumbnail'}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Uploaded successfully
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isDeletingThumbnail}
+                          onClick={handleRemoveThumbnail}
+                          className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
+                        >
+                          {isDeletingThumbnail ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
+                        <Upload className="w-6 h-6 text-amber-600" />
+                        <span className="text-xs font-bold text-slate-800">+ Select Image File (JPG, PNG, WebP)</span>
+                        <span className="text-[10px] text-slate-400">Direct upload to secure storage (Max 10MB)</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleThumbnailFileUpload}
+                          className="hidden"
                         />
-                      </div>
-                      <div className="min-w-0 text-xs text-slate-600 truncate">
-                        <span className="font-semibold text-slate-800">Preview: </span>
-                        <span className="font-mono text-[11px]">{topicThumbnail}</span>
-                      </div>
-                    </div>
-                  )}
+                      </label>
+                    )}
+                  </div>
                 </div>
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}
@@ -2198,32 +2199,9 @@ export const AdminCourseForm: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
                         <Video className="w-4 h-4 text-amber-500" />
-                        <span>Video Source *</span>
+                        <span>Video Lesson File *</span>
                       </label>
-                      <div className="flex items-center space-x-1 bg-slate-200 p-0.5 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => setVideoSourceMode('url')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            videoSourceMode === 'url'
-                              ? 'bg-amber-500 text-slate-950 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Video URL
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setVideoSourceMode('file')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            videoSourceMode === 'file'
-                              ? 'bg-amber-500 text-slate-950 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          Upload File
-                        </button>
-                      </div>
+                      <span className="text-[10px] text-slate-400 font-semibold">Direct upload only (DRM Protected)</span>
                     </div>
 
                     {videoUploadError && (
@@ -2233,100 +2211,86 @@ export const AdminCourseForm: React.FC = () => {
                       </div>
                     )}
 
-                    {videoSourceMode === 'url' ? (
-                      <div>
-                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Video URL *</label>
-                        <input
-                          type="url"
-                          value={topicVideoUrl}
-                          onChange={(e) => setTopicVideoUrl(e.target.value)}
-                          placeholder="https://example.com/video.mp4 or YouTube/Vimeo URL"
-                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 font-mono text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-xs font-bold text-[#0A192F] mb-1">Upload Video File from System *</label>
-                        {isUploadingVideo ? (
-                          <div className="p-5 bg-white rounded-xl border border-amber-300 space-y-3.5">
-                            <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                              <div className="flex items-center space-x-2">
-                                <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                                <span>
-                                  {videoUploadProgress < 100
-                                    ? `Uploading video file (${videoUploadProgress}%)...`
-                                    : 'Processing video...'}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-3">
-                                <span className="font-mono text-xs font-black text-amber-700">
-                                  {videoUploadProgress < 100 ? `${videoUploadProgress}%` : 'Processing...'}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={handleRemoveVideo}
-                                  className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
-                              {videoUploadProgress < 100 ? (
-                                <div
-                                  className="bg-gradient-to-r from-amber-500 to-amber-400 h-2.5 rounded-full transition-all duration-200 ease-out"
-                                  style={{ width: `${Math.max(5, videoUploadProgress)}%` }}
-                                />
-                              ) : (
-                                <div className="bg-gradient-to-r from-amber-500 via-amber-300 to-amber-500 h-2.5 rounded-full animate-pulse w-full" />
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-slate-100">
+                    <div>
+                      {isUploadingVideo ? (
+                        <div className="p-5 bg-white rounded-xl border border-amber-300 space-y-3.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                            <div className="flex items-center space-x-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
                               <span>
                                 {videoUploadProgress < 100
-                                  ? 'Transferring video file. Click Cancel anytime to abort.'
-                                  : 'Finalizing secure upload. Almost done...'}
+                                  ? `Uploading video file (${videoUploadProgress}%)...`
+                                  : 'Processing video...'}
                               </span>
                             </div>
-                          </div>
-                        ) : topicVideoUrl ? (
-                          <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                            <div className="flex items-center space-x-2.5 min-w-0">
-                              <Video className="w-5 h-5 text-amber-600 shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-800 truncate">{uploadedVideoFileName || 'Video Lesson'}</p>
-                                <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
-                                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                                  Video linked successfully (DRM Protected)
-                                </p>
-                              </div>
+                            <div className="flex items-center space-x-3">
+                              <span className="font-mono text-xs font-black text-amber-700">
+                                {videoUploadProgress < 100 ? `${videoUploadProgress}%` : 'Processing...'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleRemoveVideo}
+                                className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                              >
+                                Cancel
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              disabled={isDeletingVideo}
-                              onClick={handleRemoveVideo}
-                              className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
-                            >
-                              {isDeletingVideo ? 'Removing...' : 'Remove'}
-                            </button>
                           </div>
-                        ) : (
-                          <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
-                            <Upload className="w-6 h-6 text-amber-600" />
-                            <span className="text-xs font-bold text-slate-800">+ Select Video File (MP4, WEBM, MOV)</span>
-                            <span className="text-[10px] text-slate-400">Direct upload with DRM protection (up to 100MB)</span>
-                            <input
-                              type="file"
-                              accept="video/*"
-                              onChange={handleVideoFileUpload}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
-                      </div>
-                    )}
+
+                          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                            {videoUploadProgress < 100 ? (
+                              <div
+                                className="bg-gradient-to-r from-amber-500 to-amber-400 h-2.5 rounded-full transition-all duration-200 ease-out"
+                                style={{ width: `${Math.max(5, videoUploadProgress)}%` }}
+                              />
+                            ) : (
+                              <div className="bg-gradient-to-r from-amber-500 via-amber-300 to-amber-500 h-2.5 rounded-full animate-pulse w-full" />
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5 border-t border-slate-100">
+                            <span>
+                              {videoUploadProgress < 100
+                                ? 'Transferring video file. Click Cancel anytime to abort.'
+                                : 'Finalizing secure upload. Almost done...'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : topicVideoUrl ? (
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <Video className="w-5 h-5 text-amber-600 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 truncate">{uploadedVideoFileName || 'Video Lesson'}</p>
+                              <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                Video uploaded successfully (DRM Protected)
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isDeletingVideo}
+                            onClick={handleRemoveVideo}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
+                          >
+                            {isDeletingVideo ? 'Removing...' : 'Remove'}
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
+                          <Upload className="w-6 h-6 text-amber-600" />
+                          <span className="text-xs font-bold text-slate-800">+ Select Video File (MP4, WEBM, MOV)</span>
+                          <span className="text-[10px] text-slate-400">Direct upload from your system with DRM protection (up to 100MB)</span>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={handleVideoFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
 
                     {/* FIXED 99% WATCH REQUIREMENT (SYSTEM FIXED, NOT EDITABLE) */}
                     <div className="p-3.5 bg-amber-500/10 border border-amber-300/80 rounded-2xl flex items-center justify-between gap-3">
@@ -2344,73 +2308,146 @@ export const AdminCourseForm: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* VIDEO PREVIEW PLAYER (MATCHING STUDENT PLAYER EXPERIENCE) */}
-                    <div className="space-y-1.5">
+                    {/* VIDEO PREVIEW PLAYER (MATCHING STUDENT PLAYER EXPERIENCE & UPLOADED THUMBNAIL) */}
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-700">Video Player Preview</label>
-                        {topicVideoUrl && (
-                          <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Live DRM Stream
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <label className="text-[11px] font-bold text-slate-700">Video Player Preview</label>
+                          {(thumbnailLocalPreview || topicThumbnail) && (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <ImageIcon className="w-2.5 h-2.5 text-amber-600" />
+                              Poster Matched
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {topicVideoUrl && (thumbnailLocalPreview || topicThumbnail) && (
+                            <button
+                              type="button"
+                              onClick={() => setIsPreviewPlaying((prev) => !prev)}
+                              className="text-[10px] font-bold text-slate-700 hover:text-navy-950 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg border border-slate-300 cursor-pointer transition-colors flex items-center gap-1 shadow-xs"
+                            >
+                              {isPreviewPlaying ? (
+                                <>
+                                  <ImageIcon className="w-3 h-3 text-amber-600" />
+                                  <span>View Poster</span>
+                                </>
+                              ) : (
+                                <>
+                                  <PlayCircle className="w-3 h-3 text-emerald-600" />
+                                  <span>Test Player</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {topicVideoUrl && (
+                            <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Live DRM Stream
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {topicVideoUrl ? (
-                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800 relative group space-y-0">
-                          {/* DRM Status Chrome Bar matching MyCourse */}
-                          <div className="bg-slate-900/95 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                            <div className="flex items-center space-x-2 text-emerald-400 font-bold truncate">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
-                              <span>SECURE DRM STREAM (99% WATCH REQUIRED)</span>
-                              <span className="text-slate-500 hidden sm:inline">• 256-BIT DICOM-RT ENCRYPTED</span>
-                            </div>
-                            <div className="flex items-center space-x-1.5 text-slate-400 shrink-0">
-                              <Shield className="w-3 h-3 text-amber-400" />
-                              <span>PREVIEW MODE</span>
-                            </div>
+                      <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800 relative group space-y-0">
+                        {/* DRM Status Chrome Bar matching MyCourse */}
+                        <div className="bg-slate-900/95 text-[10px] uppercase font-mono tracking-widest text-slate-400 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                          <div className="flex items-center space-x-2 text-emerald-400 font-bold truncate">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 shrink-0" />
+                            <span>SECURE DRM STREAM (99% WATCH REQUIRED)</span>
+                            <span className="text-slate-500 hidden sm:inline">• 256-BIT DICOM-RT ENCRYPTED</span>
                           </div>
+                          <div className="flex items-center space-x-1.5 text-slate-400 shrink-0">
+                            <Shield className="w-3 h-3 text-amber-400" />
+                            <span>PREVIEW MODE</span>
+                          </div>
+                        </div>
 
-                          {/* Responsive 16:9 Black Screen Container */}
-                          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
-                            {topicVideoUrl.includes('iframe.mediadelivery.net') || topicVideoUrl.includes('/embed/') ? (
-                              <iframe
-                                src={`${topicVideoUrl}${topicVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
-                                loading="lazy"
-                                className="w-full h-full border-0"
-                                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                                allowFullScreen
-                              />
+                        {/* Responsive 16:9 Screen Container */}
+                        <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+                          {topicVideoUrl ? (
+                            <>
+                              {/* Show Thumbnail Poster overlay when preview is not actively playing */}
+                              {(thumbnailLocalPreview || topicThumbnail) && !isPreviewPlaying ? (
+                                <div className="relative w-full h-full flex items-center justify-center bg-black">
+                                  <img
+                                    src={thumbnailLocalPreview || topicThumbnail}
+                                    alt="Video Lesson Thumbnail Preview"
+                                    className="w-full h-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/25 to-transparent flex flex-col items-center justify-center p-4">
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsPreviewPlaying(true)}
+                                      className="w-16 h-16 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer group/btn"
+                                      title="Click to test playback"
+                                    >
+                                      <PlayCircle className="w-9 h-9 fill-slate-950 text-amber-500 ml-0.5 group-hover/btn:scale-105 transition-transform" />
+                                    </button>
+                                    <p className="mt-3 text-xs font-bold text-white tracking-wide bg-slate-900/80 px-3.5 py-1 rounded-full border border-slate-700/80">
+                                      Click to Test Playback
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Live Player / Embed Iframe */
+                                isEmbedVideoUrl(topicVideoUrl) ? (
+                                  <iframe
+                                    src={`${topicVideoUrl}${topicVideoUrl.includes('?') ? '&' : '?'}autoplay=${isPreviewPlaying ? 'true' : 'false'}`}
+                                    loading="lazy"
+                                    className="w-full h-full border-0"
+                                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <video
+                                    src={topicVideoUrl}
+                                    controls
+                                    autoPlay={isPreviewPlaying}
+                                    poster={thumbnailLocalPreview || topicThumbnail || undefined}
+                                    preload="metadata"
+                                    className="w-full h-full object-contain bg-black"
+                                  >
+                                    Your browser does not support HTML5 video playback.
+                                  </video>
+                                )
+                              )}
+                            </>
+                          ) : (
+                            /* No video linked yet */
+                            (thumbnailLocalPreview || topicThumbnail) ? (
+                              <div className="relative w-full h-full flex items-center justify-center bg-black">
+                                <img
+                                  src={thumbnailLocalPreview || topicThumbnail}
+                                  alt="Uploaded Thumbnail Preview"
+                                  className="w-full h-full object-cover opacity-85"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-slate-950/60 flex flex-col items-center justify-center p-4 text-center space-y-2">
+                                  <div className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-400 border border-white/20">
+                                    <ImageIcon className="w-6 h-6" />
+                                  </div>
+                                  <span className="text-white font-sans text-xs font-bold">Thumbnail Poster Active</span>
+                                  <span className="text-[11px] text-slate-300 font-sans max-w-xs">
+                                    Upload a video file above to preview live playback with this thumbnail
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
-                              <video
-                                src={topicVideoUrl}
-                                controls
-                                className="w-full h-full object-contain bg-black"
-                              >
-                                Your browser does not support HTML5 video playback.
-                              </video>
-                            )}
-                          </div>
+                              <div className="aspect-video bg-slate-950 flex flex-col items-center justify-center text-slate-500 text-xs font-mono p-6 text-center space-y-2">
+                                <PlayCircle className="w-10 h-10 text-slate-700" />
+                                <span className="text-slate-300 font-sans text-xs font-semibold">No video linked yet</span>
+                                <span className="text-[11px] text-slate-500 font-sans">Upload a video file above to preview the secure player</span>
+                              </div>
+                            )
+                          )}
                         </div>
-                      ) : (
-                        <div className="bg-slate-950 rounded-2xl overflow-hidden shadow-xl border border-slate-800">
-                          <div className="bg-slate-900/90 text-[10px] uppercase font-mono tracking-widest text-slate-500 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                            <div className="flex items-center space-x-2 text-slate-400 font-bold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-1" />
-                              <span>DRM STREAM PLAYER PREVIEW</span>
-                            </div>
-                            <div className="flex items-center space-x-1.5 text-slate-500">
-                              <Shield className="w-3 h-3 text-slate-600" />
-                              <span>STANDBY</span>
-                            </div>
-                          </div>
-                          <div className="aspect-video bg-slate-950 flex flex-col items-center justify-center text-slate-500 text-xs font-mono p-6 text-center space-y-2">
-                            <PlayCircle className="w-10 h-10 text-slate-700" />
-                            <span className="text-slate-300 font-sans text-xs font-semibold">No video linked yet</span>
-                            <span className="text-[11px] text-slate-500 font-sans">Upload a video file or enter a stream URL above to preview the secure player</span>
-                          </div>
-                        </div>
-                      )}
+                      </div>
 
                       {topicVideoUrl && (
                         <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
@@ -2501,24 +2538,31 @@ export const AdminCourseForm: React.FC = () => {
                   </div>
                 )}
 
-                <div className="pt-2 flex justify-end space-x-2">
+                </div>
+
+                {/* FIXED MODAL FOOTER */}
+                <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2 shrink-0 rounded-b-3xl">
                   <button
                     type="button"
                     disabled={isUploadingVideo || isUploadingThumbnail}
                     onClick={() => setShowTopicModal(false)}
-                    className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl disabled:opacity-50 cursor-pointer"
+                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isUploadingVideo || isUploadingThumbnail}
-                    className="px-5 py-2 bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center"
+                    className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center"
                   >
                     {(isUploadingVideo || isUploadingThumbnail) && (
                       <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
                     )}
-                    {isUploadingVideo || isUploadingThumbnail ? 'Uploading Media...' : 'Save Topic'}
+                    {isUploadingVideo || isUploadingThumbnail
+                      ? 'Uploading Media...'
+                      : editingTopicId
+                      ? 'Save Changes'
+                      : 'Save Topic'}
                   </button>
                 </div>
               </form>

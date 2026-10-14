@@ -7,13 +7,13 @@ import { env } from '../config/env.js';
 import { CourseStatus, Role } from '@prisma/client';
 
 export function signBunnyEmbedUrlIfNeeded(url: string | null | undefined, videoId?: string | null): string {
-  const effectiveUrl = url || (videoId && !videoId.startsWith('pmct-') ? `https://iframe.mediadelivery.net/embed/${env.BUNNY_STREAM_LIBRARY_ID || '764331'}/${videoId}` : '');
+  const effectiveUrl = url || (videoId && !videoId.startsWith('pmct-') ? `https://iframe.mediadelivery.net/embed/${env.BUNNY_STREAM_LIBRARY_ID || '764331'}/${videoId}` : (videoId?.startsWith('pmct-') ? '/autopsy.mp4' : ''));
   if (!effectiveUrl) return url || '';
 
   if (effectiveUrl.includes('iframe.mediadelivery.net') && !effectiveUrl.includes('token=')) {
     const match = effectiveUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/);
     const id = match ? match[1] : videoId;
-    if (id) {
+    if (id && !id.startsWith('pmct-')) {
       try {
         const streamToken = generateBunnyStreamToken(id, 365 * 24 * 3600);
         return streamToken.embedUrl;
@@ -61,6 +61,8 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
         ...m,
         resources: m.resources.map((r) => ({
           ...r,
+          description: r.description || r.content || null,
+          content: r.content || r.description || null,
           videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
         })),
         assignments: ((m as any).assignments || []).map((asgn: any) => {
@@ -164,6 +166,8 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
         ...mod,
         resources: mod.resources.map((r) => ({
           ...r,
+          description: r.description || r.content || null,
+          content: r.content || r.description || null,
           videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
         })),
         isCompleted: progress.isCompleted,
@@ -204,12 +208,58 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
   }
 }
 
+// Helper validation functions: enforce direct application upload only (no external links)
+function isDisallowedExternalVideoLink(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  // Allowed: Bunny Stream embeds / pull zone, local static files, data URIs
+  const isBunny = trimmed.includes('iframe.mediadelivery.net') || trimmed.includes('.b-cdn.net');
+  const isLocalOrInternal = trimmed.startsWith('/') || trimmed.startsWith('data:video');
+  if (isBunny || isLocalOrInternal) {
+    return false;
+  }
+
+  // If it starts with http:// or https:// and is not Bunny, it is an external link
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return true;
+  }
+
+  return false;
+}
+
+function isDisallowedExternalThumbnailLink(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  // Allowed: Cloudinary uploads, local static files, data URIs
+  const isCloudinary = trimmed.includes('cloudinary.com');
+  const isLocalOrInternal = trimmed.startsWith('/') || trimmed.startsWith('data:image');
+  if (isCloudinary || isLocalOrInternal) {
+    return false;
+  }
+
+  // If it starts with http:// or https:// and is not Cloudinary, it is an external link
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function createCourse(req: Request, res: Response): Promise<void> {
   try {
     const { title, shortDescription, description, duration, thumbnailUrl, status } = req.body;
 
     if (!title || !description) {
       sendError(res, 'Course title and description are required', 400);
+      return;
+    }
+
+    if (thumbnailUrl && isDisallowedExternalThumbnailLink(thumbnailUrl)) {
+      sendError(res, 'Direct linking to external images is not permitted. Please upload the course thumbnail directly through the application.', 400);
       return;
     }
 
@@ -243,6 +293,11 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
     const existing = await prisma.course.findUnique({ where: { id: courseId } });
     if (!existing) {
       sendError(res, 'Course not found', 404);
+      return;
+    }
+
+    if (thumbnailUrl && isDisallowedExternalThumbnailLink(thumbnailUrl)) {
+      sendError(res, 'Direct linking to external images is not permitted. Please upload the course thumbnail directly through the application.', 400);
       return;
     }
 
@@ -360,7 +415,7 @@ export async function deleteModule(req: Request, res: Response): Promise<void> {
 export async function createTopic(req: Request, res: Response): Promise<void> {
   try {
     const moduleId = req.params.moduleId as string;
-    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, fileUrl } = req.body;
+    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, fileUrl, thumbnail, thumbnailUrl } = req.body;
 
     if (!title) {
       sendError(res, 'Topic title is required', 400);
@@ -372,6 +427,17 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    if (videoUrl && isDisallowedExternalVideoLink(videoUrl)) {
+      sendError(res, 'Direct linking to external video platforms (e.g. YouTube, Vimeo, Google Drive, Dropbox) is not permitted. Please upload the video file directly through the application.', 400);
+      return;
+    }
+
+    const topicThumb = thumbnail || thumbnailUrl;
+    if (topicThumb && isDisallowedExternalThumbnailLink(topicThumb)) {
+      sendError(res, 'Direct linking to external thumbnail images is not permitted. Please upload the thumbnail image directly through the application.', 400);
+      return;
+    }
+
     const effectiveVideoId = bunnyVideoId || (videoUrl?.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1]) || null;
     const signedVideoUrl = videoUrl ? signBunnyEmbedUrlIfNeeded(videoUrl, effectiveVideoId) : null;
 
@@ -380,11 +446,11 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       data: {
         moduleId,
         title,
-        description: description || null,
+        description: description || content || null,
         type: type || 'VIDEO_STREAM',
         bunnyVideoId: effectiveVideoId,
         videoUrl: signedVideoUrl,
-        content: content || null,
+        content: content || description || null,
         fileUrl: fileUrl || null,
         durationSeconds: durationSeconds ? Number(durationSeconds) : null,
         isDownloadable: Boolean(isDownloadable),
@@ -405,11 +471,22 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
 export async function updateTopic(req: Request, res: Response): Promise<void> {
   try {
     const topicId = req.params.topicId as string;
-    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, order, fileUrl } = req.body;
+    const { title, description, type, bunnyVideoId, videoUrl, content, durationSeconds, isDownloadable, status, order, fileUrl, thumbnail, thumbnailUrl } = req.body;
 
     const existing = await prisma.resource.findUnique({ where: { id: topicId } });
     if (!existing) {
       sendError(res, 'Topic not found', 404);
+      return;
+    }
+
+    if (videoUrl && isDisallowedExternalVideoLink(videoUrl)) {
+      sendError(res, 'Direct linking to external video platforms (e.g. YouTube, Vimeo, Google Drive, Dropbox) is not permitted. Please upload the video file directly through the application.', 400);
+      return;
+    }
+
+    const topicThumb = thumbnail || thumbnailUrl;
+    if (topicThumb && isDisallowedExternalThumbnailLink(topicThumb)) {
+      sendError(res, 'Direct linking to external thumbnail images is not permitted. Please upload the thumbnail image directly through the application.', 400);
       return;
     }
 
@@ -420,11 +497,11 @@ export async function updateTopic(req: Request, res: Response): Promise<void> {
       where: { id: topicId },
       data: {
         ...(title && { title }),
-        ...(description !== undefined && { description }),
+        ...(description !== undefined && { description: description || content || null }),
         ...(type && { type }),
         ...(effectiveVideoId !== undefined && { bunnyVideoId: effectiveVideoId }),
         ...(signedVideoUrl !== undefined && { videoUrl: signedVideoUrl }),
-        ...(content !== undefined && { content }),
+        ...(content !== undefined && { content: content || description || null }),
         ...(fileUrl !== undefined && { fileUrl }),
         ...(durationSeconds !== undefined && { durationSeconds: Number(durationSeconds) }),
         ...(isDownloadable !== undefined && { isDownloadable: Boolean(isDownloadable) }),

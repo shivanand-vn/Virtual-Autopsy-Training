@@ -10,6 +10,7 @@ export interface RegistrationFormData {
   organization: string;
   cvFile: File | null;
   consent: boolean;
+  marketingConsent?: boolean;
 }
 
 export interface LoginFormData {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
 import { StepIndicator } from './StepIndicator';
@@ -6,7 +6,18 @@ import { PaymentSuccessModal } from './PaymentSuccessModal';
 import { FormInput } from '../common/FormInput';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
-import { CreditCard, Lock, ArrowLeft, ShieldCheck, Mail, Loader2, AlertCircle } from 'lucide-react';
+import {
+  CreditCard,
+  Lock,
+  ArrowLeft,
+  ShieldCheck,
+  Mail,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  KeyRound,
+} from 'lucide-react';
+import { api } from '../../lib/api';
 
 export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +32,26 @@ export const PaymentForm: React.FC = () => {
   // Email confirmation state (CRITICAL: MUST start completely empty "")
   const [confirmEmail, setConfirmEmail] = useState('');
   const [confirmEmailError, setConfirmEmailError] = useState<string | null>(null);
+
+  // Registration OTP Verification state (Step 2 requirement)
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Resend OTP countdown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Card details state
   const [cardholderName, setCardholderName] = useState(
@@ -64,6 +95,133 @@ export const PaymentForm: React.FC = () => {
 
   const isSubmitting = paymentData.paymentStatus === 'processing';
 
+  const handleSendOtp = async () => {
+    const enteredEmail = confirmEmail.trim();
+    if (!enteredEmail || confirmEmailError) return;
+
+    setIsSendingOtp(true);
+    setOtpError(null);
+    setOtpSuccessMsg(null);
+
+    try {
+      const res = await api.post('/auth/send-registration-otp', {
+        email: enteredEmail,
+        fullName: registrationData.fullName || 'Medical Candidate',
+      });
+      setOtpSent(true);
+      setOtpDigits(['', '', '', '', '', '']);
+      setResendCooldown(60);
+      setOtpSuccessMsg(res.message || 'Verification code has been sent to your email.');
+      setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 100);
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to dispatch verification code. Please try again.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (codeToVerify?: string) => {
+    const cleanOtp = (codeToVerify ?? otpDigits.join('')).trim();
+    if (cleanOtp.length !== 6) {
+      setOtpError('Please enter the complete 6-digit code.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setOtpError(null);
+    setOtpSuccessMsg(null);
+
+    try {
+      const res = await api.post('/auth/verify-registration-otp', {
+        email: confirmEmail.trim(),
+        otp: cleanOtp,
+      });
+      setIsEmailVerified(true);
+      setOtpSuccessMsg(res.message || 'Email verified successfully!');
+      setConfirmEmailError(null);
+    } catch (err: any) {
+      setOtpError(err.message || 'Invalid or expired verification code.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleDigitChange = (index: number, value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (!cleaned) {
+      const updated = [...otpDigits];
+      updated[index] = '';
+      setOtpDigits(updated);
+      setOtpError(null);
+      return;
+    }
+
+    if (cleaned.length > 1) {
+      const chars = cleaned.slice(0, 6).split('');
+      const updated = [...otpDigits];
+      chars.forEach((c, i) => {
+        if (index + i < 6) updated[index + i] = c;
+      });
+      setOtpDigits(updated);
+      setOtpError(null);
+      const nextIdx = Math.min(index + chars.length, 5);
+      otpInputRefs.current[nextIdx]?.focus();
+
+      if (updated.every((d) => d.length === 1)) {
+        handleVerifyOtp(updated.join(''));
+      }
+      return;
+    }
+
+    const updated = [...otpDigits];
+    updated[index] = cleaned;
+    setOtpDigits(updated);
+    setOtpError(null);
+
+    if (index < 5 && cleaned) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    if (index === 5 && updated.every((d) => d.length === 1)) {
+      handleVerifyOtp(updated.join(''));
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        const updated = [...otpDigits];
+        updated[index - 1] = '';
+        setOtpDigits(updated);
+        otpInputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleDigitPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const chars = pasted.split('');
+    const newDigits = ['', '', '', '', '', ''];
+    chars.forEach((c, i) => {
+      newDigits[i] = c;
+    });
+    setOtpDigits(newDigits);
+    setOtpError(null);
+    const targetIdx = Math.min(chars.length, 5);
+    otpInputRefs.current[targetIdx]?.focus();
+    if (chars.length === 6) {
+      handleVerifyOtp(pasted);
+    }
+  };
+
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -93,6 +251,11 @@ export const PaymentForm: React.FC = () => {
       return;
     }
 
+    if (!isEmailVerified) {
+      setConfirmEmailError('Please verify your email address with the OTP verification code first.');
+      return;
+    }
+
     await processPayment(enteredEmail, {
       cardholderName,
       cardNumber,
@@ -104,6 +267,11 @@ export const PaymentForm: React.FC = () => {
   const handleConfirmEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setConfirmEmail(val);
+    setIsEmailVerified(false);
+    setOtpSent(false);
+    setOtpDigits(['', '', '', '', '', '']);
+    setOtpError(null);
+    setOtpSuccessMsg(null);
 
     const storedRegEmail = (
       registrationData.email ||
@@ -182,12 +350,21 @@ export const PaymentForm: React.FC = () => {
           </div>
         </div>
 
-        {/* EMAIL CONFIRMATION SECTION (CRITICAL REQUIREMENT) */}
-        <div className="bg-amber-50/60 border border-amber-200/90 rounded-2xl p-4 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Mail className="w-4 h-4 text-amber-700 shrink-0" />
-            <h4 className="text-xs font-extrabold text-navy-950 uppercase tracking-wider">Confirm Your Email</h4>
+        {/* EMAIL CONFIRMATION & OTP VERIFICATION SECTION */}
+        <div className="bg-amber-50/60 border border-amber-200/90 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-amber-700 shrink-0" />
+              <h4 className="text-xs font-extrabold text-navy-950 uppercase tracking-wider">Confirm Your Email</h4>
+            </div>
+            {isEmailVerified && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Verified
+              </span>
+            )}
           </div>
+
           <p className="text-xs text-slate-600 leading-relaxed">
             Please re-enter your email address to confirm where your payment confirmation and login credentials will be sent.
           </p>
@@ -195,16 +372,139 @@ export const PaymentForm: React.FC = () => {
           <FormInput
             label="Confirm Email Address"
             type="email"
-            placeholder={registrationData.email || "Type your email address manually..."}
+            placeholder="abc@mail.com"
             value={confirmEmail}
             onChange={handleConfirmEmailChange}
             onPaste={handlePastePrevent}
             autoComplete="off"
+            disabled={isEmailVerified}
             error={confirmEmailError || undefined}
           />
           <p className="text-[10px] text-slate-400">
             * Note: For security verification, copy & paste is disabled for this field. You must manually type your email.
           </p>
+
+          {/* OTP Verification Subsection (Active once confirm email is entered and matching) */}
+          {confirmEmail.trim() && !confirmEmailError && (
+            <div className="pt-2.5 border-t border-amber-200/80 space-y-2.5">
+              {!isEmailVerified ? (
+                <>
+                  {!otpSent ? (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={isSendingOtp}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSendingOtp ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Sending Verification Code...</span>
+                          </>
+                        ) : (
+                          <>
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>Send Verification Code</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-navy-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-amber-600" />
+                          Enter 6-Digit Verification Code
+                        </span>
+                        {resendCooldown > 0 ? (
+                          <span className="text-[11px] text-slate-500 font-mono font-medium">
+                            Resend code in {resendCooldown}s
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            disabled={isSendingOtp}
+                            className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer disabled:opacity-50"
+                          >
+                            Resend Code
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div className="flex items-center gap-1.5 sm:gap-2 justify-start">
+                          {otpDigits.map((digit, idx) => (
+                            <input
+                              key={idx}
+                              ref={(el) => {
+                                otpInputRefs.current[idx] = el;
+                              }}
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={1}
+                              value={digit}
+                              onChange={(e) => handleDigitChange(idx, e.target.value)}
+                              onKeyDown={(e) => handleDigitKeyDown(idx, e)}
+                              onPaste={handleDigitPaste}
+                              onFocus={(e) => e.target.select()}
+                              className={`w-9 h-11 sm:w-11 sm:h-12 text-center text-lg font-mono font-black rounded-xl border transition-all ${
+                                digit
+                                  ? 'border-amber-500 bg-amber-50/70 text-navy-950 shadow-sm ring-1 ring-amber-500/30'
+                                  : 'border-slate-300 bg-white text-navy-950 hover:border-amber-400 focus:border-amber-500'
+                              } focus:outline-none focus:ring-2 focus:ring-amber-500/30`}
+                            />
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyOtp()}
+                          disabled={isVerifyingOtp || otpDigits.join('').length !== 6}
+                          className="px-5 py-2.5 bg-navy-900 hover:bg-navy-950 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer h-11 sm:h-12 shrink-0"
+                        >
+                          {isVerifyingOtp ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Verifying...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Verify Code</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {otpError && (
+                        <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{otpError}</span>
+                        </p>
+                      )}
+
+                      {otpSuccessMsg && (
+                        <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                          <span>{otpSuccessMsg}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between text-xs text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-medium">Email verified successfully. You may now complete your payment.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Mock Stripe Payment Details Section */}
@@ -261,14 +561,16 @@ export const PaymentForm: React.FC = () => {
 
         {/* Submit Button ("Pay £999") */}
         <div className="pt-1.5 space-y-2">
-          <PrimaryButton type="submit" disabled={isSubmitting}>
+          <PrimaryButton type="submit" disabled={isSubmitting || !isEmailVerified}>
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Processing Payment & Enrolling...</span>
               </span>
+            ) : !isEmailVerified ? (
+              <span>Verify Email with OTP to Pay</span>
             ) : (
-              <span>Pay £999</span>
+              <span>Pay £999 & Complete Registration</span>
             )}
           </PrimaryButton>
 

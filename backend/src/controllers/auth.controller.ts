@@ -27,74 +27,86 @@ const updateProfileSchema = z.object({
 });
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { email, password } = loginSchema.parse(req.body);
-
-  const normalizedEmail = email.toLowerCase().trim();
-  let user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
-
-  if (!user) {
-    user = await prisma.user.findFirst({
-      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
-    });
-  }
-
-  if (!user) {
-    sendError(res, 'Invalid email or password', 401);
-    return;
-  }
-
-  if (!user.isActive) {
-    sendError(res, 'This account is currently deactivated. Please contact support.', 403);
-    return;
-  }
-
-  const rawPassword = password;
-  const trimmedPassword = password ? password.trim() : '';
-
-  let isValidPassword = await comparePassword(rawPassword, user.passwordHash);
-  if (!isValidPassword && rawPassword !== trimmedPassword) {
-    isValidPassword = await comparePassword(trimmedPassword, user.passwordHash);
-  }
-
-  // Allow convenient case-tolerance for default admin
-  if (!isValidPassword && user.email === 'admin@gmail.com') {
-    if (trimmedPassword.toLowerCase() === 'admin@123') {
-      isValidPassword = true;
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorMsg = parsed.error.issues[0]?.message || 'Please enter a valid email address';
+      sendError(res, errorMsg, 400);
+      return;
     }
-  }
 
-  if (!isValidPassword) {
-    sendError(res, 'Invalid email or password', 401);
-    return;
-  }
+    const { email, password } = parsed.data;
 
-  const token = signToken({
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-  });
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
-  res.cookie('vat_auth_token', token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
+    }
 
-  sendSuccess(res, 'Login successful', {
-    user: {
-      id: user.id,
+    if (!user) {
+      sendError(res, 'Invalid email or password', 401);
+      return;
+    }
+
+    if (!user.isActive) {
+      sendError(res, 'This account is currently deactivated. Please contact support.', 403);
+      return;
+    }
+
+    const rawPassword = password;
+    const trimmedPassword = password ? password.trim() : '';
+
+    let isValidPassword = await comparePassword(rawPassword, user.passwordHash);
+    if (!isValidPassword && rawPassword !== trimmedPassword) {
+      isValidPassword = await comparePassword(trimmedPassword, user.passwordHash);
+    }
+
+    // Allow convenient case-tolerance for default admin
+    if (!isValidPassword && user.email === 'admin@gmail.com') {
+      if (trimmedPassword.toLowerCase() === 'admin@123') {
+        isValidPassword = true;
+      }
+    }
+
+    if (!isValidPassword) {
+      sendError(res, 'Invalid email or password', 401);
+      return;
+    }
+
+    const token = signToken({
+      userId: user.id,
       email: user.email,
-      fullName: user.fullName,
       role: user.role,
-      avatar: user.avatar,
-      title: user.title,
-      organization: user.organization,
-    },
-    token, // Also return in body for mobile/API testing
-  });
+    });
+
+    res.cookie('vat_auth_token', token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, 'Login successful', {
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        avatar: user.avatar,
+        title: user.title,
+        organization: user.organization,
+      },
+      token, // Also return in body for mobile/API testing
+    });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    sendError(res, error.message || 'Login failed', 500);
+  }
 }
 
 export async function logout(_req: Request, res: Response): Promise<void> {
@@ -140,30 +152,42 @@ export async function changePassword(req: AuthRequest, res: Response): Promise<v
     return;
   }
 
-  const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+  try {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorMsg = parsed.error.issues[0]?.message || 'Validation failed';
+      sendError(res, errorMsg, 400);
+      return;
+    }
 
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.userId },
-  });
+    const { currentPassword, newPassword } = parsed.data;
 
-  if (!user) {
-    sendError(res, 'User not found', 404);
-    return;
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+    });
+
+    if (!user) {
+      sendError(res, 'User not found', 404);
+      return;
+    }
+
+    const isCurrentValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isCurrentValid) {
+      sendError(res, 'Incorrect current password', 400);
+      return;
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash },
+    });
+
+    sendSuccess(res, 'Password changed successfully');
+  } catch (error: any) {
+    console.error('changePassword error:', error);
+    sendError(res, error.message || 'Failed to change password', 500);
   }
-
-  const isCurrentValid = await comparePassword(currentPassword, user.passwordHash);
-  if (!isCurrentValid) {
-    sendError(res, 'Incorrect current password', 400);
-    return;
-  }
-
-  const newHash = await hashPassword(newPassword);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { passwordHash: newHash },
-  });
-
-  sendSuccess(res, 'Password changed successfully');
 }
 
 export async function uploadAvatar(req: AuthRequest, res: Response): Promise<void> {

@@ -46,6 +46,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
       setLoginError('Please enter your email address.');
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setLoginError('Please enter a valid email address.');
+      return;
+    }
     if (!cleanPassword) {
       setLoginError('Please enter your password.');
       return;

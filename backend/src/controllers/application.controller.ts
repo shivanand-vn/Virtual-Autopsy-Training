@@ -26,7 +26,13 @@ const submitApplicationSchema = z.object({
 });
 
 export async function submitApplication(req: Request, res: Response): Promise<void> {
-  const parsedData = submitApplicationSchema.parse(req.body);
+  const parsed = submitApplicationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const errorMsg = parsed.error.issues[0]?.message || 'Validation failed';
+    sendError(res, errorMsg, 400);
+    return;
+  }
+  const parsedData = parsed.data;
 
   if (!req.file) {
     sendError(res, 'CV upload (PDF format) is required for eligibility verification.', 400);

@@ -9,6 +9,14 @@
     @apply bg-slate-50 text-slate-800 font-sans antialiased selection:bg-gold-500/20 selection:text-gold-700;
   }
 
+  /* Remove Microsoft Edge / Internet Explorer default password reveal and clear buttons to prevent duplicate eye icons */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   /* Remove number input up/down stepper arrows across the entire application */
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {

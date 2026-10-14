@@ -38,7 +38,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
             showIcon ? 'pl-10' : 'px-3.5'
           } pr-10 bg-slate-50/70 border ${
             error ? 'border-red-400 focus:ring-red-400' : 'border-slate-200 focus:ring-amber-500/30 focus:border-amber-500'
-          } rounded-lg text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:bg-white transition-all duration-150 ${className}`}
+          } rounded-lg text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:bg-white transition-all duration-150 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden ${className}`}
           {...props}
         />
         <button

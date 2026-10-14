@@ -69,9 +69,13 @@ async function request<T = any>(
 
   if (!response.ok || data.success === false) {
     const errorMsg = data.message || `Request failed with status ${response.status}`;
-    const err = new Error(errorMsg) as Error & { status: number; data: any };
+    const err = new Error(errorMsg) as Error & { status: number; data: any; retryAfter?: number };
     err.status = response.status;
     err.data = data;
+    const retryHeader = response.headers.get('Retry-After');
+    const headerSec = retryHeader ? parseInt(retryHeader, 10) : undefined;
+    const bodySec = data?.errors?.retryAfter || (typeof data?.data?.retryAfter === 'number' ? data.data.retryAfter : undefined);
+    err.retryAfter = headerSec || bodySec || (response.status === 429 ? 900 : undefined);
     throw err;
   }
 

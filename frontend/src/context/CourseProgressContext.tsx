@@ -43,7 +43,24 @@ export const CourseProgressProvider: React.FC<{ children: ReactNode }> = ({ chil
   });
 
   const getModuleAssessment = (moduleId: string): ModuleAssessment | undefined => {
-    return MOCK_ASSESSMENTS[moduleId] || MOCK_ASSESSMENTS['mod-1'];
+    const targetMod = (activeCourse?.modules || []).find((m) => m.id === moduleId);
+    const mock = MOCK_ASSESSMENTS[moduleId] || MOCK_ASSESSMENTS['mod-1'];
+    
+    // Check if module test has custom configurations
+    if (targetMod?.test) {
+      return {
+        id: targetMod.test.id || `test-${moduleId}`,
+        moduleId: moduleId,
+        moduleNumber: targetMod.moduleNumber || 1,
+        title: targetMod.test.title || mock?.title || `Module ${targetMod.moduleNumber} Practice Quiz`,
+        subtitle: targetMod.test.description || mock?.subtitle || 'Formative Practice Assessment',
+        totalQuestions: targetMod.test.totalQuestions || mock?.totalQuestions || 5,
+        timeLimitMinutes: targetMod.test.durationMinutes || mock?.timeLimitMinutes || 20,
+        passingScorePercent: targetMod.test.passingScorePercent || mock?.passingScorePercent || 70,
+        questions: mock?.questions || [],
+      };
+    }
+    return mock;
   };
 
   return (

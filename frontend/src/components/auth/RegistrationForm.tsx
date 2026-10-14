@@ -5,10 +5,11 @@ import { StepIndicator } from './StepIndicator';
 import { FormInput } from '../common/FormInput';
 import { SelectInput } from '../common/SelectInput';
 import { PhoneInput } from '../common/PhoneInput';
-import { FileUpload } from '../common/FileUpload';
+import { FileUpload, MAX_FILE_SIZE, MAX_FILE_SIZE_ERROR } from '../common/FileUpload';
 import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
+import { validateMobileNumber, getCountryIso } from '../../utils/phoneValidation';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
 
 const QUALIFICATION_OPTIONS = [
@@ -42,8 +43,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
   // Step 1 Validation Order:
   // 1. Required registration fields
   // 2. Email format
-  // 3. CV/file upload requirements
-  // 4. Privacy consent
+  // 3. Country-specific phone number validation
+  // 4. CV/file upload requirements
+  // 5. Privacy consent
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -57,8 +59,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       newErrors.email = 'Please enter a valid email address.';
     }
 
+    const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
     if (!formData.phoneNumber.trim()) {
       newErrors.phoneNumber = 'Phone Number is required.';
+    } else {
+      const phoneValidation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode);
+      if (!phoneValidation.isValid) {
+        newErrors.phoneNumber = phoneValidation.error || 'Please enter a valid mobile number for the selected country.';
+      }
     }
 
     if (!formData.qualification) {
@@ -75,6 +83,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
     if (!formData.cvFile) {
       newErrors.cvFile = 'CV or Proof of Registration PDF is required.';
+    } else if (formData.cvFile.size > MAX_FILE_SIZE) {
+      newErrors.cvFile = MAX_FILE_SIZE_ERROR;
     }
 
     if (!formData.consent) {
@@ -146,9 +156,73 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             label="Phone Number"
             required
             countryCode={formData.countryCode}
+            countryIso={formData.countryIso}
             phoneNumber={formData.phoneNumber}
-            onCountryCodeChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
-            onPhoneNumberChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+            onCountryCodeChange={(e) => {
+              const code = e.target.value;
+              const iso = (e.target as any).dataset?.iso || getCountryIso(code);
+              setFormData((prev) => ({
+                ...prev,
+                countryCode: code,
+                countryIso: iso,
+              }));
+
+              // Dynamic country-specific re-validation on country change
+              if (formData.phoneNumber.trim()) {
+                const validation = validateMobileNumber(formData.phoneNumber, iso, code);
+                if (!validation.isValid) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    phoneNumber: validation.error || 'Please enter a valid mobile number for the selected country.',
+                  }));
+                } else {
+                  setErrors((prev) => {
+                    const updated = { ...prev };
+                    delete updated.phoneNumber;
+                    return updated;
+                  });
+                }
+              }
+            }}
+            onPhoneNumberChange={(e) => {
+              const val = e.target.value;
+              setFormData((prev) => ({ ...prev, phoneNumber: val }));
+
+              // Real-time error dismissal when user types a valid number
+              const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
+              if (errors.phoneNumber) {
+                if (!val.trim()) {
+                  // Keep or let user continue typing
+                } else {
+                  const validation = validateMobileNumber(val, currentIso, formData.countryCode);
+                  if (validation.isValid) {
+                    setErrors((prev) => {
+                      const updated = { ...prev };
+                      delete updated.phoneNumber;
+                      return updated;
+                    });
+                  }
+                }
+              }
+            }}
+            onBlur={() => {
+              if (formData.phoneNumber.trim()) {
+                const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
+                const validation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode);
+                if (!validation.isValid) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    phoneNumber: validation.error || 'Please enter a valid mobile number for the selected country.',
+                  }));
+                } else {
+                  setErrors((prev) => {
+                    const updated = { ...prev };
+                    delete updated.phoneNumber;
+                    return updated;
+                  });
+                }
+              }
+            }}
             error={errors.phoneNumber}
           />
 
@@ -197,7 +271,24 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           label="CV / Resume"
           required
           selectedFile={formData.cvFile}
-          onFileSelect={(file) => setFormData({ ...formData, cvFile: file })}
+          onFileSelect={(file) => {
+            if (file && file.size > MAX_FILE_SIZE) {
+              setFormData((prev) => ({ ...prev, cvFile: null }));
+              setErrors((prev) => ({
+                ...prev,
+                cvFile: MAX_FILE_SIZE_ERROR,
+              }));
+              return;
+            }
+            setFormData((prev) => ({ ...prev, cvFile: file }));
+            if (file) {
+              setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated.cvFile;
+                return updated;
+              });
+            }
+          }}
           error={errors.cvFile}
         />
 

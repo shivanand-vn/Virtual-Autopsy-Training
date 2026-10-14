@@ -33,6 +33,12 @@ export async function submitApplication(req: Request, res: Response): Promise<vo
     return;
   }
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10,485,760 bytes (10 MB)
+  if (req.file.size > MAX_FILE_SIZE) {
+    sendError(res, 'File size must not exceed 10 MB. Please upload a smaller file.', 400);
+    return;
+  }
+
   // Check if an application already exists for this email
   const existingApp = await prisma.application.findFirst({
     where: { email: parsedData.email.toLowerCase().trim() },

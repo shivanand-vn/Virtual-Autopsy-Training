@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
-import { type ContentType, type CourseModule, type Topic, type ModuleAssignment } from '../../types/course';
+import { useQuestionBank } from '../../context/QuestionBankContext';
+import { type ContentType, type CourseModule, type Topic, type ModuleAssignment, type ModuleTest } from '../../types/course';
+import { type BankQuestion, type QuestionType, type QuestionOption } from '../../types/questionBank';
 import { api } from '../../lib/api';
 import {
   ArrowLeft,
@@ -23,7 +25,11 @@ import {
   Shield,
   Image as ImageIcon,
   FileCheck,
-  Paperclip
+  Paperclip,
+  FileQuestion,
+  HelpCircle,
+  Award,
+  Sparkles
 } from 'lucide-react';
 
 export const AdminCourseForm: React.FC = () => {
@@ -31,6 +37,7 @@ export const AdminCourseForm: React.FC = () => {
   const { courseId } = useParams<{ courseId?: string }>();
   const isEditing = Boolean(courseId);
   const { addCourse, updateCourse, getCourse, refreshCourses } = useCourse();
+  const { questions: bankQuestions, addQuestion, updateQuestion, deleteQuestion } = useQuestionBank();
 
   // Course Form State (NO FEE OR PRICE FIELDS)
   const [courseName, setCourseName] = useState('');
@@ -68,6 +75,36 @@ export const AdminCourseForm: React.FC = () => {
   const [isUploadingAssignmentPdf, setIsUploadingAssignmentPdf] = useState(false);
   const [assignmentPdfProgress, setAssignmentPdfProgress] = useState<number>(0);
   const [assignmentPdfError, setAssignmentPdfError] = useState<string | null>(null);
+
+  // Module Assessment Modal & State
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
+  const [targetModuleIdForAssessment, setTargetModuleIdForAssessment] = useState<string | null>(null);
+  const [assessmentTitle, setAssessmentTitle] = useState('');
+  const [assessmentDescription, setAssessmentDescription] = useState('');
+  const [assessmentDurationMinutes, setAssessmentDurationMinutes] = useState<number>(20);
+  const [assessmentPassingScorePercent, setAssessmentPassingScorePercent] = useState<number>(70);
+  const [assessmentError, setAssessmentError] = useState<string | null>(null);
+  
+  // Assessment Question Builder inside Assessment Modal
+  const [activeAssessmentTab, setActiveAssessmentTab] = useState<'settings' | 'questions'>('settings');
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [qType, setQType] = useState<QuestionType>('single');
+  const [qText, setQText] = useState('');
+  const [qMarks, setQMarks] = useState<number>(1);
+  const [qExplanation, setQExplanation] = useState('');
+  const [qOptions, setQOptions] = useState<QuestionOption[]>([
+    { id: 'opt-a', label: 'A', text: '' },
+    { id: 'opt-b', label: 'B', text: '' },
+    { id: 'opt-c', label: 'C', text: '' },
+    { id: 'opt-d', label: 'D', text: '' },
+  ]);
+  const [qSingleCorrect, setQSingleCorrect] = useState<string>('');
+  const [qMultipleCorrect, setQMultipleCorrect] = useState<string[]>([]);
+  const [qStatement1, setQStatement1] = useState('');
+  const [qStatement2, setQStatement2] = useState('');
+  const [qTfCorrect, setQTfCorrect] = useState('');
+  const [qFormError, setQFormError] = useState<string | null>(null);
 
   // Topic Modal State
   const [showTopicModal, setShowTopicModal] = useState(false);
@@ -616,6 +653,230 @@ export const AdminCourseForm: React.FC = () => {
     );
 
     setShowAssignmentModal(false);
+  };
+
+  // MODULE ASSESSMENT HANDLERS
+  const openEditAssessmentModal = (modId: string) => {
+    const mod = modules.find((m) => m.id === modId);
+    if (!mod) return;
+    setTargetModuleIdForAssessment(modId);
+    setActiveAssessmentTab('settings');
+    setIsAddingQuestion(false);
+    setEditingQuestionId(null);
+    setAssessmentError(null);
+    setQFormError(null);
+
+    if (mod.test) {
+      setAssessmentTitle(mod.test.title || `Module ${mod.moduleNumber} Practice Quiz`);
+      setAssessmentDescription(mod.test.description || '');
+      setAssessmentDurationMinutes(mod.test.durationMinutes || 20);
+      setAssessmentPassingScorePercent(mod.test.passingScorePercent || 70);
+    } else {
+      setAssessmentTitle(`Module ${mod.moduleNumber} Practice Quiz`);
+      setAssessmentDescription('Formative assessment testing module core competencies with unlimited practice retakes.');
+      setAssessmentDurationMinutes(20);
+      setAssessmentPassingScorePercent(70);
+    }
+
+    setShowAssessmentModal(true);
+  };
+
+  // Question Options Helper
+  const updateQOptionLabels = (opts: QuestionOption[]) => {
+    return opts.map((opt, idx) => ({
+      ...opt,
+      label: String.fromCharCode(65 + idx)
+    }));
+  };
+
+  const handleAddQOption = () => {
+    const nextChar = String.fromCharCode(65 + qOptions.length);
+    const newOpt: QuestionOption = {
+      id: `opt-${Date.now()}-${qOptions.length + 1}`,
+      label: nextChar,
+      text: ''
+    };
+    setQOptions(updateQOptionLabels([...qOptions, newOpt]));
+  };
+
+  const handleRemoveQOption = (id: string) => {
+    if (qOptions.length <= 2) {
+      setQFormError('A minimum of 2 options is required.');
+      return;
+    }
+    const filtered = qOptions.filter((o) => o.id !== id);
+    setQOptions(updateQOptionLabels(filtered));
+
+    if (qSingleCorrect === id) {
+      setQSingleCorrect('');
+    }
+    setQMultipleCorrect((prev) => prev.filter((oId) => oId !== id));
+  };
+
+  const handleQOptionTextChange = (id: string, text: string) => {
+    setQOptions((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, text } : o))
+    );
+  };
+
+  const resetQuestionForm = () => {
+    setEditingQuestionId(null);
+    setQType('single');
+    setQText('');
+    setQMarks(1);
+    setQExplanation('');
+    setQOptions([
+      { id: 'opt-a', label: 'A', text: '' },
+      { id: 'opt-b', label: 'B', text: '' },
+      { id: 'opt-c', label: 'C', text: '' },
+      { id: 'opt-d', label: 'D', text: '' },
+    ]);
+    setQSingleCorrect('');
+    setQMultipleCorrect([]);
+    setQStatement1('');
+    setQStatement2('');
+    setQTfCorrect('');
+    setQFormError(null);
+    setIsAddingQuestion(false);
+  };
+
+  const openAddQuestionForm = () => {
+    resetQuestionForm();
+    setIsAddingQuestion(true);
+  };
+
+  const openEditQuestionForm = (q: BankQuestion) => {
+    setEditingQuestionId(q.id);
+    setQType(q.type);
+    setQText(q.text);
+    setQMarks(q.marks || 1);
+    setQExplanation(q.explanation || '');
+    if (q.type === 'single') {
+      setQOptions(q.options || []);
+      setQSingleCorrect(q.correctAnswer || '');
+    } else if (q.type === 'multiple') {
+      setQOptions(q.options || []);
+      setQMultipleCorrect(q.correctAnswers || []);
+    } else if (q.type === 'true_false') {
+      setQStatement1(q.statements ? q.statements[0] : '');
+      setQStatement2(q.statements ? q.statements[1] : '');
+      setQTfCorrect(q.correctAnswer || '');
+    }
+    setQFormError(null);
+    setIsAddingQuestion(true);
+  };
+
+  const handleSaveQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    setQFormError(null);
+
+    if (!qText.trim()) {
+      setQFormError('Please enter the question text.');
+      return;
+    }
+
+    if (qType === 'single') {
+      const emptyOpt = qOptions.find((o) => !o.text.trim());
+      if (emptyOpt) {
+        setQFormError(`Option ${emptyOpt.label} text cannot be empty.`);
+        return;
+      }
+      if (!qSingleCorrect) {
+        setQFormError('Please select a correct answer radio button for Single Choice.');
+        return;
+      }
+    } else if (qType === 'multiple') {
+      const emptyOpt = qOptions.find((o) => !o.text.trim());
+      if (emptyOpt) {
+        setQFormError(`Option ${emptyOpt.label} text cannot be empty.`);
+        return;
+      }
+      if (qMultipleCorrect.length === 0) {
+        setQFormError('Please check at least one correct answer for Multiple Response.');
+        return;
+      }
+    } else if (qType === 'true_false') {
+      if (!qStatement1.trim() || !qStatement2.trim()) {
+        setQFormError('Both Statement 1 and Statement 2 are required for True/False Combination.');
+        return;
+      }
+      if (!qTfCorrect) {
+        setQFormError('Please select the correct answer combination (A, B, C, or D).');
+        return;
+      }
+    }
+
+    const targetMod = modules.find((m) => m.id === targetModuleIdForAssessment);
+    const questionPayload: Omit<BankQuestion, 'id' | 'createdAt'> = {
+      courseId: courseId || 'course-default',
+      courseName: courseName.trim() || 'Course Assessment',
+      moduleId: targetModuleIdForAssessment || '',
+      moduleName: targetMod ? `Module 0${targetMod.moduleNumber}: ${targetMod.title}` : 'Module Assessment',
+      type: qType,
+      text: qText.trim(),
+      marks: Number(qMarks) || 1,
+      explanation: qExplanation.trim() ? qExplanation.trim() : undefined,
+      status: 'active',
+      ...(qType === 'single' && {
+        options: qOptions,
+        correctAnswer: qSingleCorrect
+      }),
+      ...(qType === 'multiple' && {
+        options: qOptions,
+        correctAnswers: qMultipleCorrect
+      }),
+      ...(qType === 'true_false' && {
+        statements: [qStatement1.trim(), qStatement2.trim()],
+        correctAnswer: qTfCorrect
+      })
+    };
+
+    if (editingQuestionId) {
+      updateQuestion(editingQuestionId, questionPayload);
+    } else {
+      addQuestion(questionPayload);
+    }
+
+    resetQuestionForm();
+  };
+
+  const handleSaveAssessment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetModuleIdForAssessment) return;
+    if (!assessmentTitle.trim()) {
+      setAssessmentError('Please provide an assessment title.');
+      return;
+    }
+
+    const currentModuleQuestions = bankQuestions.filter(
+      (q) => q.moduleId === targetModuleIdForAssessment
+    );
+    const questionsCount = currentModuleQuestions.length > 0 ? currentModuleQuestions.length : 5;
+
+    setModules((prev) =>
+      prev.map((m) => {
+        if (m.id === targetModuleIdForAssessment) {
+          const updatedTest: ModuleTest = {
+            id: m.test?.id || `test-${m.id}`,
+            moduleId: m.id,
+            title: assessmentTitle.trim(),
+            description: assessmentDescription.trim(),
+            durationMinutes: Number(assessmentDurationMinutes) || 20,
+            totalQuestions: questionsCount,
+            passingScorePercent: Number(assessmentPassingScorePercent) || 70,
+            unlimitedRetakes: true,
+            status: m.test?.status || 'not_attempted'
+          };
+          return {
+            ...m,
+            test: updatedTest,
+          };
+        }
+        return m;
+      })
+    );
+
+    setShowAssessmentModal(false);
   };
 
   // TOPIC HANDLERS
@@ -1200,8 +1461,12 @@ export const AdminCourseForm: React.FC = () => {
                       {/* Module Bar */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 rounded-xl bg-[#0A192F] text-amber-400 font-black text-xs flex items-center justify-center shrink-0">
-                            {paddedNum}
+                          <div className="relative flex flex-col items-center shrink-0">
+                            <div className="w-8 h-8 rounded-xl bg-[#0A192F] text-amber-400 font-black text-xs flex items-center justify-center shrink-0 shadow-xs z-10">
+                              {paddedNum}
+                            </div>
+                            {/* Subtle connector stem from badge bottom to header border */}
+                            <div className="absolute top-8 bottom-[-13px] w-0 border-l-2 border-dotted border-amber-400/80 pointer-events-none" />
                           </div>
                           <div>
                             <h4 className="font-extrabold text-sm text-[#0A192F]">
@@ -1251,96 +1516,19 @@ export const AdminCourseForm: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Topics List within Module */}
-                      <div className="space-y-3 pl-2 sm:pl-4">
-                        {mod.topics.length === 0 ? (
-                          <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
-                            <p className="text-xs font-semibold text-slate-500">No topics added to Module {mod.moduleNumber} yet.</p>
-                            <button
-                              type="button"
-                              onClick={() => openAddTopicModal(mod.id)}
-                              className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Add Topic</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="space-y-2">
-                              {mod.topics.map((top, topIdx) => (
-                                <div
-                                  key={top.id}
-                                  className="p-3 bg-slate-50/80 rounded-xl border border-slate-200 flex items-center justify-between text-xs transition-all hover:bg-slate-100/80"
-                                >
-                                  <div className="flex items-center space-x-3 min-w-0">
-                                    <div className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center shrink-0">
-                                      {topIdx + 1}
-                                    </div>
+                      {/* Module Body Content: Topics -> Module Test -> Module Assignment */}
+                      <div className="relative pl-8 sm:pl-10 space-y-4">
+                        {/* Subtle vertical dotted connector extending from module badge downward */}
+                        <div 
+                          className="absolute left-[15px] top-0 bottom-6 w-0 border-l-2 border-dotted border-amber-400/80 pointer-events-none" 
+                          aria-hidden="true" 
+                        />
 
-                                    <div className="min-w-0">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="font-extrabold text-slate-900 truncate">{top.title}</span>
-                                        <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 text-slate-700">
-                                          {top.contentType === 'video' ? (
-                                            <>
-                                              <Video className="w-3 h-3 text-amber-600" />
-                                              <span>Video</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <FileText className="w-3 h-3 text-slate-500" />
-                                              <span>Theory</span>
-                                            </>
-                                          )}
-                                        </span>
-                                        {top.status === 'draft' && (
-                                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                            Draft
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{top.description}</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Topic Actions & Reordering */}
-                                  <div className="flex items-center space-x-2 shrink-0 ml-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleReorderTopic(mod.id, top.id, 'up')}
-                                      disabled={topIdx === 0}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                    >
-                                      <ChevronUp className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleReorderTopic(mod.id, top.id, 'down')}
-                                      disabled={topIdx === mod.topics.length - 1}
-                                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                                    >
-                                      <ChevronDown className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditTopicModal(mod.id, top)}
-                                      className="text-amber-800 hover:underline font-bold text-[11px] cursor-pointer"
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteTopic(mod.id, top.id)}
-                                      className="text-rose-600 hover:underline font-bold text-[11px] cursor-pointer"
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="pt-1">
+                        {/* 1. Topics List within Module */}
+                        <div className="space-y-3">
+                          {mod.topics.length === 0 ? (
+                            <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
+                              <p className="text-xs font-semibold text-slate-500">No topics added to Module {mod.moduleNumber} yet.</p>
                               <button
                                 type="button"
                                 onClick={() => openAddTopicModal(mod.id)}
@@ -1350,78 +1538,220 @@ export const AdminCourseForm: React.FC = () => {
                                 <span>Add Topic</span>
                               </button>
                             </div>
-                          </>
-                        )}
-                      </div>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                {mod.topics.map((top, topIdx) => (
+                                  <div
+                                    key={top.id}
+                                    className="p-3 bg-slate-50/80 rounded-xl border border-slate-200 flex items-center justify-between text-xs transition-all hover:bg-slate-100/80"
+                                  >
+                                    <div className="flex items-center space-x-3 min-w-0">
+                                      <div className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                        {topIdx + 1}
+                                      </div>
 
-                      {/* Tier 2: Module Assignment Card */}
-                      <div className="pt-3 border-t border-slate-100 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-extrabold uppercase tracking-wider text-[#0A192F] flex items-center space-x-1.5">
-                            <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center justify-center">
-                              2
-                            </span>
-                            <span>Module Assignment (Case Evaluation)</span>
-                          </span>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center space-x-2">
+                                          <span className="font-extrabold text-slate-900 truncate">{top.title}</span>
+                                          <span className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-200 text-slate-700">
+                                            {top.contentType === 'video' ? (
+                                              <>
+                                                <Video className="w-3 h-3 text-amber-600" />
+                                                <span>Video</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <FileText className="w-3 h-3 text-slate-500" />
+                                                <span>Theory</span>
+                                              </>
+                                            )}
+                                          </span>
+                                          {top.status === 'draft' && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                              Draft
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{top.description}</p>
+                                      </div>
+                                    </div>
 
-                          <button
-                            type="button"
-                            onClick={() => openEditAssignmentModal(mod.id)}
-                            className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                          >
-                            <Edit className="w-3.5 h-3.5 text-amber-600" />
-                            <span>{mod.assignment ? 'Edit Assignment' : 'Configure Assignment'}</span>
-                          </button>
+                                    {/* Topic Actions & Reordering */}
+                                    <div className="flex items-center space-x-2 shrink-0 ml-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReorderTopic(mod.id, top.id, 'up')}
+                                        disabled={topIdx === 0}
+                                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      >
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReorderTopic(mod.id, top.id, 'down')}
+                                        disabled={topIdx === mod.topics.length - 1}
+                                        className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                                      >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditTopicModal(mod.id, top)}
+                                        className="text-amber-800 hover:underline font-bold text-[11px] cursor-pointer"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteTopic(mod.id, top.id)}
+                                        className="text-rose-600 hover:underline font-bold text-[11px] cursor-pointer"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openAddTopicModal(mod.id)}
+                                  className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Add Topic</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
 
-                        <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/80 space-y-2 text-xs">
+                        {/* 2. Module Test / Assessment Card (Displayed before Module Assignment) */}
+                        <div className="pt-3 border-t border-slate-100 space-y-2 relative">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span className="font-extrabold text-slate-900 truncate">
-                                {mod.assignment?.title || `Module ${mod.moduleNumber} Case Assignment`}
+                            <div className="flex items-center space-x-2">
+                              {/* Horizontal connector branch from vertical dotted line */}
+                              <div className="flex items-center -ml-5 mr-1 sm:-ml-6 sm:mr-1.5 pointer-events-none">
+                                <div className="w-2.5 sm:w-3.5 border-t-2 border-dotted border-amber-400/80" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 -ml-0.5 shrink-0" />
+                              </div>
+                              <span className="text-xs font-black uppercase tracking-wider text-[#0A192F]">
+                                MODULE TEST
                               </span>
                             </div>
-                            <div className="flex items-center space-x-2 shrink-0">
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900">
-                                {mod.assignment?.totalMarks || 100} Marks
+
+                            <button
+                              type="button"
+                              onClick={() => openEditAssessmentModal(mod.id)}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <FileQuestion className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Configure Assessment</span>
+                            </button>
+                          </div>
+
+                          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200/80 space-y-2 text-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <Award className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span className="font-extrabold text-slate-900 truncate">
+                                  {mod.test?.title || `Module ${mod.moduleNumber} Practice Quiz`}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-900">
+                                  {bankQuestions.filter((q) => q.moduleId === mod.id).length || mod.test?.totalQuestions || 5} Questions
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Unlimited Retakes
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {mod.test?.description || 'Formative assessment testing module core competencies with unlimited practice retakes.'}
+                            </p>
+
+                            <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
+                              <span>✓ Formative Mastery • Unlimited practice attempts for student reinforcement</span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                                {bankQuestions.filter((q) => q.moduleId === mod.id).length > 0
+                                  ? `${bankQuestions.filter((q) => q.moduleId === mod.id).length} Custom Questions in Bank`
+                                  : 'Default Assessment Pool Active'}
                               </span>
-                              {mod.assignment?.dueDate && (
-                                <span className="text-[10px] font-semibold text-slate-500">
-                                  Due: {mod.assignment.dueDate}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. Module Assignment Card */}
+                        <div className="pt-3 border-t border-slate-100 space-y-2 relative">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2">
+                              {/* Horizontal connector branch from vertical dotted line */}
+                              <div className="flex items-center -ml-5 mr-1 sm:-ml-6 sm:mr-1.5 pointer-events-none">
+                                <div className="w-2.5 sm:w-3.5 border-t-2 border-dotted border-amber-400/80" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 -ml-0.5 shrink-0" />
+                              </div>
+                              <span className="text-xs font-black uppercase tracking-wider text-[#0A192F]">
+                                MODULE ASSIGNMENT (CASE EVALUATION)
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => openEditAssignmentModal(mod.id)}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <FileCheck className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Configure Assignment</span>
+                            </button>
+                          </div>
+
+                          <div className="p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/80 space-y-2 text-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span className="font-extrabold text-slate-900 truncate">
+                                  {mod.assignment?.title || `Module ${mod.moduleNumber} Case Assignment`}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-900">
+                                  Case Evaluation
+                                </span>
+                              </div>
+                            </div>
+
+                            {mod.assignment?.description && (
+                              <p className="text-[11px] text-slate-600 line-clamp-2">
+                                <strong className="text-slate-700">Scenario:</strong> {mod.assignment.description}
+                              </p>
+                            )}
+
+                            {mod.assignment?.instructions && (
+                              <p className="text-[11px] text-slate-600 line-clamp-2">
+                                <strong className="text-slate-700">Instructions:</strong> {mod.assignment.instructions}
+                              </p>
+                            )}
+
+                            <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px]">
+                              {mod.assignment?.templateFileUrl ? (
+                                <div className="flex items-center space-x-1.5 text-emerald-800 font-bold">
+                                  <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span className="truncate max-w-[260px]">
+                                    {mod.assignment.templateFileName || 'Assignment_Document.pdf'}
+                                  </span>
+                                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono">
+                                    PDF Attached
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">
+                                  No PDF document attached (Optional — students will read text instructions)
                                 </span>
                               )}
                             </div>
-                          </div>
-
-                          {mod.assignment?.description && (
-                            <p className="text-[11px] text-slate-600 line-clamp-2">
-                              <strong className="text-slate-700">Scenario:</strong> {mod.assignment.description}
-                            </p>
-                          )}
-
-                          {mod.assignment?.instructions && (
-                            <p className="text-[11px] text-slate-600 line-clamp-2">
-                              <strong className="text-slate-700">Instructions:</strong> {mod.assignment.instructions}
-                            </p>
-                          )}
-
-                          <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px]">
-                            {mod.assignment?.templateFileUrl ? (
-                              <div className="flex items-center space-x-1.5 text-emerald-800 font-bold">
-                                <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span className="truncate max-w-[260px]">
-                                  {mod.assignment.templateFileName || 'Assignment_Document.pdf'}
-                                </span>
-                                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono">
-                                  PDF Attached
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 italic">
-                                No PDF document attached (Optional — students will read text instructions)
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -2259,29 +2589,6 @@ export const AdminCourseForm: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Total Marks</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000}
-                      value={assignmentTotalMarks}
-                      onChange={(e) => setAssignmentTotalMarks(Number(e.target.value))}
-                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Due Date (Optional)</label>
-                    <input
-                      type="date"
-                      value={assignmentDueDate}
-                      onChange={(e) => setAssignmentDueDate(e.target.value)}
-                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
-                    />
-                  </div>
-                </div>
-
                 {/* OPTIONAL ASSIGNMENT DOCUMENT UPLOAD (PDF ONLY) */}
                 <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
                   <label className="block text-xs font-bold text-[#0A192F]">
@@ -2343,6 +2650,422 @@ export const AdminCourseForm: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODULE ASSESSMENT MODAL */}
+        {showAssessmentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-4 my-8">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                    <FileQuestion className="w-4 h-4 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-[#0A192F]">
+                      Configure Module Assessment
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {modules.find((m) => m.id === targetModuleIdForAssessment)
+                        ? `Module 0${modules.find((m) => m.id === targetModuleIdForAssessment)?.moduleNumber}: ${modules.find((m) => m.id === targetModuleIdForAssessment)?.title}`
+                        : 'Module Practice Assessment'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAssessmentModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Tabs: Parameters vs Questions */}
+              <div className="flex items-center space-x-2 border-b border-slate-100 pb-2">
+                <button
+                  type="button"
+                  onClick={() => { setActiveAssessmentTab('settings'); setIsAddingQuestion(false); }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeAssessmentTab === 'settings'
+                      ? 'bg-[#0A192F] text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Assessment Parameters
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveAssessmentTab('questions')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                    activeAssessmentTab === 'questions'
+                      ? 'bg-[#0A192F] text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>Questions in Pool</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeAssessmentTab === 'questions' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {bankQuestions.filter((q) => q.moduleId === targetModuleIdForAssessment).length}
+                  </span>
+                </button>
+              </div>
+
+              {assessmentError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-bold flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{assessmentError}</span>
+                </div>
+              )}
+
+              {activeAssessmentTab === 'settings' ? (
+                <form onSubmit={handleSaveAssessment} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Assessment Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={assessmentTitle}
+                      onChange={(e) => setAssessmentTitle(e.target.value)}
+                      placeholder="e.g. Module Foundational Practice Quiz"
+                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-bold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Description / Competency Scope</label>
+                    <textarea
+                      rows={3}
+                      value={assessmentDescription}
+                      onChange={(e) => setAssessmentDescription(e.target.value)}
+                      placeholder="State the core competencies or diagnostic skills evaluated..."
+                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-800"
+                    />
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 text-xs space-y-1">
+                    <div className="font-bold text-emerald-900 flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Formative Practice Test Rules</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      Module assessments allow <strong>unlimited practice retakes</strong> for students to achieve mastery before proceeding. Questions can be managed in the "Questions in Pool" tab above.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAssessmentModal(false)}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl shadow-md cursor-pointer transition-colors"
+                    >
+                      Save Assessment Configuration
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Questions Management Tab */
+                <div className="space-y-4">
+                  {isAddingQuestion ? (
+                    /* Inline Question Form */
+                    <form onSubmit={handleSaveQuestion} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <span className="text-xs font-extrabold text-[#0A192F]">
+                          {editingQuestionId ? 'Edit Question' : 'Add New Question to Module'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={resetQuestionForm}
+                          className="text-xs text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
+                        >
+                          Back to List
+                        </button>
+                      </div>
+
+                      {qFormError && (
+                        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-bold flex items-center space-x-2">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>{qFormError}</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#0A192F] mb-1">Question Type *</label>
+                          <select
+                            value={qType}
+                            onChange={(e) => {
+                              setQType(e.target.value as QuestionType);
+                              setQSingleCorrect('');
+                              setQMultipleCorrect([]);
+                              setQTfCorrect('');
+                            }}
+                            className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-bold"
+                          >
+                            <option value="single">Single Choice (One Correct)</option>
+                            <option value="multiple">Multiple Response (Multi Correct)</option>
+                            <option value="true_false">True / False Combination</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#0A192F] mb-1">Marks</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={qMarks}
+                            onChange={(e) => setQMarks(Number(e.target.value))}
+                            className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#0A192F] mb-1">Question Prompt *</label>
+                        <textarea
+                          rows={2}
+                          required
+                          value={qText}
+                          onChange={(e) => setQText(e.target.value)}
+                          placeholder="Type question prompt..."
+                          className="w-full text-xs p-2.5 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-900"
+                        />
+                      </div>
+
+                      {/* Choice Options for Single or Multiple */}
+                      {(qType === 'single' || qType === 'multiple') && (
+                        <div className="space-y-2">
+                          <label className="block text-[11px] font-bold text-[#0A192F]">
+                            Options ({qType === 'single' ? 'Select radio for correct answer' : 'Check boxes for correct answers'})
+                          </label>
+                          <div className="space-y-2">
+                            {qOptions.map((opt) => (
+                              <div key={opt.id} className="flex items-center space-x-2">
+                                <div className="shrink-0 flex items-center justify-center">
+                                  {qType === 'single' ? (
+                                    <input
+                                      type="radio"
+                                      name="qSingleCorrectOption"
+                                      checked={qSingleCorrect === opt.id}
+                                      onChange={() => setQSingleCorrect(opt.id)}
+                                      className="w-4 h-4 text-emerald-600 cursor-pointer"
+                                    />
+                                  ) : (
+                                    <input
+                                      type="checkbox"
+                                      checked={qMultipleCorrect.includes(opt.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setQMultipleCorrect((prev) => [...prev, opt.id]);
+                                        } else {
+                                          setQMultipleCorrect((prev) => prev.filter((id) => id !== opt.id));
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-emerald-600 rounded cursor-pointer"
+                                    />
+                                  )}
+                                </div>
+                                <span className="w-5 text-center font-bold text-xs text-slate-700">{opt.label}.</span>
+                                <input
+                                  type="text"
+                                  value={opt.text}
+                                  onChange={(e) => handleQOptionTextChange(opt.id, e.target.value)}
+                                  placeholder={`Option ${opt.label} text`}
+                                  className="w-full text-xs p-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                />
+                                {qOptions.length > 2 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQOption(opt.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          {qOptions.length < 6 && (
+                            <button
+                              type="button"
+                              onClick={handleAddQOption}
+                              className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer flex items-center space-x-1 pt-1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add Option</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* True/False Statements */}
+                      {qType === 'true_false' && (
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">Statement 1 *</label>
+                            <input
+                              type="text"
+                              value={qStatement1}
+                              onChange={(e) => setQStatement1(e.target.value)}
+                              placeholder="Statement 1 text..."
+                              className="w-full text-xs p-2 rounded-xl bg-white border border-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">Statement 2 *</label>
+                            <input
+                              type="text"
+                              value={qStatement2}
+                              onChange={(e) => setQStatement2(e.target.value)}
+                              placeholder="Statement 2 text..."
+                              className="w-full text-xs p-2 rounded-xl bg-white border border-slate-200"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">Correct Combination *</label>
+                            <select
+                              value={qTfCorrect}
+                              onChange={(e) => setQTfCorrect(e.target.value)}
+                              className="w-full text-xs p-2 rounded-xl bg-white border border-slate-200 font-bold"
+                            >
+                              <option value="">Select correct answer...</option>
+                              <option value="A">A: Statement 1 is TRUE, Statement 2 is FALSE</option>
+                              <option value="B">B: Statement 1 is FALSE, Statement 2 is TRUE</option>
+                              <option value="C">C: Both Statement 1 and Statement 2 are TRUE</option>
+                              <option value="D">D: Both Statement 1 and Statement 2 are FALSE</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#0A192F] mb-1">Explanation (Optional)</label>
+                        <input
+                          type="text"
+                          value={qExplanation}
+                          onChange={(e) => setQExplanation(e.target.value)}
+                          placeholder="Provide forensic explanation shown after student practice attempt..."
+                          className="w-full text-xs p-2 rounded-xl bg-white border border-slate-200"
+                        />
+                      </div>
+
+                      <div className="pt-1 flex justify-end space-x-2">
+                        <button
+                          type="button"
+                          onClick={resetQuestionForm}
+                          className="px-3.5 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl cursor-pointer"
+                        >
+                          {editingQuestionId ? 'Update Question' : 'Save Question to Bank'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    /* Questions List */
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-600">
+                          {bankQuestions.filter((q) => q.moduleId === targetModuleIdForAssessment).length} questions associated with this module
+                        </span>
+                        {bankQuestions.filter((q) => q.moduleId === targetModuleIdForAssessment).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={openAddQuestionForm}
+                            className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Add Question</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {bankQuestions.filter((q) => q.moduleId === targetModuleIdForAssessment).length === 0 ? (
+                        <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-2">
+                          <HelpCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                          <p className="text-xs font-bold text-slate-700">No custom questions added yet</p>
+                          <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                            The student assessment uses default curriculum practice questions for this module. You can add custom questions anytime by clicking below.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={openAddQuestionForm}
+                            className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3.5 py-1.5 rounded-xl transition-colors cursor-pointer mt-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Create First Question</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                          {bankQuestions
+                            .filter((q) => q.moduleId === targetModuleIdForAssessment)
+                            .map((q, idx) => (
+                              <div
+                                key={q.id}
+                                className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 transition-colors flex items-center justify-between gap-3 text-xs"
+                              >
+                                <div className="min-w-0 space-y-0.5">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-extrabold text-slate-900">Q{idx + 1}.</span>
+                                    <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 bg-slate-200 rounded text-slate-700">
+                                      {q.type.replace('_', ' ')}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-emerald-700">
+                                      {q.marks} Mark{q.marks === 1 ? '' : 's'}
+                                    </span>
+                                  </div>
+                                  <p className="text-slate-800 font-medium truncate max-w-[420px]">{q.text}</p>
+                                </div>
+                                <div className="flex items-center space-x-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditQuestionForm(q)}
+                                    className="p-1.5 text-slate-500 hover:text-emerald-700 bg-white border border-slate-200 rounded-lg cursor-pointer"
+                                    title="Edit Question"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteQuestion(q.id)}
+                                    className="p-1.5 text-slate-500 hover:text-rose-600 bg-white border border-slate-200 rounded-lg cursor-pointer"
+                                    title="Delete Question"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-100 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setActiveAssessmentTab('settings')}
+                          className="px-4 py-2 bg-[#0A192F] text-white text-xs font-bold rounded-xl cursor-pointer"
+                        >
+                          Return to Parameters
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

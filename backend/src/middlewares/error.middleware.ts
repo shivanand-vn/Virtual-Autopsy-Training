@@ -20,6 +20,10 @@ export function errorHandler(
 
   // Multer errors (file size / type)
   if (err.name === 'MulterError') {
+    if ((err as any).code === 'LIMIT_FILE_SIZE') {
+      sendError(res, 'File size must not exceed 10 MB. Please upload a smaller file.', 400);
+      return;
+    }
     sendError(res, `File upload error: ${err.message}`, 400);
     return;
   }

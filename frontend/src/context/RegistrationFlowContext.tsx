@@ -40,6 +40,7 @@ const initialRegistrationData: RegistrationFormData = {
   fullName: '',
   email: '',
   countryCode: '+44',
+  countryIso: 'GB',
   phoneNumber: '',
   qualification: '',
   qualificationOther: '',

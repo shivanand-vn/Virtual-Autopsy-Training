@@ -9,6 +9,7 @@ import { env } from '../config/env.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary.service.js';
 import { sendPasswordResetOtpEmail } from '../services/email.service.js';
+import { checkLoginRateLimit, recordFailedLogin, resetLoginRateLimit } from '../middlewares/rateLimit.middleware.js';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -27,48 +28,79 @@ const updateProfileSchema = z.object({
 });
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { email, password } = loginSchema.parse(req.body);
-
-  const normalizedEmail = email.toLowerCase().trim();
-  let user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
-
-  if (!user) {
-    user = await prisma.user.findFirst({
-      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
-    });
-  }
-
-  if (!user) {
-    sendError(res, 'Invalid email or password', 401);
-    return;
-  }
-
-  if (!user.isActive) {
-    sendError(res, 'This account is currently deactivated. Please contact support.', 403);
-    return;
-  }
-
-  const rawPassword = password;
-  const trimmedPassword = password ? password.trim() : '';
-
-  let isValidPassword = await comparePassword(rawPassword, user.passwordHash);
-  if (!isValidPassword && rawPassword !== trimmedPassword) {
-    isValidPassword = await comparePassword(trimmedPassword, user.passwordHash);
-  }
-
-  // Allow convenient case-tolerance for default admin
-  if (!isValidPassword && user.email === 'admin@gmail.com') {
-    if (trimmedPassword.toLowerCase() === 'admin@123') {
-      isValidPassword = true;
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const errorMsg = parsed.error.issues[0]?.message || 'Please enter a valid email address';
+      sendError(res, errorMsg, 400);
+      return;
     }
-  }
 
-  if (!isValidPassword) {
-    sendError(res, 'Invalid email or password', 401);
-    return;
-  }
+    const { email, password } = parsed.data;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 1. Check if client or account is currently locked out
+    const rateCheck = checkLoginRateLimit(req, normalizedEmail);
+    if (rateCheck.isBlocked) {
+      res.setHeader('Retry-After', rateCheck.retryAfterSeconds);
+      sendError(res, rateCheck.message, 429, { retryAfter: rateCheck.retryAfterSeconds });
+      return;
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
+    }
+
+    if (!user) {
+      const failStatus = recordFailedLogin(req, normalizedEmail);
+      if (failStatus.isBlocked) {
+        res.setHeader('Retry-After', failStatus.retryAfterSeconds);
+        sendError(res, failStatus.message, 429, { retryAfter: failStatus.retryAfterSeconds });
+        return;
+      }
+      sendError(res, 'Invalid email or password', 401);
+      return;
+    }
+
+    if (!user.isActive) {
+      sendError(res, 'This account is currently deactivated. Please contact support.', 403);
+      return;
+    }
+
+    const rawPassword = password;
+    const trimmedPassword = password ? password.trim() : '';
+
+    let isValidPassword = await comparePassword(rawPassword, user.passwordHash);
+    if (!isValidPassword && rawPassword !== trimmedPassword) {
+      isValidPassword = await comparePassword(trimmedPassword, user.passwordHash);
+    }
+
+    // Allow convenient case-tolerance for default admin
+    if (!isValidPassword && user.email === 'admin@gmail.com') {
+      if (trimmedPassword.toLowerCase() === 'admin@123') {
+        isValidPassword = true;
+      }
+    }
+
+    if (!isValidPassword) {
+      const failStatus = recordFailedLogin(req, normalizedEmail);
+      if (failStatus.isBlocked) {
+        res.setHeader('Retry-After', failStatus.retryAfterSeconds);
+        sendError(res, failStatus.message, 429, { retryAfter: failStatus.retryAfterSeconds });
+        return;
+      }
+      sendError(res, 'Invalid email or password', 401);
+      return;
+    }
+
+    // Login successful: reset rate limiter for this account & IP
+    resetLoginRateLimit(req, normalizedEmail);
 
   const token = signToken({
     userId: user.id,
@@ -83,18 +115,22 @@ export async function login(req: Request, res: Response): Promise<void> {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  sendSuccess(res, 'Login successful', {
-    user: {
-      id: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      avatar: user.avatar,
-      title: user.title,
-      organization: user.organization,
-    },
-    token, // Also return in body for mobile/API testing
-  });
+    sendSuccess(res, 'Login successful', {
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        avatar: user.avatar,
+        title: user.title,
+        organization: user.organization,
+      },
+      token, // Also return in body for mobile/API testing
+    });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    sendError(res, error.message || 'Login failed', 500);
+  }
 }
 
 export async function logout(_req: Request, res: Response): Promise<void> {

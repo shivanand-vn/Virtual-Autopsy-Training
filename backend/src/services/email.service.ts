@@ -1,20 +1,21 @@
-import { BrevoClient } from '@getbrevo/brevo';
+import * as brevo from '@getbrevo/brevo';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config/env.js';
 
-let brevoClient: BrevoClient | null = null;
+let apiInstance: brevo.TransactionalEmailsApi | null = null;
 
-function getBrevoClient(): BrevoClient | null {
+function getBrevoClient(): brevo.TransactionalEmailsApi | null {
   if (!env.BREVO_API_KEY) {
     return null;
   }
 
   // Brevo REST API requires an API key starting with xkeysib-
   if (env.BREVO_API_KEY.startsWith('xkeysib-')) {
-    if (!brevoClient) {
-      brevoClient = new BrevoClient({ apiKey: env.BREVO_API_KEY });
+    if (!apiInstance) {
+      apiInstance = new brevo.TransactionalEmailsApi();
+      apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, env.BREVO_API_KEY);
     }
-    return brevoClient;
+    return apiInstance;
   }
 
   return null;
@@ -54,15 +55,16 @@ export async function sendEmail({
 
   if (restClient) {
     try {
-      await restClient.transactionalEmails.sendTransacEmail({
-        subject,
-        htmlContent,
-        sender: {
-          name: env.BREVO_SENDER_NAME,
-          email: env.BREVO_SENDER_EMAIL,
-        },
-        to: [{ email: toEmail, name: toName }],
-      });
+      const sendSmtpEmail = new brevo.SendSmtpEmail();
+      sendSmtpEmail.subject = subject;
+      sendSmtpEmail.htmlContent = htmlContent;
+      sendSmtpEmail.sender = {
+        name: env.BREVO_SENDER_NAME,
+        email: env.BREVO_SENDER_EMAIL,
+      };
+      sendSmtpEmail.to = [{ email: toEmail, name: toName }];
+
+      await restClient.sendTransacEmail(sendSmtpEmail);
       console.log(`✅ [Brevo REST API] Dispatched email to ${toEmail} (${subject})`);
       return true;
     } catch (err: any) {
@@ -320,9 +322,10 @@ export async function verifyEmailService(): Promise<{
   }
 
   try {
-    const client = getBrevoClient() || new BrevoClient({ apiKey: env.BREVO_API_KEY });
-    const res = await client.account.getAccount();
-    const accountEmail = (res as any)?.email || env.BREVO_SENDER_EMAIL;
+    const accountApi = new brevo.AccountApi();
+    accountApi.setApiKey(brevo.AccountApiApiKeys.apiKey, env.BREVO_API_KEY);
+    const res = await accountApi.getAccount();
+    const accountEmail = (res.body as any)?.email || env.BREVO_SENDER_EMAIL;
     return {
       connected: true,
       provider: 'Brevo (REST API)',

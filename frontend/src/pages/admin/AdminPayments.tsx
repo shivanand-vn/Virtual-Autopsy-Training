@@ -147,17 +147,92 @@ export const AdminPaymentsPage: React.FC = () => {
         )}
 
         {/* Payments Table */}
+        {/* Payments Table: Responsive Cards on Mobile, Table on Desktop */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile Card View (md:hidden - no horizontal scroll needed) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {loading ? (
+              <div className="py-12 text-center text-slate-400 font-semibold text-xs">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
+                  <span>Fetching financial ledger from database...</span>
+                </div>
+              </div>
+            ) : filteredPayments.length > 0 ? (
+              filteredPayments.map((p) => {
+                const dateFormatted = new Date(p.createdAt).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                });
+                return (
+                  <div key={p.id} className="p-4 space-y-3">
+                    {/* Top Row: Candidate Name, Email & Amount + Status */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-extrabold text-slate-900 text-sm truncate" title={p.candidateName}>
+                          {p.candidateName}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5" title={p.email}>
+                          {p.email}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-black text-amber-700 text-base">
+                          {p.amount}
+                        </div>
+                        <span
+                          className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 mt-1"
+                          title={p.status}
+                        >
+                          {p.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Transaction Details Box */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                      <div className="col-span-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Program Tier</span>
+                        <span className="text-xs font-semibold text-slate-800 truncate block mt-0.5" title={p.tier}>
+                          {p.tier}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Payment Method</span>
+                        <span className="text-xs font-medium text-slate-700 block mt-0.5 truncate" title={p.paymentMethod}>
+                          {p.paymentMethod}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">TXN Reference</span>
+                        <span className="text-[11px] font-mono text-slate-800 font-bold block mt-0.5 truncate" title={p.transactionRef}>
+                          {p.transactionRef}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal block">{dateFormatted}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-12 text-center text-slate-400 font-semibold text-xs px-4">
+                No payment transactions recorded in the database yet.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">TXN REFERENCE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">CANDIDATE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">PROGRAM TIER</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">AMOUNT (£)</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">PAYMENT METHOD</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">STATUS</th>
+                  <th className="w-[16%] py-3.5 px-4 font-bold text-center">TXN REFERENCE</th>
+                  <th className="w-[25%] py-3.5 px-4 font-bold text-center">CANDIDATE</th>
+                  <th className="w-[23%] py-3.5 px-4 font-bold text-center">PROGRAM TIER</th>
+                  <th className="w-[11%] py-3.5 px-4 font-bold text-center">AMOUNT (£)</th>
+                  <th className="w-[14%] py-3.5 px-4 font-bold text-center">PAYMENT METHOD</th>
+                  <th className="w-[11%] py-3.5 px-4 font-bold text-center">STATUS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -179,22 +254,45 @@ export const AdminPaymentsPage: React.FC = () => {
                     });
                     return (
                       <tr key={p.id} className="hover:bg-amber-50/20 transition-colors">
-                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-800">
-                          {p.transactionRef}
-                          <div className="text-[10px] text-slate-400 font-normal">{dateFormatted}</div>
+                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-800 max-w-0 overflow-hidden">
+                          <div className="truncate [overflow-wrap:anywhere] break-all" title={p.transactionRef}>
+                            {p.transactionRef}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-normal truncate">{dateFormatted}</div>
                         </td>
-                        <td className="py-4 px-4 text-center">
-                          <div className="font-bold text-slate-900">{p.candidateName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{p.email}</div>
+                        <td className="py-4 px-4 text-center max-w-0 overflow-hidden">
+                          <div
+                            className="font-bold text-slate-900 truncate [overflow-wrap:anywhere] break-words"
+                            title={p.candidateName}
+                          >
+                            {p.candidateName}
+                          </div>
+                          <div
+                            className="text-[10px] text-slate-400 font-mono truncate [overflow-wrap:anywhere] break-all"
+                            title={p.email}
+                          >
+                            {p.email}
+                          </div>
                         </td>
-                        <td className="py-4 px-4 text-center text-slate-700 font-medium truncate">{p.tier}</td>
-                        <td className="py-4 px-4 text-center font-mono font-extrabold text-amber-700 text-sm">
-                          {p.amount}
+                        <td className="py-4 px-4 text-center text-slate-700 font-medium max-w-0 overflow-hidden">
+                          <div className="truncate [overflow-wrap:anywhere] break-words" title={p.tier}>
+                            {p.tier}
+                          </div>
                         </td>
-                        <td className="py-4 px-4 text-center text-slate-600">{p.paymentMethod}</td>
-                        <td className="py-4 px-4 text-center">
-                          <span className="inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-                            {p.status}
+                        <td className="py-4 px-4 text-center font-mono font-extrabold text-amber-700 text-sm max-w-0 overflow-hidden">
+                          <div className="truncate">{p.amount}</div>
+                        </td>
+                        <td className="py-4 px-4 text-center text-slate-600 max-w-0 overflow-hidden">
+                          <div className="truncate [overflow-wrap:anywhere] break-words" title={p.paymentMethod}>
+                            {p.paymentMethod}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-center max-w-0 overflow-hidden">
+                          <span
+                            className="inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 truncate max-w-full"
+                            title={p.status}
+                          >
+                            <span className="truncate">{p.status}</span>
                           </span>
                         </td>
                       </tr>

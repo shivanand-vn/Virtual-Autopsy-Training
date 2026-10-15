@@ -27,7 +27,6 @@ import {
   Sparkles
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
 import { api } from '../../lib/api';
 
 export interface UserRecord {
@@ -54,7 +53,27 @@ export interface UserRecord {
   };
 }
 
-export const mapBackendUserToRecord = (bu: any): UserRecord => {
+const formatCountry = (code?: string): string => {
+  if (!code) return 'United Kingdom';
+  const clean = code.trim();
+  if (clean === '+44') return 'United Kingdom';
+  if (clean === '+91') return 'India';
+  if (clean === '+1') return 'United States';
+  if (clean === '+61') return 'Australia';
+  if (clean === '+971') return 'UAE';
+  if (clean === '+49') return 'Germany';
+  if (clean === '+33') return 'France';
+  if (clean === '+81') return 'Japan';
+  if (clean === '+65') return 'Singapore';
+  if (clean === '+92') return 'Pakistan';
+  if (clean === '+880') return 'Bangladesh';
+  if (clean === '+234') return 'Nigeria';
+  if (clean === '+27') return 'South Africa';
+  if (clean.startsWith('+')) return `Region (${clean})`;
+  return clean;
+};
+
+const mapBackendUserToRecord = (bu: any): UserRecord => {
   const roleName = (bu.title?.toLowerCase().includes('pathologist') || bu.application?.professionalRole?.toLowerCase().includes('pathologist'))
     ? 'Pathologist'
     : 'Fellow / Student';
@@ -80,8 +99,9 @@ export const mapBackendUserToRecord = (bu: any): UserRecord => {
     email: bu.email,
     role: roleName,
     institution: bu.organization || bu.application?.organization || 'Virtual Autopsy Institute',
-    country: bu.application?.countryCode || 'UK',
+    country: formatCountry(bu.application?.countryCode || bu.country),
     joinedDate: joinedFormatted,
+    phone: bu.application?.phoneNumber ? `${bu.application.countryCode || ''} ${bu.application.phoneNumber}` : undefined,
     status: bu.isActive ? 'active' : 'suspended',
     cmeCredits: (bu._count?.certificates || 0) * 12 || (bu._count?.courseProgress || 0) * 4 || 12,
     qualification: bu.application?.qualification || bu.title || (bu.role === 'ADMIN' ? 'Head of Education' : 'Medical Practitioner'),
@@ -99,7 +119,6 @@ export const mapBackendUserToRecord = (bu: any): UserRecord => {
 };
 
 export const AdminUsersPage: React.FC = () => {
-  const { registrationData } = useRegistrationFlow();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -296,18 +315,126 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Users Table */}
+        {/* Users Container: Responsive Table on Desktop, Cards on Mobile */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed">
+          {/* Mobile Card View (md:hidden - no horizontal scroll needed) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {isLoading ? (
+              <div className="py-16 text-center text-slate-400 font-semibold text-xs">
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
+                  <span>Loading registered users from database...</span>
+                </div>
+              </div>
+            ) : filteredUsers.length > 0 ? (
+              filteredUsers.map((user) => (
+                <div key={user.id} className="p-4 space-y-3">
+                  {/* Top Row: User Avatar, Name, Email, and Status */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-extrabold text-slate-900 text-sm truncate" title={user.name}>
+                            {user.name}
+                          </h4>
+                          <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-md text-[10px]">
+                            {user.role}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono truncate mt-0.5" title={user.email}>
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                        user.status === 'active'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                          user.status === 'active' ? 'bg-emerald-600' : 'bg-rose-600'
+                        }`}
+                      />
+                      {user.status}
+                    </span>
+                  </div>
+
+                  {/* Info Details Box */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                    <div className="col-span-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Institution / Organization</span>
+                      <span className="text-xs font-semibold text-slate-800 truncate block mt-0.5" title={user.institution}>
+                        {user.institution} {user.country ? `(${user.country})` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Joined Date</span>
+                      <span className="text-[11px] font-mono text-slate-700 font-medium block mt-0.5">
+                        {user.joinedDate}
+                      </span>
+                    </div>
+                    {user.phone && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Phone</span>
+                        <span className="text-[11px] font-mono text-slate-700 font-medium block mt-0.5 truncate">
+                          {user.phone}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => setSelectedUser(user)}
+                      className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center justify-center space-x-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Details</span>
+                    </button>
+                    <button
+                      onClick={() => toggleUserStatus(user.id)}
+                      disabled={actionLoadingId === user.id}
+                      className={`w-full py-2 font-bold rounded-xl text-xs transition-colors text-white cursor-pointer disabled:opacity-50 inline-flex items-center justify-center space-x-1.5 ${
+                        user.status === 'active'
+                          ? 'bg-rose-600 hover:bg-rose-700'
+                          : 'bg-emerald-600 hover:bg-emerald-700'
+                      }`}
+                    >
+                      {actionLoadingId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
+                      <span>{user.status === 'active' ? 'Suspend' : 'Activate'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center text-slate-400 font-semibold text-xs px-4">
+                {searchQuery || roleFilter !== 'all'
+                  ? 'No users match your search criteria.'
+                  : 'No users available in database.'}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left text-xs table-fixed min-w-[960px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="py-3.5 px-4 font-bold text-center">USER</th>
-                  <th className="py-3.5 px-4 font-bold text-center">ROLE</th>
-                  <th className="py-3.5 px-4 font-bold text-center">ORGANIZATION</th>
-                  <th className="py-3.5 px-4 font-bold text-center">JOINED DATE</th>
-                  <th className="py-3.5 px-4 font-bold text-center">STATUS</th>
-                  <th className="py-3.5 px-4 font-bold text-center">ACTIONS</th>
+                  <th className="w-[24%] py-3.5 pl-6 pr-3 font-bold text-left">USER</th>
+                  <th className="w-[13%] py-3.5 px-3 font-bold text-center">ROLE</th>
+                  <th className="w-[21%] py-3.5 px-3 font-bold text-left">ORGANIZATION</th>
+                  <th className="w-[12%] py-3.5 px-3 font-bold text-center">JOINED DATE</th>
+                  <th className="w-[10%] py-3.5 px-3 font-bold text-center">STATUS</th>
+                  <th className="w-[20%] py-3.5 pl-3 pr-6 font-bold text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -323,34 +450,40 @@ export const AdminUsersPage: React.FC = () => {
                 ) : filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-amber-50/20 transition-colors">
-                      <td className="py-4 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-3">
+                      <td className="py-4 pl-6 pr-3 text-left max-w-0 overflow-hidden">
+                        <div className="flex items-center space-x-3">
                           <img
                             src={user.avatar}
                             alt={user.name}
                             className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
                           />
                           <div className="min-w-0 text-left">
-                            <div className="font-extrabold text-slate-900 text-sm truncate">{user.name}</div>
-                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">{user.email}</div>
+                            <div className="font-extrabold text-slate-900 text-sm truncate [overflow-wrap:anywhere] break-words" title={user.name}>
+                              {user.name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate [overflow-wrap:anywhere] break-all" title={user.email}>
+                              {user.email}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
-                        <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px]">
+                      <td className="py-4 px-3 text-center max-w-0 overflow-hidden">
+                        <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px] truncate">
                           {user.role}
                         </span>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
-                        <div className="font-semibold text-slate-800 truncate">{user.institution}</div>
-                        <div className="text-[11px] text-slate-500">{user.country}</div>
+                      <td className="py-4 px-3 text-left max-w-0 overflow-hidden">
+                        <div className="font-semibold text-slate-800 truncate" title={user.institution}>{user.institution}</div>
+                        <div className="text-[11px] text-slate-500 truncate" title={user.country}>{user.country}</div>
                       </td>
 
-                      <td className="py-4 px-4 text-center text-slate-600 font-mono text-[11px]">{user.joinedDate}</td>
+                      <td className="py-4 px-3 text-center text-slate-600 font-mono text-[11px] max-w-0 overflow-hidden truncate">
+                        {user.joinedDate}
+                      </td>
 
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 px-3 text-center">
                         <span
                           className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
                             user.status === 'active'
@@ -367,25 +500,25 @@ export const AdminUsersPage: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 pl-3 pr-6 text-center">
                         <div className="flex items-center justify-center space-x-2">
                           <button
                             onClick={() => setSelectedUser(user)}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1 shrink-0 cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-amber-600" />
+                            <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                             <span>Details</span>
                           </button>
                           <button
                             onClick={() => toggleUserStatus(user.id)}
                             disabled={actionLoadingId === user.id}
-                            className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-colors text-white cursor-pointer disabled:opacity-50 inline-flex items-center space-x-1 ${
+                            className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-colors text-white shrink-0 cursor-pointer disabled:opacity-50 inline-flex items-center space-x-1 ${
                               user.status === 'active'
                                 ? 'bg-rose-600 hover:bg-rose-700'
                                 : 'bg-emerald-600 hover:bg-emerald-700'
                             }`}
                           >
-                            {actionLoadingId === user.id && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                            {actionLoadingId === user.id && <Loader2 className="w-3 h-3 animate-spin mr-1 shrink-0" />}
                             <span>{user.status === 'active' ? 'Suspend' : 'Activate'}</span>
                           </button>
                         </div>

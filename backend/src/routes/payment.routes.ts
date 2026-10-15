@@ -3,14 +3,10 @@ import {
   completeRegistrationAndPayment,
   getAdminPayments,
   getPaymentReceipt,
-  getCoursePricing,
 } from '../controllers/payment.controller.js';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 
 const router = Router();
-
-// Public: Get dynamic course pricing configuration
-router.get('/pricing', getCoursePricing);
 
 // Public: Process tuition payment and complete candidate enrollment
 router.post('/complete-registration', completeRegistrationAndPayment);

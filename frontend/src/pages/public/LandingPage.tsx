@@ -17,8 +17,7 @@ import {
 } from 'lucide-react';
 import { useCourse } from '../../context/CourseContext';
 import { useAuth } from '../../context/AuthContext';
-import { api, getAuthToken, getStoredUser } from '../../lib/api';
-import { COURSE_PRICING } from '../../config/pricing';
+import { getAuthToken, getStoredUser } from '../../lib/api';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -46,26 +45,6 @@ export const LandingPage: React.FC = () => {
   // Accordion State for Modules
   const [openModuleId, setOpenModuleId] = useState<string | null>('mod-1');
   const [isScrolled, setIsScrolled] = useState(false);
-  const [courseFee, setCourseFee] = useState(COURSE_PRICING.formattedAmount);
-
-  // Sync course fee dynamically from backend pricing API
-  useEffect(() => {
-    let isMounted = true;
-    api
-      .get('/payments/pricing')
-      .then((res) => {
-        if (isMounted && res.data?.data?.formattedAmount) {
-          setCourseFee(res.data.data.formattedAmount);
-        }
-      })
-      .catch(() => {
-        // Fallback to COURSE_PRICING default
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Handle scroll detection for glassmorphism fixed navbar
   useEffect(() => {
@@ -445,7 +424,7 @@ export const LandingPage: React.FC = () => {
               <div className="px-5 space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PROFESSIONAL ENROLLMENT FEE</span>
                 <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-black text-[#0A192F]">{courseFee}</span>
+                  <span className="text-3xl font-black text-[#0A192F]">£999</span>
                   <span className="text-xs text-slate-500 font-medium">GBP • Single Professional Access</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-tight">

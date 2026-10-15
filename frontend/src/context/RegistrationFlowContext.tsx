@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import type { RegistrationFormData } from '../types/auth';
 import { api, sanitizeErrorMessage } from '../lib/api';
-import { COURSE_PRICING } from '../config/pricing';
 
 export interface CardData {
   cardholderName: string;
@@ -61,7 +60,7 @@ const initialPaymentData: PaymentData = {
   },
   paymentStatus: 'idle',
   transactionId: '',
-  amount: COURSE_PRICING.formattedAmount,
+  amount: '£999',
   error: null,
 };
 
@@ -85,30 +84,6 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
 
   const [paymentData, setPaymentData] = useState<PaymentData>(initialPaymentData);
   const [demoCredential, setDemoCredential] = useState<DemoCredential | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    api
-      .get('/payments/pricing')
-      .then((res) => {
-        if (isMounted && res.data?.data) {
-          const p = res.data.data;
-          if (p.formattedAmount) {
-            setPaymentData((prev) => ({
-              ...prev,
-              amount: p.formattedAmount,
-            }));
-          }
-        }
-      })
-      .catch(() => {
-        // Fall back gracefully to local COURSE_PRICING config
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const updateRegistrationData = (data: Partial<RegistrationFormData>) => {
     setRegistrationData((prev) => {
@@ -172,9 +147,9 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
         professionalRole: registrationData.professionalRole || 'Forensic Pathologist',
         organization: registrationData.organization || 'Virtual Autopsy Training Academy',
         cvFileUrl: 'https://res.cloudinary.com/demo/image/upload/sample.pdf',
-        amount: paymentData.amount || COURSE_PRICING.formattedAmountWithDecimals,
-        currency: COURSE_PRICING.currency,
-        tier: COURSE_PRICING.tierName,
+        amount: paymentData.amount || '£999.00',
+        currency: 'GBP',
+        tier: 'Virtual Autopsy Online Fellowship (£999)',
         cardholderName: cardData?.cardholderName || registrationData.fullName || 'Cardholder',
         cardLast4: (cardData?.cardNumber || '4242').replace(/\s/g, '').slice(-4) || '4242',
       };

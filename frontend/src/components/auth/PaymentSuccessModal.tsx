@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle,
-  ArrowRight,
   ShieldCheck,
-  Mail,
   CreditCard,
   BookOpen,
   KeyRound,
@@ -137,10 +135,6 @@ export const PaymentSuccessModal: React.FC<PaymentSuccessModalProps> = ({
         <div className="pt-1">
           <PrimaryButton onClick={handleContinueToLogin}>
             Continue to Login
-            <span className="flex items-center justify-center gap-2">
-              <span>Sign In to Student Portal</span>
-              <ArrowRight className="w-4 h-4" />
-            </span>
           </PrimaryButton>
         </div>
       </div>

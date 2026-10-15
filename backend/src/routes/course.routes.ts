@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireRole, optionalAuth } from '../middlewares/auth.middleware.js';
+import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 import {
   getAllCourses,
   getCourseById,
@@ -23,9 +23,9 @@ import { uploadCourseMedia, uploadFileOrImage } from '../middlewares/upload.midd
 
 const router = Router();
 
-// Public / Learner Course Access
-router.get('/', optionalAuth, getAllCourses);
-router.get('/:id', optionalAuth, getCourseById);
+// Protected Course Access (Authenticated Users Only)
+router.get('/', requireAuth, getAllCourses);
+router.get('/:id', requireAuth, getCourseById);
 router.get('/stream-token/:videoId', requireAuth, getVideoStreamTokenByVideoId);
 
 // Admin Course CRUD
@@ -37,7 +37,7 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), deleteCourse);
 router.post('/:courseId/modules', requireAuth, requireRole('ADMIN'), createModule);
 router.put('/modules/:moduleId', requireAuth, requireRole('ADMIN'), updateModule);
 router.delete('/modules/:moduleId', requireAuth, requireRole('ADMIN'), deleteModule);
-router.get('/modules/:moduleId/assignment', optionalAuth, getModuleAssignment);
+router.get('/modules/:moduleId/assignment', requireAuth, getModuleAssignment);
 router.put('/modules/:moduleId/assignment', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
 router.post('/modules/:moduleId/assignment', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
 router.post('/modules/:moduleId/assignment/submit', requireAuth, uploadFileOrImage.single('file'), submitAssignment);

@@ -27,7 +27,12 @@ export function signBunnyEmbedUrlIfNeeded(url: string | null | undefined, videoI
 
 export async function getAllCourses(req: Request, res: Response): Promise<void> {
   try {
-    const userRole = (req as any).user?.role;
+    const user = (req as any).user;
+    if (!user) {
+      sendError(res, 'Authentication required. Please log in.', 401);
+      return;
+    }
+    const userRole = user.role;
     const isAdmin = userRole === Role.ADMIN;
 
     const courses = await prisma.course.findMany({
@@ -100,9 +105,14 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
 
 export async function getCourseById(req: Request, res: Response): Promise<void> {
   try {
+    const user = (req as any).user;
+    if (!user) {
+      sendError(res, 'Authentication required. Please log in.', 401);
+      return;
+    }
     const courseId = req.params.id as string;
-    const userId = (req as any).user?.userId;
-    const userRole = (req as any).user?.role;
+    const userId = user.userId;
+    const userRole = user.role;
     const isAdmin = userRole === Role.ADMIN;
 
     const course = await prisma.course.findUnique({

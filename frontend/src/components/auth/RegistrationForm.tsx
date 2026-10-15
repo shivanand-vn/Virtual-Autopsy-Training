@@ -10,7 +10,7 @@ import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import { validateMobileNumber, getCountryIso } from '../../utils/phoneValidation';
-import { api } from '../../lib/api';
+import { api, sanitizeErrorMessage } from '../../lib/api';
 import { AlertCircle } from 'lucide-react';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
 
@@ -143,10 +143,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
         }));
       } else {
         setIsDuplicateAccount(false);
-        const errorMsg =
-          err.message && err.message !== 'Failed to fetch'
-            ? err.message
-            : 'Unable to connect to the server. Please check your internet connection or verify the backend service is available.';
+        const errorMsg = sanitizeErrorMessage(
+          err.message,
+          'Unable to continue at the moment. Please check your internet connection and try again.'
+        );
         setAccountError(errorMsg);
       }
     } finally {

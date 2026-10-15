@@ -18,6 +18,14 @@ export function setAuthToken(token: string): void {
 export function clearAuthToken(): void {
   localStorage.removeItem('vat_auth_token');
   localStorage.removeItem('vat_user');
+  localStorage.removeItem('va_lms_courses_v5');
+  localStorage.removeItem('va_lms_courses_v4');
+  localStorage.removeItem('va_lms_completed_topic_ids');
+  localStorage.removeItem('va_lms_completed_topic_ids_v2');
+  localStorage.removeItem('va_lms_completed_topics_v3');
+  localStorage.removeItem('va_lms_assessment_results_v2');
+  localStorage.removeItem('va_lms_assignment_submissions');
+  localStorage.removeItem('va_lms_assignment_submissions_v2');
   try {
     sessionStorage.clear();
     window.dispatchEvent(new Event('auth-logout'));

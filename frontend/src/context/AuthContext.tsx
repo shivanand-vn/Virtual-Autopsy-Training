@@ -116,6 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(authToken);
     setAuthToken(authToken);
     setStoredUser(updatedUser);
+    window.dispatchEvent(new Event('auth-login'));
 
     return updatedUser;
   };

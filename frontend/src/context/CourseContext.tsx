@@ -90,6 +90,9 @@ const sanitizeCoursesForStorage = (courseList: Course[]): Course[] => {
 };
 
 const getInitialCourses = (): Course[] => {
+  const token = getAuthToken();
+  if (!token) return [];
+
   try {
     localStorage.removeItem('va_lms_courses_v4');
     localStorage.removeItem('va_lms_assignment_submissions');
@@ -127,7 +130,7 @@ const getInitialCourses = (): Course[] => {
       // Ignore
     }
   }
-  return INITIAL_COURSES;
+  return [];
 };
 
 // Maps backend Prisma Course model (with modules and resources) to frontend Course format
@@ -210,6 +213,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Persistent student completed topics (by topic id)
   const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>(() => {
+    if (!getAuthToken()) return {};
     try {
       // Purge all old readings so every student starts fresh from the beginning
       localStorage.removeItem('va_lms_completed_topic_ids');
@@ -224,6 +228,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Persistent student module assessment results (by module id)
   const [assessmentResults, setAssessmentResults] = useState<Record<string, AssessmentResult>>(() => {
+    if (!getAuthToken()) return {};
     try {
       const saved = localStorage.getItem(ASSESSMENTS_LOCAL_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
@@ -235,6 +240,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Persistent student assignment submissions
   const [assignmentSubmissions, setAssignmentSubmissions] = useState<AssignmentSubmission[]>(() => {
+    if (!getAuthToken()) return INITIAL_SUBMISSIONS;
     try {
       const saved = localStorage.getItem(ASSIGNMENTS_LOCAL_STORAGE_KEY);
       if (saved) return JSON.parse(saved);
@@ -244,8 +250,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return INITIAL_SUBMISSIONS;
   });
 
-  // Sync to localStorage as client-side backup cache
+  // Sync to localStorage as client-side backup cache (only when authenticated)
   useEffect(() => {
+    if (!getAuthToken()) return;
     try {
       const sanitized = sanitizeCoursesForStorage(courses);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
@@ -260,14 +267,17 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [courses]);
 
   useEffect(() => {
+    if (!getAuthToken()) return;
     localStorage.setItem(TOPICS_LOCAL_STORAGE_KEY, JSON.stringify(completedTopicIds));
   }, [completedTopicIds]);
 
   useEffect(() => {
+    if (!getAuthToken()) return;
     localStorage.setItem(ASSESSMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assessmentResults));
   }, [assessmentResults]);
 
   useEffect(() => {
+    if (!getAuthToken()) return;
     localStorage.setItem(ASSIGNMENTS_LOCAL_STORAGE_KEY, JSON.stringify(assignmentSubmissions));
   }, [assignmentSubmissions]);
 
@@ -290,6 +300,12 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Fetch courses directly from Supabase / Backend API on mount
   const refreshCourses = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       const res = await api.get('/courses');
@@ -315,16 +331,49 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       }
       await refreshAssignmentSubmissions();
-    } catch (err) {
-      console.warn('Failed to fetch courses from backend API, using cached data:', err);
+    } catch (err: any) {
+      if (err?.status !== 401 && err?.status !== 403) {
+        console.warn('Failed to fetch courses from backend API, using cached data:', err);
+      }
     } finally {
       setIsLoading(false);
     }
   }, [refreshAssignmentSubmissions]);
 
   useEffect(() => {
-    refreshCourses();
-    refreshAssignmentSubmissions();
+    const token = getAuthToken();
+    if (token) {
+      refreshCourses();
+      refreshAssignmentSubmissions();
+    }
+
+    const handleAuthLogin = () => {
+      try {
+        const savedTopics = localStorage.getItem(TOPICS_LOCAL_STORAGE_KEY);
+        if (savedTopics) setCompletedTopicIds(JSON.parse(savedTopics));
+        const savedAssessments = localStorage.getItem(ASSESSMENTS_LOCAL_STORAGE_KEY);
+        if (savedAssessments) setAssessmentResults(JSON.parse(savedAssessments));
+      } catch (e) {
+        console.warn('Error reading stored progress on auth-login', e);
+      }
+      refreshCourses();
+      refreshAssignmentSubmissions();
+    };
+
+    const handleAuthLogout = () => {
+      setCourses([]);
+      setAssignmentSubmissions([]);
+      setCompletedTopicIds({});
+      setAssessmentResults({});
+    };
+
+    window.addEventListener('auth-login', handleAuthLogin);
+    window.addEventListener('auth-logout', handleAuthLogout);
+
+    return () => {
+      window.removeEventListener('auth-login', handleAuthLogin);
+      window.removeEventListener('auth-logout', handleAuthLogout);
+    };
   }, [refreshCourses, refreshAssignmentSubmissions]);
 
   const activeCourse = courses[0] || INITIAL_COURSES[0];

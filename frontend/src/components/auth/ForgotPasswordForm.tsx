@@ -6,7 +6,7 @@ import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import type { FormErrors } from '../../types/auth';
 import { Mail, KeyRound, CheckCircle2, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, sanitizeErrorMessage } from '../../lib/api';
 
 export const ForgotPasswordForm: React.FC = () => {
   const navigate = useNavigate();
@@ -110,7 +110,7 @@ export const ForgotPasswordForm: React.FC = () => {
       setCanResend(false);
       setBannerMessage(res?.message || `Verification code sent to ${cleanEmail}`);
     } catch (err: any) {
-      setErrors({ email: err.message || 'Failed to dispatch verification OTP. Please try again.' });
+      setErrors({ email: sanitizeErrorMessage(err.message, 'Unable to send verification code. Please check your connection and try again.') });
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +132,7 @@ export const ForgotPasswordForm: React.FC = () => {
       setCanResend(false);
       setBannerMessage(`The same verification code has been resent to your email (Email ${updatedSendCount} of 3).`);
     } catch (err: any) {
-      setErrors({ otp: err.message || 'Failed to resend code.' });
+      setErrors({ otp: sanitizeErrorMessage(err.message, 'Unable to resend code. Please try again.') });
       if (err?.message && (err.message.toLowerCase().includes('limit') || err.message.toLowerCase().includes('3 of 3'))) {
         setResendsRemaining(0);
       }
@@ -163,7 +163,7 @@ export const ForgotPasswordForm: React.FC = () => {
       setStep(3);
       setBannerMessage(null);
     } catch (err: any) {
-      setErrors({ otp: err.message || 'Invalid or expired OTP code.' });
+      setErrors({ otp: sanitizeErrorMessage(err.message, 'Invalid or expired code. Please try again.') });
       // Reset inputs so user can cleanly re-enter the code
       setOtp(['', '', '', '', '', '']);
       document.getElementById('otp-input-0')?.focus();
@@ -230,7 +230,7 @@ export const ForgotPasswordForm: React.FC = () => {
         navigate('/login', { state: { email: cleanEmail, resetSuccess: true } });
       }, 3000);
     } catch (err: any) {
-      setErrors({ newPassword: err.message || 'Failed to reset password. Please try again.' });
+      setErrors({ newPassword: sanitizeErrorMessage(err.message, 'Unable to reset password. Please try again.') });
     } finally {
       setIsLoading(false);
     }

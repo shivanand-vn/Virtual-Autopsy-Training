@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import type { RegistrationFormData } from '../types/auth';
-import { api } from '../lib/api';
+import { api, sanitizeErrorMessage } from '../lib/api';
 
 export interface CardData {
   cardholderName: string;
@@ -185,7 +185,7 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       return true;
     } catch (err: any) {
       console.error('Registration payment error:', err);
-      const errMsg = err?.message || 'Payment processing failed. Please check your details and try again.';
+      const errMsg = sanitizeErrorMessage(err?.message, 'Payment processing failed. Please check your details and try again.');
       setPaymentData((prev) => ({
         ...prev,
         paymentStatus: 'failed',

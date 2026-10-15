@@ -50,9 +50,9 @@ export function getApiBaseUrl(): string {
     } catch {}
 
     const hostname = window.location.hostname;
-    // In production on Vercel or any remote domain: NEVER use localhost:5000!
+    // In production on Vercel or any remote domain: connect to live Render backend
     if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      return '/api';
+      return 'https://virtual-autopsy-training.onrender.com/api';
     }
   }
 

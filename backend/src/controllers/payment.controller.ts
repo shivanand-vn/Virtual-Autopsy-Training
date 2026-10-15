@@ -5,6 +5,7 @@ import { hashPassword } from '../utils/password.js';
 import { sendWelcomeAndReceiptEmail } from '../services/email.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { isRegistrationOtpVerified, clearRegistrationOtp } from './auth.controller.js';
+import { COURSE_PRICING } from '../config/pricing.js';
 
 const completePaymentSchema = z.object({
   fullName: z.string().min(2, 'Full name is required'),
@@ -15,9 +16,9 @@ const completePaymentSchema = z.object({
   professionalRole: z.string().optional().default('Forensic Pathologist'),
   organization: z.string().optional().default('Virtual Autopsy Training Academy'),
   cvFileUrl: z.string().optional(),
-  amount: z.string().default('£999.00'),
-  currency: z.string().default('GBP'),
-  tier: z.string().default('Virtual Autopsy Online Fellowship (£999)'),
+  amount: z.string().default(COURSE_PRICING.formattedAmountWithDecimals),
+  currency: z.string().default(COURSE_PRICING.currency),
+  tier: z.string().default(COURSE_PRICING.tierName),
   cardholderName: z.string().optional(),
   cardLast4: z.string().optional().default('4242'),
   transactionRef: z.string().optional(),
@@ -185,9 +186,9 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
         userId: user.id,
         candidateName: fullName.trim(),
         email: normalizedEmail,
-        tier: tier || 'Virtual Autopsy Online Fellowship (£999)',
-        amount: amount || '£999.00',
-        currency: currency || 'GBP',
+        tier: tier || COURSE_PRICING.tierName,
+        amount: amount || COURSE_PRICING.formattedAmountWithDecimals,
+        currency: currency || COURSE_PRICING.currency,
         paymentMethod: 'Stripe Credit Card',
         cardLast4: cardLast4 || '4242',
         status: 'COMPLETED',
@@ -209,7 +210,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       name: fullName.trim(),
       temporaryPassword,
       transactionId: txnId,
-      amount: amount || '£999.00',
+      amount: amount || COURSE_PRICING.formattedAmountWithDecimals,
       courseTitle,
       date: formattedDate,
     }).catch((emailErr) => {
@@ -317,3 +318,8 @@ export async function getPaymentReceipt(req: Request, res: Response): Promise<vo
     sendError(res, error.message || 'Failed to fetch receipt.', 500);
   }
 }
+
+export function getCoursePricing(_req: Request, res: Response): void {
+  sendSuccess(res, 'Course pricing retrieved successfully', COURSE_PRICING);
+}
+

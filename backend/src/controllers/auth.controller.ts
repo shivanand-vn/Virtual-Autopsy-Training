@@ -389,6 +389,7 @@ interface PasswordResetOtpEntry {
   expiresAt: number;
   verified: boolean;
   attempts: number;
+  sendCount: number;
   resetToken?: string;
 }
 
@@ -418,16 +419,42 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Generate secure 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const existingEntry = passwordResetOtpMap.get(normalizedEmail);
+    const now = Date.now();
+    let otp: string;
+    let sendCount: number;
 
-    passwordResetOtpMap.set(normalizedEmail, {
-      otp,
-      expiresAt,
-      verified: false,
-      attempts: 0,
-    });
+    // If an active (unexpired and unverified) session exists, reuse the exact same OTP and enforce resend limits
+    if (existingEntry && now <= existingEntry.expiresAt && !existingEntry.verified) {
+      if (existingEntry.sendCount >= 3) {
+        sendError(
+          res,
+          'Maximum OTP resend limit reached (3 of 3 emails sent). Please use the verification code already sent or try again later.',
+          429
+        );
+        return;
+      }
+
+      existingEntry.sendCount += 1;
+      // Resent email contains the exact SAME OTP as the first one
+      otp = existingEntry.otp;
+      sendCount = existingEntry.sendCount;
+      // Refresh expiry window for 10 minutes from now
+      existingEntry.expiresAt = now + 10 * 60 * 1000;
+    } else {
+      // First send or previous session expired/reset: generate new secure 6-digit OTP
+      otp = Math.floor(100000 + Math.random() * 900000).toString();
+      sendCount = 1;
+      const expiresAt = now + 10 * 60 * 1000; // 10 minutes
+
+      passwordResetOtpMap.set(normalizedEmail, {
+        otp,
+        expiresAt,
+        verified: false,
+        attempts: 0,
+        sendCount: 1,
+      });
+    }
 
     // Dispatch email
     await sendPasswordResetOtpEmail({
@@ -436,7 +463,17 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
       otp,
     });
 
-    sendSuccess(res, 'Verification OTP has been sent to your email.', { email: user.email });
+    const resendsRemaining = Math.max(0, 3 - sendCount);
+    const message = sendCount === 1
+      ? 'Verification OTP has been sent to your email.'
+      : `The verification code has been resent to your email (Send ${sendCount} of 3).`;
+
+    sendSuccess(res, message, {
+      email: user.email,
+      sendCount,
+      maxSends: 3,
+      resendsRemaining,
+    });
   } catch (error: any) {
     console.error('Error in forgotPassword:', error);
     sendError(res, error.message || 'Failed to send password reset OTP', 500);
@@ -505,7 +542,23 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
     const cleanPassword = String(newPassword || '').trim();
     if (cleanPassword.length < 8) {
-      sendError(res, 'New password must be at least 8 characters long', 400);
+      sendError(res, 'New password must be at least 8 characters long.', 400);
+      return;
+    }
+    if (!/[A-Z]/.test(cleanPassword)) {
+      sendError(res, 'New password must contain at least one uppercase letter.', 400);
+      return;
+    }
+    if (!/[a-z]/.test(cleanPassword)) {
+      sendError(res, 'New password must contain at least one lowercase letter.', 400);
+      return;
+    }
+    if (!/[0-9]/.test(cleanPassword)) {
+      sendError(res, 'New password must contain at least one digit.', 400);
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(cleanPassword)) {
+      sendError(res, 'New password must contain at least one special character.', 400);
       return;
     }
 

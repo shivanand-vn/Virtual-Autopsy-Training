@@ -27,6 +27,8 @@ export const ForgotPasswordForm: React.FC = () => {
   const [resendCooldown, setResendCooldown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [sendCount, setSendCount] = useState<number>(1);
+  const [resendsRemaining, setResendsRemaining] = useState<number>(2);
 
   // Security guard: Ensure Step 3 (password reset) is NEVER accessible without a verified resetToken
   useEffect(() => {
@@ -97,12 +99,16 @@ export const ForgotPasswordForm: React.FC = () => {
     try {
       setIsLoading(true);
       const cleanEmail = email.trim().toLowerCase();
-      await api.post('/auth/forgot-password', { email: cleanEmail });
+      const res: any = await api.post('/auth/forgot-password', { email: cleanEmail });
+      const currentSendCount = res?.data?.sendCount || 1;
+      const currentRemaining = res?.data?.resendsRemaining !== undefined ? res?.data?.resendsRemaining : Math.max(0, 3 - currentSendCount);
+      setSendCount(currentSendCount);
+      setResendsRemaining(currentRemaining);
       setEmail(cleanEmail);
       setStep(2);
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`Verification code sent to ${cleanEmail}`);
+      setBannerMessage(res?.message || `Verification code sent to ${cleanEmail}`);
     } catch (err: any) {
       setErrors({ email: err.message || 'Failed to dispatch verification OTP. Please try again.' });
     } finally {
@@ -110,18 +116,26 @@ export const ForgotPasswordForm: React.FC = () => {
     }
   };
 
-  // Step 2: Resend OTP
+  // Step 2: Resend OTP (Max 2 resends, same OTP sent)
   const handleResendOtp = async () => {
-    if (!canResend) return;
+    if (!canResend || resendsRemaining <= 0) return;
     try {
       setIsLoading(true);
+      setErrors({});
       const cleanEmail = email.trim().toLowerCase();
-      await api.post('/auth/forgot-password', { email: cleanEmail });
+      const res: any = await api.post('/auth/forgot-password', { email: cleanEmail });
+      const updatedSendCount = res?.data?.sendCount || (sendCount + 1);
+      const updatedRemaining = res?.data?.resendsRemaining !== undefined ? res?.data?.resendsRemaining : Math.max(0, 3 - updatedSendCount);
+      setSendCount(updatedSendCount);
+      setResendsRemaining(updatedRemaining);
       setResendCooldown(60);
       setCanResend(false);
-      setBannerMessage(`A new OTP has been sent to ${cleanEmail}`);
+      setBannerMessage(`The same verification code has been resent to your email (Email ${updatedSendCount} of 3).`);
     } catch (err: any) {
       setErrors({ otp: err.message || 'Failed to resend code.' });
+      if (err?.message && (err.message.toLowerCase().includes('limit') || err.message.toLowerCase().includes('3 of 3'))) {
+        setResendsRemaining(0);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -163,13 +177,21 @@ export const ForgotPasswordForm: React.FC = () => {
     e.preventDefault();
     const newErrors: FormErrors = {};
 
-    const cleanNewPassword = newPassword.trim();
-    const cleanConfirmPassword = confirmPassword.trim();
+    const cleanNewPassword = newPassword;
+    const cleanConfirmPassword = confirmPassword;
 
     if (!cleanNewPassword) {
       newErrors.newPassword = 'New password is required.';
     } else if (cleanNewPassword.length < 8) {
       newErrors.newPassword = 'Password must be at least 8 characters long.';
+    } else if (!/[A-Z]/.test(cleanNewPassword)) {
+      newErrors.newPassword = 'Password must contain at least one uppercase letter.';
+    } else if (!/[a-z]/.test(cleanNewPassword)) {
+      newErrors.newPassword = 'Password must contain at least one lowercase letter.';
+    } else if (!/[0-9]/.test(cleanNewPassword)) {
+      newErrors.newPassword = 'Password must contain at least one digit.';
+    } else if (!/[^A-Za-z0-9]/.test(cleanNewPassword)) {
+      newErrors.newPassword = 'Password must contain at least one special character.';
     }
 
     if (!cleanConfirmPassword) {
@@ -330,18 +352,23 @@ export const ForgotPasswordForm: React.FC = () => {
             {/* Resend OTP Timer Controls */}
             <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
               <span>Didn't receive code?</span>
-              {canResend ? (
+              {resendsRemaining <= 0 ? (
+                <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200/80">
+                  Resend limit reached (3 of 3 sent)
+                </span>
+              ) : canResend ? (
                 <button
                   type="button"
                   onClick={handleResendOtp}
-                  className="font-bold text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                  disabled={isLoading}
+                  className="font-bold text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Resend OTP</span>
+                  <span>Resend OTP ({resendsRemaining} {resendsRemaining === 1 ? 'resend' : 'resends'} left)</span>
                 </button>
               ) : (
-                <span className="font-mono text-slate-400">
-                  Resend in <strong className="text-navy-950 font-bold">{resendCooldown}s</strong>
+                <span className="font-mono text-slate-500">
+                  Resend in <strong className="text-navy-950 font-bold">{resendCooldown}s</strong> ({resendsRemaining} left)
                 </span>
               )}
             </div>
@@ -397,6 +424,45 @@ export const ForgotPasswordForm: React.FC = () => {
               onChange={(e) => setNewPassword(e.target.value)}
               error={errors.newPassword}
             />
+
+            {/* Password Complexity Requirements Checklist */}
+            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 text-[11px]">
+              <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                Password Requirements:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-slate-600">
+                <div className={`flex items-center gap-1.5 ${newPassword.length >= 8 ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${newPassword.length >= 8 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                    {newPassword.length >= 8 ? '✓' : '•'}
+                  </span>
+                  <span>Min. 8 characters</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${/[A-Z]/.test(newPassword) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                    {/[A-Z]/.test(newPassword) ? '✓' : '•'}
+                  </span>
+                  <span>One uppercase letter</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${/[a-z]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${/[a-z]/.test(newPassword) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                    {/[a-z]/.test(newPassword) ? '✓' : '•'}
+                  </span>
+                  <span>One lowercase letter</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${/[0-9]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${/[0-9]/.test(newPassword) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                    {/[0-9]/.test(newPassword) ? '✓' : '•'}
+                  </span>
+                  <span>One digit (0-9)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 sm:col-span-2 ${/[^A-Za-z0-9]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold ${/[^A-Za-z0-9]/.test(newPassword) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                    {/[^A-Za-z0-9]/.test(newPassword) ? '✓' : '•'}
+                  </span>
+                  <span>One special character (e.g. !@#$%^&*)</span>
+                </div>
+              </div>
+            </div>
 
             <PasswordInput
               label="Confirm New Password"

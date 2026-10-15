@@ -10,6 +10,8 @@ import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
 import { validateMobileNumber, getCountryIso } from '../../utils/phoneValidation';
+import { api } from '../../lib/api';
+import { AlertCircle } from 'lucide-react';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
 
 const QUALIFICATION_OPTIONS = [
@@ -34,6 +36,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
   const [formData, setFormData] = useState<RegistrationFormData>(registrationData);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [existingAccountError, setExistingAccountError] = useState<string | null>(null);
 
   // Sync state if context registrationData updates
   useEffect(() => {
@@ -43,7 +47,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
   // Step 1 Validation Order:
   // 1. Required registration fields
   // 2. Email format
-  // 3. Country-specific phone number validation
+  // 3. Optional country-specific phone number validation (only if provided)
   // 4. CV/file upload requirements
   // 5. Privacy consent
   const validate = (): boolean => {
@@ -59,10 +63,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       newErrors.email = 'Please enter a valid email address.';
     }
 
+    // Phone number is optional per requirements. Only validate if user typed a number.
     const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
-    if (!formData.phoneNumber.trim()) {
-      newErrors.phoneNumber = 'Phone Number is required.';
-    } else {
+    if (formData.phoneNumber.trim()) {
       const phoneValidation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode);
       if (!phoneValidation.isValid) {
         newErrors.phoneNumber = phoneValidation.error || 'Please enter a valid mobile number for the selected country.';
@@ -88,20 +91,52 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
     }
 
     if (!formData.consent) {
-      newErrors.consent = 'Please confirm that you agree to the Privacy Policy and the use of your personal information before continuing.';
+      newErrors.consent = 'Please confirm that you agree to the Privacy Policy and data processing terms before continuing.';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setExistingAccountError(null);
 
-    if (validate()) {
-      // Save Step 1 registration details into context and proceed to Step 2 (/payment)
+    if (!validate()) {
+      return;
+    }
+
+    setIsCheckingEmail(true);
+
+    try {
+      // Step 1: Pre-validate that email is not already registered
+      const res = await api.post('/auth/check-email', { email: formData.email.trim() });
+      if (res.data?.exists) {
+        const errorMsg = 'An account with this email address already exists. Please sign in instead.';
+        setExistingAccountError(errorMsg);
+        setErrors((prev) => ({
+          ...prev,
+          email: errorMsg,
+        }));
+        return;
+      }
+
+      // Email is available: Save Step 1 registration details and proceed to Step 2 (/payment)
       saveStep1AndContinue(formData);
       navigate('/payment');
+    } catch (err: any) {
+      if (err.status === 409 || err.data?.errors?.exists || err.message?.includes('already exists')) {
+        const errorMsg = 'An account with this email address already exists. Please sign in instead.';
+        setExistingAccountError(errorMsg);
+        setErrors((prev) => ({
+          ...prev,
+          email: errorMsg,
+        }));
+      } else {
+        setExistingAccountError(err.message || 'Error validating email availability. Please try again.');
+      }
+    } finally {
+      setIsCheckingEmail(false);
     }
   };
 
@@ -126,6 +161,32 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
         </div>
       </div>
 
+      {/* Duplicate Account Alert Banner */}
+      {existingAccountError && (
+        <div className="mx-0 my-1 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-800 animate-fadeIn">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span>An account with this email address already exists. </span>
+            {onFlipToLogin ? (
+              <button
+                type="button"
+                onClick={onFlipToLogin}
+                className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
+              >
+                Please sign in instead.
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
+              >
+                Please sign in instead.
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Internal Scrollable Form Area */}
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1.5 space-y-3.5 custom-scrollbar my-1.5" noValidate>
         {/* Row 1: Full Name & Email */}
@@ -143,9 +204,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             label="Email Address"
             type="email"
             required
-            placeholder="a.vance@hospital.org"
+            placeholder="abc@mail.com"
             value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, email: e.target.value });
+              setExistingAccountError(null);
+              setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated.email;
+                return updated;
+              });
+            }}
             error={errors.email}
           />
         </div>
@@ -154,7 +223,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           <PhoneInput
             label="Phone Number"
-            required
+            required={false}
             countryCode={formData.countryCode}
             countryIso={formData.countryIso}
             phoneNumber={formData.phoneNumber}
@@ -167,7 +236,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
                 countryIso: iso,
               }));
 
-              // Dynamic country-specific re-validation on country change
+              // Dynamic country-specific re-validation only if user entered a phone number
               if (formData.phoneNumber.trim()) {
                 const validation = validateMobileNumber(formData.phoneNumber, iso, code);
                 if (!validation.isValid) {
@@ -182,26 +251,34 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
                     return updated;
                   });
                 }
+              } else {
+                setErrors((prev) => {
+                  const updated = { ...prev };
+                  delete updated.phoneNumber;
+                  return updated;
+                });
               }
             }}
             onPhoneNumberChange={(e) => {
               const val = e.target.value;
               setFormData((prev) => ({ ...prev, phoneNumber: val }));
 
-              // Real-time error dismissal when user types a valid number
+              // Real-time error dismissal when user clears or types a valid number
               const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
-              if (errors.phoneNumber) {
-                if (!val.trim()) {
-                  // Keep or let user continue typing
-                } else {
-                  const validation = validateMobileNumber(val, currentIso, formData.countryCode);
-                  if (validation.isValid) {
-                    setErrors((prev) => {
-                      const updated = { ...prev };
-                      delete updated.phoneNumber;
-                      return updated;
-                    });
-                  }
+              if (!val.trim()) {
+                setErrors((prev) => {
+                  const updated = { ...prev };
+                  delete updated.phoneNumber;
+                  return updated;
+                });
+              } else if (errors.phoneNumber) {
+                const validation = validateMobileNumber(val, currentIso, formData.countryCode);
+                if (validation.isValid) {
+                  setErrors((prev) => {
+                    const updated = { ...prev };
+                    delete updated.phoneNumber;
+                    return updated;
+                  });
                 }
               }
             }}
@@ -221,6 +298,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
                     return updated;
                   });
                 }
+              } else {
+                setErrors((prev) => {
+                  const updated = { ...prev };
+                  delete updated.phoneNumber;
+                  return updated;
+                });
               }
             }}
             error={errors.phoneNumber}
@@ -292,12 +375,21 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           error={errors.cvFile}
         />
 
-        {/* Consent Checkbox */}
+        {/* Mandatory Consent Checkbox (Essential Course Admission & Data Processing) */}
         <div className="pt-0.5">
           <Checkbox
             id="consent"
             checked={formData.consent}
-            onChange={(e) => setFormData({ ...formData, consent: e.target.checked })}
+            onChange={(e) => {
+              setFormData({ ...formData, consent: e.target.checked });
+              if (e.target.checked) {
+                setErrors((prev) => {
+                  const updated = { ...prev };
+                  delete updated.consent;
+                  return updated;
+                });
+              }
+            }}
             error={errors.consent}
             label={
               <span>
@@ -310,7 +402,21 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
                 >
                   Privacy Policy
                 </Link>{' '}
-                and consent to the collection and use of my personal information for course registration, payment, training access, communication, and certification.
+                and consent to the processing of my personal, contact, and qualification information for course admission, payment processing, training access, and official certification. <span className="text-red-500 font-bold">*</span>
+              </span>
+            }
+          />
+        </div>
+
+        {/* Optional UK Data Compliance Checkbox (Academic Updates & Data Sharing) */}
+        <div className="pt-1.5">
+          <Checkbox
+            id="marketingConsent"
+            checked={formData.marketingConsent || false}
+            onChange={(e) => setFormData({ ...formData, marketingConsent: e.target.checked })}
+            label={
+              <span className="text-slate-600 text-[11px] leading-relaxed">
+                I agree to receive optional academic updates and educational newsletters, and consent to Virtual Autopsy Global processing my personal data for these communications.
               </span>
             }
           />
@@ -318,7 +424,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
         {/* Primary Button: "Continue to Payment" */}
         <div className="pt-1.5 space-y-1.5">
-          <PrimaryButton type="submit">
+          <PrimaryButton type="submit" isLoading={isCheckingEmail}>
             Continue to Payment
           </PrimaryButton>
         </div>

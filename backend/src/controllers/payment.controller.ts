@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { hashPassword } from '../utils/password.js';
 import { sendWelcomeAndReceiptEmail } from '../services/email.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { isRegistrationOtpVerified, clearRegistrationOtp } from './auth.controller.js';
 
 const completePaymentSchema = z.object({
   fullName: z.string().min(2, 'Full name is required'),
@@ -63,44 +64,42 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
   } = parsed.data;
 
   const normalizedEmail = email.toLowerCase().trim();
+
+  // 1. Check if user account already exists (prevent duplicate registrations)
+  const existingUser = await prisma.user.findFirst({
+    where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+  });
+
+  if (existingUser) {
+    sendError(res, 'An account with this email address already exists. Please sign in instead.', 409);
+    return;
+  }
+
+  // 2. Enforce OTP verification before allowing payment completion
+  if (!isRegistrationOtpVerified(normalizedEmail)) {
+    sendError(res, 'Please verify your email address with the OTP before completing payment.', 400);
+    return;
+  }
+
   const temporaryPassword = generateCleanTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
 
   const txnId = transactionRef || `VA-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
 
   try {
-    // 1. Upsert Student User
-    let user = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
+    // 3. Create Student User
+    const user = await prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        passwordHash,
+        fullName: fullName.trim(),
+        role: 'STUDENT',
+        title: qualification,
+        organization: organization.trim(),
+        isActive: true,
+      },
     });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: normalizedEmail,
-          passwordHash,
-          fullName: fullName.trim(),
-          role: 'STUDENT',
-          title: qualification,
-          organization: organization.trim(),
-          isActive: true,
-        },
-      });
-      console.log(`👤 Created student user account: ${user.email} (ID: ${user.id})`);
-    } else {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          fullName: fullName.trim(),
-          role: 'STUDENT',
-          passwordHash, // Reset temporary password to the newly issued one
-          title: qualification,
-          organization: organization.trim(),
-          isActive: true,
-        },
-      });
-      console.log(`👤 Updated existing user to student: ${user.email} (ID: ${user.id})`);
-    }
+    console.log(`👤 Created student user account: ${user.email} (ID: ${user.id})`);
 
     // 2. Upsert Application Record
     const existingApp = await prisma.application.findFirst({
@@ -216,6 +215,9 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     }).catch((emailErr) => {
       console.warn('⚠️ Asynchronous email dispatch error:', emailErr);
     });
+
+    // Clear verified registration OTP
+    clearRegistrationOtp(normalizedEmail);
 
     // 6. Return response
     sendSuccess(

@@ -8,7 +8,7 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { env } from '../config/env.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary.service.js';
-import { sendPasswordResetOtpEmail } from '../services/email.service.js';
+import { sendPasswordResetOtpEmail, sendRegistrationOtpEmail } from '../services/email.service.js';
 import { checkLoginRateLimit, recordFailedLogin, resetLoginRateLimit } from '../middlewares/rateLimit.middleware.js';
 
 const loginSchema = z.object({
@@ -113,6 +113,19 @@ export async function login(req: Request, res: Response): Promise<void> {
       sendError(res, 'Invalid email or password', 401);
       return;
     }
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.cookie('vat_auth_token', token, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     sendSuccess(res, 'Login successful', {
       user: {
@@ -549,4 +562,172 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
     sendError(res, error.message || 'Failed to reset password', 500);
   }
 }
+
+interface RegistrationOtpEntry {
+  otp: string;
+  expiresAt: number;
+  verified: boolean;
+  attempts: number;
+}
+
+const registrationOtpMap = new Map<string, RegistrationOtpEntry>();
+
+export function isRegistrationOtpVerified(email: string): boolean {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  const entry = registrationOtpMap.get(clean);
+  return Boolean(entry && entry.verified && Date.now() <= entry.expiresAt);
+}
+
+export function clearRegistrationOtp(email: string): void {
+  if (!email) return;
+  registrationOtpMap.delete(email.toLowerCase().trim());
+}
+
+/**
+ * Checks if an email address is already registered to a student or user account.
+ * Used at Step 1 of registration to block duplicate registrations immediately.
+ */
+export async function checkEmailAvailability(req: Request, res: Response): Promise<void> {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      sendError(res, 'Valid email address is required', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    let existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!existingUser) {
+      existingUser = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      });
+    }
+
+    if (existingUser) {
+      sendError(
+        res,
+        'An account with this email address already exists. Please sign in instead.',
+        409,
+        { exists: true, email: normalizedEmail }
+      );
+      return;
+    }
+
+    sendSuccess(res, 'Email is available for registration.', { exists: false });
+  } catch (error: any) {
+    console.error('Error in checkEmailAvailability:', error);
+    sendError(res, error.message || 'Failed to check email availability.', 500);
+  }
+}
+
+/**
+ * Dispatches an email verification OTP for candidate registration (Step 2).
+ * Reuses active unexpired OTP to prevent code collisions upon resend.
+ */
+export async function sendRegistrationOtp(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, fullName } = req.body;
+    if (!email || typeof email !== 'string') {
+      sendError(res, 'Valid email address is required', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Prevent dispatching OTP for an already registered account
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+    });
+
+    if (existingUser) {
+      sendError(
+        res,
+        'An account with this email address already exists. Please sign in instead.',
+        409,
+        { exists: true }
+      );
+      return;
+    }
+
+    const now = Date.now();
+    let entry = registrationOtpMap.get(normalizedEmail);
+    let otp: string;
+
+    if (entry && entry.expiresAt > now && !entry.verified) {
+      // Reuse existing OTP code if still valid within the 10-minute window
+      otp = entry.otp;
+    } else {
+      otp = Math.floor(100000 + Math.random() * 900000).toString();
+      entry = {
+        otp,
+        expiresAt: now + 10 * 60 * 1000, // 10 minutes validity
+        verified: false,
+        attempts: 0,
+      };
+      registrationOtpMap.set(normalizedEmail, entry);
+    }
+
+    await sendRegistrationOtpEmail({
+      email: normalizedEmail,
+      name: (typeof fullName === 'string' && fullName.trim()) ? fullName.trim() : 'Medical Candidate',
+      otp,
+    });
+
+    sendSuccess(res, 'Verification code has been sent to your email address.', { email: normalizedEmail });
+  } catch (error: any) {
+    console.error('Error in sendRegistrationOtp:', error);
+    sendError(res, error.message || 'Failed to send registration verification OTP', 500);
+  }
+}
+
+/**
+ * Verifies the 6-digit registration OTP entered by the user in Step 2.
+ */
+export async function verifyRegistrationOtp(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      sendError(res, 'Email and 6-digit verification code are required', 400);
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const entry = registrationOtpMap.get(normalizedEmail);
+
+    if (!entry) {
+      sendError(res, 'No active verification code found for this email. Please request a code.', 400);
+      return;
+    }
+
+    if (Date.now() > entry.expiresAt) {
+      registrationOtpMap.delete(normalizedEmail);
+      sendError(res, 'Verification code has expired. Please request a new code.', 400);
+      return;
+    }
+
+    entry.attempts = (entry.attempts || 0) + 1;
+    if (entry.attempts > 5) {
+      registrationOtpMap.delete(normalizedEmail);
+      sendError(res, 'Too many invalid attempts. Please request a new verification code.', 429);
+      return;
+    }
+
+    const cleanInputOtp = String(otp).trim();
+    if (cleanInputOtp !== entry.otp) {
+      sendError(res, 'Invalid verification code. Please check and try again.', 400);
+      return;
+    }
+
+    entry.verified = true;
+    sendSuccess(res, 'Email address verified successfully.', { verified: true, email: normalizedEmail });
+  } catch (error: any) {
+    console.error('Error in verifyRegistrationOtp:', error);
+    sendError(res, error.message || 'Failed to verify OTP', 500);
+  }
+}
+
 

@@ -47,6 +47,7 @@ const initialRegistrationData: RegistrationFormData = {
   organization: '',
   cvFile: null,
   consent: false,
+  marketingConsent: false,
 };
 
 const initialPaymentData: PaymentData = {

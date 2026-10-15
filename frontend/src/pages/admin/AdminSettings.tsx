@@ -16,7 +16,7 @@ export const AdminSettingsPage: React.FC = () => {
     accountEmail?: string;
   } | null>(null);
   const [loadingHealth, setLoadingHealth] = useState(false);
-  const [testEmailAddress, setTestEmailAddress] = useState('demo788197@gmail.com');
+  const [testEmailAddress, setTestEmailAddress] = useState('abc@mail.com');
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -170,7 +170,7 @@ export const AdminSettingsPage: React.FC = () => {
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sender Address</span>
               <span className="text-xs font-mono font-bold text-slate-800 block mt-1.5 truncate">
-                {emailStatus?.sender || 'demo788197@gmail.com'}
+                {emailStatus?.sender || 'abc@mail.com'}
               </span>
             </div>
           </div>
@@ -187,7 +187,7 @@ export const AdminSettingsPage: React.FC = () => {
                 type="email"
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                placeholder="Recipient email address..."
+                placeholder="abc@mail.com"
                 className="flex-1 text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500/50 focus:outline-none font-mono font-bold text-slate-800"
                 required
               />

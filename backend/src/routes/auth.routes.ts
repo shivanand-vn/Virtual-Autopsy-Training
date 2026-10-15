@@ -10,12 +10,20 @@ import {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  checkEmailAvailability,
+  sendRegistrationOtp,
+  verifyRegistrationOtp,
 } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { uploadAvatarImage } from '../middlewares/upload.middleware.js';
 import { loginRateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 const router = Router();
+
+// Registration validation & OTP verification routes
+router.post('/check-email', checkEmailAvailability);
+router.post('/send-registration-otp', sendRegistrationOtp);
+router.post('/verify-registration-otp', verifyRegistrationOtp);
 
 router.post('/login', loginRateLimiter, login);
 router.post('/logout', logout);

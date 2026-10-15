@@ -15,7 +15,7 @@ const submitApplicationSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email address'),
   countryCode: z.string().default('+44'),
-  phoneNumber: z.string().min(6, 'Please enter a valid phone number'),
+  phoneNumber: z.string().optional().default(''),
   qualification: z.string().min(2, 'Qualification is required'),
   professionalRole: z.string().min(2, 'Professional role is required'),
   organization: z.string().min(2, 'Organization is required'),

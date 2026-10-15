@@ -245,13 +245,23 @@ async function main() {
           data: {
             moduleId: existingModule.id,
             title: tData.title,
+            description: tData.content,
             type: tData.type,
             bunnyVideoId: tData.bunnyVideoId,
+            videoUrl: tData.type === ResourceType.VIDEO_STREAM ? '/autopsy.mp4' : null,
             content: tData.content,
             durationSeconds: tData.durationSeconds,
             order: tData.order,
             isDownloadable: tData.isDownloadable || false,
             status: CourseStatus.PUBLISHED,
+          },
+        });
+      } else {
+        await prisma.resource.update({
+          where: { id: existingResource.id },
+          data: {
+            description: existingResource.description || tData.content,
+            videoUrl: existingResource.videoUrl || (tData.type === ResourceType.VIDEO_STREAM ? '/autopsy.mp4' : null),
           },
         });
       }

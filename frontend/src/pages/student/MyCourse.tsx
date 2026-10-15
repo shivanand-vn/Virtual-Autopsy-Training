@@ -31,6 +31,7 @@ import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useCourse } from '../../context/CourseContext';
 import { api } from '../../lib/api';
 import { useCourseProgress } from '../../context/CourseProgressContext';
+import { isEmbedVideoUrl, normalizeVideoUrl } from '../../lib/videoUtils';
 
 export const MyCoursePage: React.FC = () => {
   const navigate = useNavigate();
@@ -230,7 +231,9 @@ export const MyCoursePage: React.FC = () => {
   useEffect(() => {
     if (!currentTopic) return;
     let rawUrl = currentTopic.videoUrl || '';
-    const rawBunnyId = currentTopic.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
+    const norm = normalizeVideoUrl(rawUrl);
+    if (norm.url) rawUrl = norm.url;
+    const rawBunnyId = currentTopic.bunnyVideoId || norm.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
 
     if (!rawUrl && rawBunnyId && !rawBunnyId.startsWith('pmct-')) {
       rawUrl = `https://iframe.mediadelivery.net/embed/764331/${rawBunnyId}`;
@@ -1442,7 +1445,7 @@ export const MyCoursePage: React.FC = () => {
 
                     <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
                       {activeVideoUrl ? (
-                        activeVideoUrl.includes('iframe.mediadelivery.net') || activeVideoUrl.includes('/embed/') ? (
+                        isEmbedVideoUrl(activeVideoUrl) ? (
                           <iframe
                             ref={iframeRef}
                             src={`${activeVideoUrl}${activeVideoUrl.includes('?') ? '&' : '?'}autoplay=false`}
@@ -1455,6 +1458,8 @@ export const MyCoursePage: React.FC = () => {
                           <video
                             src={activeVideoUrl}
                             controls
+                            poster={currentTopic.thumbnail || undefined}
+                            preload="metadata"
                             onTimeUpdate={handleHtml5TimeUpdate}
                             onEnded={handleHtml5VideoEnded}
                             className="w-full h-full object-contain bg-black"
@@ -1465,8 +1470,8 @@ export const MyCoursePage: React.FC = () => {
                       ) : (
                         <>
                           <img
-                            src="https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"
-                            alt="PMCT DICOM Stream"
+                            src={currentTopic.thumbnail || "https://images.unsplash.com/photo-1516549655169-df83a0774514?w=1200&auto=format&fit=crop&q=80"}
+                            alt={currentTopic.title || "PMCT DICOM Stream"}
                             className="w-full h-full object-cover opacity-80"
                           />
 

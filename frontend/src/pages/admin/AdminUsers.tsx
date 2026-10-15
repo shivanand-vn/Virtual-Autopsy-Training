@@ -38,6 +38,7 @@ export interface UserRecord {
   institution: string;
   country: string;
   joinedDate: string;
+  phone?: string;
   status: 'active' | 'suspended' | 'pending';
   cmeCredits: number;
   qualification?: string;
@@ -575,7 +576,7 @@ export const AdminUsersPage: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
                 <span className="font-bold text-slate-400 uppercase">QUALIFICATION</span>
                 <p className="font-bold text-slate-800">
-                  {selectedUser.qualification || registrationData.qualification || 'Radiologist / Pathologist'}
+                  {selectedUser.qualification || selectedUser.qualificationOther || 'Radiologist / Pathologist'}
                 </p>
               </div>
 

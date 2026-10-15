@@ -26,7 +26,6 @@ export const AdminDashboardPage: React.FC = () => {
   const { registrationData, paymentData } = useRegistrationFlow();
 
   const [studentsCount, setStudentsCount] = useState<number>(0);
-  const [pendingAppsCount, setPendingAppsCount] = useState<number>(0);
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
 
   const hasApplicant = Boolean(registrationData.fullName || registrationData.email);
@@ -48,8 +47,6 @@ export const AdminDashboardPage: React.FC = () => {
           }
           if (appsRes.status === 'fulfilled' && appsRes.value?.data?.applications) {
             const allApps = appsRes.value.data.applications;
-            const pending = allApps.filter((a: any) => a.status === 'PENDING');
-            setPendingAppsCount(pending.length);
             setRecentApplications(allApps.slice(0, 5));
           }
         }
@@ -109,7 +106,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* 2. KEY STATISTICS GRID (DYNAMIC STATS FROM FRONTEND STATE) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div
             onClick={() => navigate('/admin/users')}
             className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
@@ -121,19 +118,6 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
             <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
               <Users className="w-5 h-5" />
-            </div>
-          </div>
-
-          <div
-            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between"
-          >
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Apps</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{pendingAppsCount}</h3>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Eligibility Review</p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
             </div>
           </div>
 

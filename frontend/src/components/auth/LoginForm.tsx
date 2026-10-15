@@ -8,6 +8,7 @@ import { StatusBadge } from '../common/StatusBadge';
 import type { LoginFormData, FormErrors } from '../../types/auth';
 import { Mail, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { sanitizeErrorMessage } from '../../lib/api';
 
 interface LoginFormProps {
   onFlipToRegister?: () => void;
@@ -132,7 +133,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
         setSecondsLeft(sec);
         setLoginError(err.message || 'Too many login attempts. Please try again after 15 minutes');
       } else {
-        setLoginError(err.message || 'Invalid email or password. Please verify your credentials.');
+        setLoginError(sanitizeErrorMessage(err.message, 'Invalid email or password. Please verify your credentials.'));
       }
     } finally {
       setIsLoading(false);

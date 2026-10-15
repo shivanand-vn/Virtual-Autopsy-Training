@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   KeyRound,
 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, sanitizeErrorMessage } from '../../lib/api';
 
 export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
@@ -116,7 +116,7 @@ export const PaymentForm: React.FC = () => {
         otpInputRefs.current[0]?.focus();
       }, 100);
     } catch (err: any) {
-      setOtpError(err.message || 'Failed to dispatch verification code. Please try again.');
+      setOtpError(sanitizeErrorMessage(err.message, 'Unable to send verification code. Please try again.'));
     } finally {
       setIsSendingOtp(false);
     }
@@ -142,7 +142,7 @@ export const PaymentForm: React.FC = () => {
       setOtpSuccessMsg(res.message || 'Email verified successfully!');
       setConfirmEmailError(null);
     } catch (err: any) {
-      setOtpError(err.message || 'Invalid or expired verification code.');
+      setOtpError(sanitizeErrorMessage(err.message, 'Invalid or expired verification code.'));
     } finally {
       setIsVerifyingOtp(false);
     }

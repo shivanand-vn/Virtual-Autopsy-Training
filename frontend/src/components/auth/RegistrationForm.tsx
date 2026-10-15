@@ -37,7 +37,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
   const [formData, setFormData] = useState<RegistrationFormData>(registrationData);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-  const [existingAccountError, setExistingAccountError] = useState<string | null>(null);
+  const [isDuplicateAccount, setIsDuplicateAccount] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   // Sync state if context registrationData updates
   useEffect(() => {
@@ -100,7 +101,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setExistingAccountError(null);
+    setAccountError(null);
+    setIsDuplicateAccount(false);
 
     if (!validate()) {
       return;
@@ -113,7 +115,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       const res = await api.post('/auth/check-email', { email: formData.email.trim() });
       if (res.data?.exists) {
         const errorMsg = 'An account with this email address already exists. Please sign in instead.';
-        setExistingAccountError(errorMsg);
+        setIsDuplicateAccount(true);
+        setAccountError(errorMsg);
         setErrors((prev) => ({
           ...prev,
           email: errorMsg,
@@ -125,15 +128,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       saveStep1AndContinue(formData);
       navigate('/payment');
     } catch (err: any) {
-      if (err.status === 409 || err.data?.errors?.exists || err.message?.includes('already exists')) {
+      if (
+        err.status === 409 ||
+        err.data?.errors?.exists ||
+        err.data?.data?.exists ||
+        err.message?.toLowerCase().includes('already exists')
+      ) {
         const errorMsg = 'An account with this email address already exists. Please sign in instead.';
-        setExistingAccountError(errorMsg);
+        setIsDuplicateAccount(true);
+        setAccountError(errorMsg);
         setErrors((prev) => ({
           ...prev,
           email: errorMsg,
         }));
       } else {
-        setExistingAccountError(err.message || 'Error validating email availability. Please try again.');
+        setIsDuplicateAccount(false);
+        const errorMsg =
+          err.message && err.message !== 'Failed to fetch'
+            ? err.message
+            : 'Unable to connect to the server. Please check your internet connection or verify the backend service is available.';
+        setAccountError(errorMsg);
       }
     } finally {
       setIsCheckingEmail(false);
@@ -161,27 +175,29 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
         </div>
       </div>
 
-      {/* Duplicate Account Alert Banner */}
-      {existingAccountError && (
+      {/* Account Error Alert Banner */}
+      {accountError && (
         <div className="mx-0 my-1 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-800 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span>An account with this email address already exists. </span>
-            {onFlipToLogin ? (
-              <button
-                type="button"
-                onClick={onFlipToLogin}
-                className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
-              >
-                Please sign in instead.
-              </button>
-            ) : (
-              <Link
-                to="/login"
-                className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
-              >
-                Please sign in instead.
-              </Link>
+            <span>{accountError} </span>
+            {isDuplicateAccount && (
+              onFlipToLogin ? (
+                <button
+                  type="button"
+                  onClick={onFlipToLogin}
+                  className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
+                >
+                  Please sign in instead.
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="font-bold text-amber-600 underline hover:text-amber-700 ml-1 cursor-pointer"
+                >
+                  Please sign in instead.
+                </Link>
+              )
             )}
           </div>
         </div>
@@ -208,7 +224,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             value={formData.email}
             onChange={(e) => {
               setFormData({ ...formData, email: e.target.value });
-              setExistingAccountError(null);
+              setAccountError(null);
+              setIsDuplicateAccount(false);
               setErrors((prev) => {
                 const updated = { ...prev };
                 delete updated.email;

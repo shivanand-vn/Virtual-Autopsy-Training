@@ -6,7 +6,29 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.string().default('5000').transform((val) => parseInt(val, 10)),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  FRONTEND_URL: z
+    .string()
+    .optional()
+    .transform((val) => {
+      const raw =
+        (val && val.trim()) ||
+        process.env.FRONTEND_URL ||
+        process.env.UI_URL ||
+        process.env.CLIENT_URL ||
+        process.env.APP_URL ||
+        process.env.VERCEL_URL ||
+        process.env.UI_LINK ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://virtual-autopsy-training.vercel.app'
+          : 'http://localhost:5173');
+
+      let clean = raw.trim().replace(/\/+$/, '');
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = `https://${clean}`;
+      }
+      return clean;
+    })
+    .default('http://localhost:5173'),
 
   // Auth & Cookies
   JWT_SECRET: z.string().min(16).default('vat_jwt_super_secret_dev_key_change_in_production_9988776655'),

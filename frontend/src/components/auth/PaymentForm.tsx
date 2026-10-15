@@ -18,6 +18,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { api, sanitizeErrorMessage } from '../../lib/api';
+import { COURSE_PRICING } from '../../config/pricing';
 
 export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
@@ -334,7 +335,7 @@ export const PaymentForm: React.FC = () => {
             </div>
             <div className="text-right shrink-0 ml-3">
               <p className="text-[10px] text-slate-400 uppercase font-bold">FELLOWSHIP FEE</p>
-              <p className="text-lg font-black text-amber-400 font-mono">£999</p>
+              <p className="text-lg font-black text-amber-400 font-mono">{paymentData.amount || COURSE_PRICING.formattedAmount}</p>
             </div>
           </div>
 
@@ -559,7 +560,7 @@ export const PaymentForm: React.FC = () => {
           </div>
         </div>
 
-        {/* Submit Button ("Pay £999") */}
+        {/* Submit Button ("Pay Course Fee") */}
         <div className="pt-1.5 space-y-2">
           <PrimaryButton type="submit" disabled={isSubmitting || !isEmailVerified}>
             {isSubmitting ? (
@@ -570,7 +571,7 @@ export const PaymentForm: React.FC = () => {
             ) : !isEmailVerified ? (
               <span>Verify Email with OTP to Pay</span>
             ) : (
-              <span>Pay £999 & Complete Registration</span>
+              <span>Pay {paymentData.amount || COURSE_PRICING.formattedAmount} & Complete Registration</span>
             )}
           </PrimaryButton>
 

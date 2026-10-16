@@ -471,8 +471,8 @@ model Payment {
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   candidateName  String
   email          String
-  tier           String        @default("Virtual Autopsy Online Fellowship (£750)")
-  amount         String        @default("£750.00")
+  tier           String        @default("Virtual Autopsy Online Fellowship (£999)")
+  amount         String        @default("£999.00")
   currency       String        @default("GBP")
   paymentMethod  String        @default("Stripe Credit Card")
   cardLast4      String?       @default("4242")

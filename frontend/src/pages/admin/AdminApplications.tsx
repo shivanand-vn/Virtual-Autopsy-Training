@@ -319,18 +319,111 @@ export const AdminApplicationsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. MAIN APPLICATIONS TABLE CONTAINER */}
+        {/* 3. MAIN APPLICATIONS CONTAINER: Responsive Cards on Mobile, Table on Desktop */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed">
+          {/* Mobile Card View (md:hidden - no horizontal scroll needed) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {isLoading ? (
+              <div className="py-16 text-center text-slate-400 font-semibold text-xs">
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
+                  <span>Loading applications from database...</span>
+                </div>
+              </div>
+            ) : filteredApplicants.length > 0 ? (
+              filteredApplicants.map((app) => (
+                <div key={app.id} className="p-4 space-y-3">
+                  {/* Top: Avatar, Name, Email, Status */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      <img
+                        src={app.avatar}
+                        alt={app.applicantName}
+                        className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-extrabold text-slate-900 text-sm truncate" title={app.applicantName}>
+                          {app.applicantName}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-mono truncate mt-0.5" title={app.email}>
+                          {app.email}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                        app.status === 'approved'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : app.status === 'pending'
+                          ? 'bg-amber-100 text-amber-900'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                          app.status === 'approved'
+                            ? 'bg-emerald-600'
+                            : app.status === 'pending'
+                            ? 'bg-amber-600'
+                            : 'bg-rose-600'
+                        }`}
+                      />
+                      {app.status}
+                    </span>
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                    <div className="col-span-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Qualification & Role</span>
+                      <span className="text-xs font-semibold text-slate-800 truncate block mt-0.5" title={app.qualification}>
+                        {app.qualification}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Organization</span>
+                      <span className="text-xs font-medium text-slate-700 truncate block mt-0.5" title={app.organization}>
+                        {app.organization} {app.country ? `(${app.country})` : ''}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Applied Date</span>
+                      <span className="text-[11px] font-mono text-slate-700 font-medium block mt-0.5">
+                        {app.appliedDate}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action */}
+                  <div className="pt-1">
+                    <button
+                      onClick={() => setSelectedApplicant(app)}
+                      className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center justify-center space-x-1.5 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-amber-600" />
+                      <span>View Full Application</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center text-slate-400 font-semibold text-xs px-4">
+                No applications available.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left text-xs table-fixed min-w-[920px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">APPLICANT</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">QUALIFICATION & ROLE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">ORGANIZATION</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">APPLIED DATE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">STATUS</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">ACTIONS</th>
+                  <th className="w-[24%] py-3.5 pl-6 pr-3 font-bold text-left">APPLICANT</th>
+                  <th className="w-[20%] py-3.5 px-3 font-bold text-left">QUALIFICATION & ROLE</th>
+                  <th className="w-[18%] py-3.5 px-3 font-bold text-left">ORGANIZATION</th>
+                  <th className="w-[12%] py-3.5 px-3 font-bold text-center">APPLIED DATE</th>
+                  <th className="w-[11%] py-3.5 px-3 font-bold text-center">STATUS</th>
+                  <th className="w-[15%] py-3.5 pl-3 pr-6 font-bold text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -346,33 +439,39 @@ export const AdminApplicationsPage: React.FC = () => {
                 ) : filteredApplicants.length > 0 ? (
                   filteredApplicants.map((app) => (
                     <tr key={app.id} className="hover:bg-amber-50/20 transition-colors">
-                      <td className="py-4 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-3">
+                      <td className="py-4 pl-6 pr-3 text-left max-w-0 overflow-hidden">
+                        <div className="flex items-center space-x-3">
                           <img
                             src={app.avatar}
                             alt={app.applicantName}
                             className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
                           />
-                          <div className="min-w-0 text-left">
-                            <div className="font-extrabold text-slate-900 text-sm truncate">{app.applicantName}</div>
-                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate">{app.email}</div>
+                          <div className="min-w-0 flex-1 text-left">
+                            <div className="font-extrabold text-slate-900 text-sm truncate [overflow-wrap:anywhere] break-words" title={app.applicantName}>
+                              {app.applicantName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate [overflow-wrap:anywhere] break-all" title={app.email}>
+                              {app.email}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
-                        <div className="font-bold text-slate-800 truncate">{app.qualification}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">Clinical Specialist</div>
+                      <td className="py-4 px-3 text-left max-w-0 overflow-hidden">
+                        <div className="font-bold text-slate-800 truncate" title={app.qualification}>{app.qualification}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5 truncate">Clinical Specialist</div>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
-                        <div className="font-semibold text-slate-800 truncate">{app.organization}</div>
-                        <div className="text-[11px] text-slate-500">{app.country}</div>
+                      <td className="py-4 px-3 text-left max-w-0 overflow-hidden">
+                        <div className="font-semibold text-slate-800 truncate" title={app.organization}>{app.organization}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{app.country}</div>
                       </td>
 
-                      <td className="py-4 px-4 text-center text-slate-600 font-mono text-[11px]">{app.appliedDate}</td>
+                      <td className="py-4 px-3 text-center text-slate-600 font-mono text-[11px] max-w-0 overflow-hidden truncate">
+                        {app.appliedDate}
+                      </td>
 
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 px-3 text-center">
                         <span
                           className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
                             app.status === 'approved'
@@ -395,12 +494,12 @@ export const AdminApplicationsPage: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-4 pl-3 pr-6 text-center">
                         <button
                           onClick={() => setSelectedApplicant(app)}
-                          className="inline-flex items-center space-x-1 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors"
+                          className="inline-flex items-center space-x-1 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors shrink-0 cursor-pointer"
                         >
-                          <Eye className="w-3.5 h-3.5 text-amber-600" />
+                          <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>View Application</span>
                         </button>
                       </td>

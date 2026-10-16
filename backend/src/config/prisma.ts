@@ -6,12 +6,18 @@ import { env } from './env.js';
  * This prevents idle connection drops (OS error 10054 ConnectionReset) and pool exhaustion (P1001).
  */
 export function getOptimizedDatabaseUrl(): string | undefined {
-  // In development, prefer DIRECT_URL if available for maximum speed and rock-solid stability
-  if (process.env.NODE_ENV !== 'production' && process.env.DIRECT_URL) {
+  const isCloudOrProd =
+    process.env.RENDER === 'true' ||
+    !!process.env.RENDER_SERVICE_ID ||
+    process.env.NODE_ENV === 'production' ||
+    env.NODE_ENV === 'production';
+
+  // Only use DIRECT_URL strictly in local machine development (where IPv6 and direct port 5432 are supported and not on Render)
+  if (!isCloudOrProd && process.env.DIRECT_URL) {
     return process.env.DIRECT_URL.trim();
   }
 
-  const rawUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+  const rawUrl = process.env.DATABASE_URL || env.DATABASE_URL || process.env.DIRECT_URL;
   if (!rawUrl) return undefined;
 
   let url = rawUrl.trim();
@@ -63,9 +69,19 @@ export function getOptimizedDatabaseUrl(): string | undefined {
   return url;
 }
 
+const isCloudOrProd =
+  process.env.RENDER === 'true' ||
+  !!process.env.RENDER_SERVICE_ID ||
+  process.env.NODE_ENV === 'production' ||
+  env.NODE_ENV === 'production';
+
 const optimizedUrl = getOptimizedDatabaseUrl();
 if (optimizedUrl) {
   process.env.DATABASE_URL = optimizedUrl;
+  if (isCloudOrProd) {
+    // Overwrite DIRECT_URL with the IPv4 pooler URL so Prisma never tries to reach db.*.supabase.co via IPv6
+    process.env.DIRECT_URL = optimizedUrl;
+  }
 }
 
 function createResilientPrismaClient() {

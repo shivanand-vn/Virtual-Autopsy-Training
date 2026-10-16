@@ -106,10 +106,10 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* 2. KEY STATISTICS GRID (DYNAMIC STATS FROM FRONTEND STATE) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div
             onClick={() => navigate('/admin/users')}
-            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+            className="h-full bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
           >
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Registered Students</p>
@@ -121,7 +121,7 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="h-full bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Courses</p>
               <h3 className="text-2xl font-black text-[#0A192F] mt-1">{activeCoursesCount}</h3>
@@ -134,7 +134,7 @@ export const AdminDashboardPage: React.FC = () => {
 
           <div
             onClick={() => navigate('/admin/payments')}
-            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
+            className="h-full bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
           >
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Revenue</p>
@@ -146,7 +146,7 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+          <div className="h-full bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Certificates</p>
               <h3 className="text-2xl font-black text-[#0A192F] mt-1">0</h3>
@@ -413,21 +413,25 @@ export const AdminDashboardPage: React.FC = () => {
               {payments.length > 0 || recentApplications.length > 0 ? (
                 <div className="space-y-3">
                   {payments.slice(0, 3).map((p: any) => (
-                    <div key={p.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-bold text-slate-900">{p.candidateName || p.user?.fullName || p.email}</div>
-                        <div className="text-[10px] text-slate-500">Virtual Autopsy Fellowship Payment</div>
+                    <div key={p.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs min-w-0">
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="font-bold text-slate-900 truncate" title={p.candidateName || p.user?.fullName || p.email}>
+                          {p.candidateName || p.user?.fullName || p.email}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">Virtual Autopsy Fellowship Payment</div>
                       </div>
-                      <span className="font-mono font-bold text-emerald-600 text-xs shrink-0 ml-2">{p.amount}</span>
+                      <span className="font-mono font-bold text-emerald-600 text-xs shrink-0">{p.amount}</span>
                     </div>
                   ))}
                   {recentApplications.slice(0, 2).map((app: any) => (
-                    <div key={app.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-bold text-slate-900">{app.fullName}</div>
-                        <div className="text-[10px] text-slate-500">Application • {app.professionalRole || 'Fellow'}</div>
+                    <div key={app.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs min-w-0">
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="font-bold text-slate-900 truncate" title={app.fullName}>
+                          {app.fullName}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate">Application • {app.professionalRole || 'Fellow'}</div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 shrink-0 ml-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 shrink-0">
                         {app.status}
                       </span>
                     </div>

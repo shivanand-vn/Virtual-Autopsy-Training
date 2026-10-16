@@ -12,6 +12,7 @@ import {
   FileText,
   Phone,
   Download,
+  ExternalLink,
   X,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
@@ -31,6 +32,7 @@ export interface UserRecord {
   phoneNumber?: string;
   countryCode?: string;
   consent?: boolean;
+  marketingConsent?: boolean;
   cvUrl?: string;
   cvDocument?: {
     title: string;
@@ -77,6 +79,7 @@ export const mapBackendUserToRecord = (bu: any): UserRecord => {
   const phoneNumber = bu.application?.phoneNumber || '';
   const countryCode = bu.application?.countryCode || '+44';
   const consent = Boolean(bu.application?.consent);
+  const marketingConsent = Boolean(bu.application?.marketingConsent);
 
   return {
     id: bu.id,
@@ -84,7 +87,7 @@ export const mapBackendUserToRecord = (bu: any): UserRecord => {
     avatar: bu.avatar || defaultAvatar,
     email: bu.email,
     role: roleName,
-    institution: bu.organization || bu.application?.organization || 'Virtual Autopsy Institute',
+    institution: bu.organization || bu.application?.organization || '—',
     country: bu.application?.countryCode || 'UK',
     status: bu.isActive ? 'active' : 'suspended',
     cmeCredits: (bu._count?.certificates || 0) * 12 || (bu._count?.courseProgress || 0) * 4 || 12,
@@ -92,6 +95,7 @@ export const mapBackendUserToRecord = (bu: any): UserRecord => {
     phoneNumber,
     countryCode,
     consent,
+    marketingConsent,
     cvUrl,
     cvDocument: {
       title: `Curriculum Vitae - ${bu.fullName || 'Candidate'}`,
@@ -197,6 +201,14 @@ export const AdminUsersPage: React.FC = () => {
       showToast(err?.message || 'Failed to update user status.');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleViewCv = (user: UserRecord) => {
+    if (user.cvUrl && user.cvUrl.trim()) {
+      window.open(user.cvUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      setViewingCvUser(user);
     }
   };
 
@@ -403,11 +415,11 @@ export const AdminUsersPage: React.FC = () => {
             <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="py-3.5 px-4 font-bold w-[220px]">USER</th>
-                  <th className="py-3.5 px-4 font-bold w-[210px]">EMAIL & CONTACT</th>
-                  <th className="py-3.5 px-4 font-bold w-[130px]">ROLE</th>
-                  <th className="py-3.5 px-4 font-bold w-[180px]">ORGANIZATION</th>
-                  <th className="py-3.5 px-4 font-bold w-[120px] text-center">CV DOCUMENT</th>
+                  <th className="py-3.5 px-4 font-bold w-[220px] text-left">USER</th>
+                  <th className="py-3.5 px-4 font-bold w-[210px] text-left">EMAIL & CONTACT</th>
+                  <th className="py-3.5 px-4 font-bold w-[140px] text-center">ROLE</th>
+                  <th className="py-3.5 px-4 font-bold w-[180px] text-left">ORGANIZATION</th>
+                  <th className="py-3.5 px-4 font-bold w-[130px] text-center">CV DOCUMENT</th>
                   <th className="py-3.5 px-4 font-bold w-[210px] text-center">STATUS & ACTIONS</th>
                 </tr>
               </thead>
@@ -425,14 +437,14 @@ export const AdminUsersPage: React.FC = () => {
                   filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-amber-50/20 transition-colors">
                       {/* 1. USER: Avatar + Full Name + Qualification below name */}
-                      <td className="py-4 px-4 w-[220px]">
+                      <td className="py-4 px-4 w-[220px] max-w-[220px] text-left">
                         <div className="flex items-center space-x-3 min-w-0">
                           <img
                             src={user.avatar}
                             alt={user.name}
                             className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
                           />
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 overflow-hidden">
                             <div
                               className="font-extrabold text-slate-900 text-sm truncate"
                               title={user.name}
@@ -449,13 +461,13 @@ export const AdminUsersPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* 2. EMAIL & CONTACT: Email on top, clean mobile below (without duplicate country code) */}
-                      <td className="py-4 px-4 w-[210px]">
-                        <div className="min-w-0">
+                      {/* 2. EMAIL & CONTACT: Email on top, mobile shown ONLY if 2nd checkbox (marketingConsent) was accepted */}
+                      <td className="py-4 px-4 w-[210px] max-w-[210px] text-left">
+                        <div className="min-w-0 overflow-hidden">
                           <div className="font-mono font-bold text-slate-800 text-xs truncate" title={user.email}>
                             {user.email}
                           </div>
-                          {user.consent && user.phoneNumber ? (
+                          {user.marketingConsent && user.phoneNumber ? (
                             <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-1.5 truncate">
                               <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                               <span className="truncate">{formatPhoneNumber(user.countryCode, user.phoneNumber)}</span>
@@ -464,35 +476,40 @@ export const AdminUsersPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* 3. ROLE: Dedicated column */}
-                      <td className="py-4 px-4 w-[130px]">
-                        <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px] whitespace-nowrap border border-slate-200/60">
-                          {user.role}
-                        </span>
-                      </td>
-
-                      {/* 4. ORGANIZATION: Organization name ONLY (country code removed) */}
-                      <td className="py-4 px-4 w-[180px]">
-                        <div className="font-semibold text-slate-800 text-xs truncate" title={user.institution}>
-                          {user.institution}
+                      {/* 3. ROLE: Centered column aligned with header */}
+                      <td className="py-4 px-4 w-[140px] max-w-[140px] text-center">
+                        <div className="flex justify-center">
+                          <span
+                            className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px] truncate max-w-[130px] border border-slate-200/60"
+                            title={user.role}
+                          >
+                            {user.role}
+                          </span>
                         </div>
                       </td>
 
-                      {/* 5. CV DOCUMENT: Dynamic in-app CV viewer modal */}
-                      <td className="py-4 px-4 w-[120px] text-center">
+                      {/* 4. ORGANIZATION: Organization name ONLY (country code removed) */}
+                      <td className="py-4 px-4 w-[180px] max-w-[180px] text-left">
+                        <div className="font-semibold text-slate-800 text-xs truncate" title={user.institution}>
+                          {user.institution || '—'}
+                        </div>
+                      </td>
+
+                      {/* 5. CV DOCUMENT: Opens uploaded CV or credentials */}
+                      <td className="py-4 px-4 w-[130px] max-w-[130px] text-center">
                         <button
                           type="button"
-                          onClick={() => setViewingCvUser(user)}
-                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#0A192F] hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer border border-amber-400/30"
-                          title={`View verified CV for ${user.name}`}
+                          onClick={() => handleViewCv(user)}
+                          className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-[#0A192F] hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer border border-amber-400/30"
+                          title={user.cvUrl ? `Open uploaded CV for ${user.name}` : `View credentials for ${user.name}`}
                         >
                           <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                           <span>View CV</span>
                         </button>
                       </td>
 
-                      {/* 6. STATUS & ACTIONS: Fixed widths for badge (94px) and button (88px) to prevent layout shifts */}
-                      <td className="py-4 px-4 w-[210px] text-center">
+                      {/* 6. STATUS & ACTIONS: Fixed widths for badge (94px) and button (88px) centered under header */}
+                      <td className="py-4 px-4 w-[210px] max-w-[210px] text-center">
                         <div className="flex items-center justify-center space-x-2">
                           <span
                             className={`w-[94px] inline-flex items-center justify-center text-[10px] py-1 rounded-full font-bold uppercase tracking-wider shrink-0 ${
@@ -621,15 +638,15 @@ export const AdminUsersPage: React.FC = () => {
                   </div>
                 </div>
 
-                {viewingCvUser.cvUrl && !viewingCvUser.cvUrl.includes('sample.pdf') && (
+                {viewingCvUser.cvUrl && (
                   <a
                     href={viewingCvUser.cvUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shrink-0 transition-colors inline-flex items-center space-x-1"
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shrink-0 transition-colors inline-flex items-center space-x-1 cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Uploaded CV</span>
                   </a>
                 )}
               </div>

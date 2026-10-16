@@ -127,3 +127,113 @@
 .animate-download-bounce {
   animation: downloadBounce 1s ease-in-out infinite;
 }
+
+/* ========================================================
+   VAT Biometric Logo Custom Animations (GPU Accelerated)
+   ======================================================== */
+@keyframes vatLaserSweep {
+  0% {
+    top: 4%;
+    opacity: 0.3;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: 94%;
+    opacity: 0.3;
+  }
+}
+
+@keyframes vatRadarPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes vatHoloFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    filter: drop-shadow(0 10px 20px rgba(10, 25, 47, 0.7)) drop-shadow(0 0 16px rgba(245, 158, 11, 0.25));
+  }
+  50% {
+    transform: translateY(-5px) scale(1.02);
+    filter: drop-shadow(0 18px 28px rgba(10, 25, 47, 0.85)) drop-shadow(0 0 30px rgba(250, 204, 21, 0.45));
+  }
+}
+
+@keyframes vatSpinContinuous {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes vatSpinReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes vatSheenSweep {
+  0% {
+    transform: translate(-120%, -120%) rotate(35deg);
+  }
+  30%, 100% {
+    transform: translate(150%, 150%) rotate(35deg);
+  }
+}
+
+.animate-vat-laser {
+  animation: vatLaserSweep 2.2s ease-in-out infinite alternate;
+  will-change: top, opacity;
+}
+
+.animate-vat-radar {
+  animation: vatRadarPulse 2.6s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.animate-vat-float {
+  animation: vatHoloFloat 3.6s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+.animate-vat-spin {
+  animation: vatSpinContinuous 8s linear infinite;
+  will-change: transform;
+}
+
+.animate-vat-spin-reverse {
+  animation: vatSpinReverse 6s linear infinite;
+  will-change: transform;
+}
+
+.animate-vat-sheen {
+  animation: vatSheenSweep 3.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-vat-laser,
+  .animate-vat-radar,
+  .animate-vat-float,
+  .animate-vat-spin,
+  .animate-vat-spin-reverse,
+  .animate-vat-sheen {
+    animation: none !important;
+  }
+}

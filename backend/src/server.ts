@@ -2,6 +2,9 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { prisma } from './config/prisma.js';
 import { verifyEmailService } from './services/email.service.js';
+import { getRedisClient } from './services/redis.service.js';
+import { startEmailWorker } from './services/emailQueue.service.js';
+import { verifyCloudinaryConnection } from './services/cloudinary.service.js';
 
 const app = createApp();
 
@@ -9,6 +12,31 @@ const app = createApp();
 prisma.$connect()
   .then(() => console.log('  Database    : Connected to Supabase PostgreSQL (Ready)'))
   .catch((err) => console.warn('  Database    : Supabase warmup warning (will retry on query):', err.message));
+
+// Warm up Upstash Redis connection on server boot
+try {
+  getRedisClient();
+} catch (err: any) {
+  console.warn('  Redis Cache : Warmup notice:', err.message);
+}
+
+// Start background email queue worker
+try {
+  startEmailWorker();
+} catch (err: any) {
+  console.warn('  Email Worker: Queue worker startup warning:', err.message);
+}
+
+// Verify Cloudinary File Storage connectivity on server boot
+verifyCloudinaryConnection()
+  .then((storageStatus) => {
+    if (storageStatus.connected) {
+      console.log(`  File Storage: Connected to Cloudinary (${storageStatus.cloudName}) (Ready)`);
+    } else {
+      console.warn(`  File Storage: Cloudinary offline (${storageStatus.error})`);
+    }
+  })
+  .catch((err) => console.warn('  File Storage: Connectivity check failed:', err?.message || err));
 
 // Verify Email Service connectivity (Brevo) on server boot
 verifyEmailService()

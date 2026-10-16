@@ -5,6 +5,15 @@ import { generateBunnyStreamToken, createBunnyVideo, uploadBunnyVideoBuffer, del
 import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary.service.js';
 import { env } from '../config/env.js';
 import { CourseStatus, Role } from '@prisma/client';
+import { cacheGet, cacheSet, cacheDelByPrefix } from '../services/redis.service.js';
+
+export async function invalidateCourseCache(): Promise<void> {
+  try {
+    await cacheDelByPrefix('cache:course');
+  } catch (err: any) {
+    console.warn('[Cache Invalidation] Notice:', err?.message || err);
+  }
+}
 
 export function signBunnyEmbedUrlIfNeeded(url: string | null | undefined, videoId?: string | null): string {
   const effectiveUrl = url || (videoId && !videoId.startsWith('pmct-') ? `https://iframe.mediadelivery.net/embed/${env.BUNNY_STREAM_LIBRARY_ID || '764331'}/${videoId}` : (videoId?.startsWith('pmct-') ? '/autopsy.mp4' : ''));
@@ -35,21 +44,29 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
     const userRole = user.role;
     const isAdmin = userRole === Role.ADMIN;
 
-    const courses = await prisma.course.findMany({
-      where: isAdmin ? {} : { status: CourseStatus.PUBLISHED },
-      orderBy: { order: 'asc' },
-      include: {
-        modules: {
-          orderBy: { order: 'asc' },
-          include: {
-            resources: {
-              orderBy: { order: 'asc' },
+    const cacheKey = `cache:course:list:${isAdmin ? 'admin' : 'published'}`;
+    let courses = await cacheGet<any[]>(cacheKey);
+
+    if (!courses) {
+      courses = await prisma.course.findMany({
+        where: isAdmin ? {} : { status: CourseStatus.PUBLISHED },
+        orderBy: { order: 'asc' },
+        include: {
+          modules: {
+            orderBy: { order: 'asc' },
+            include: {
+              resources: {
+                orderBy: { order: 'asc' },
+              },
+              assignments: true,
             },
-            assignments: true,
           },
         },
-      },
-    });
+      });
+      if (courses) {
+        await cacheSet(cacheKey, courses, 3600);
+      }
+    }
 
     const userId = (req as any).user?.userId;
     const userSubmissions = userId
@@ -60,11 +77,11 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
       : [];
     const subMap = new Map<string, any>(userSubmissions.map((s) => [s.assignmentId, s]));
 
-    const mappedCourses = courses.map((c) => ({
+    const mappedCourses = (courses as any[]).map((c: any) => ({
       ...c,
-      modules: c.modules.map((m) => ({
+      modules: ((c.modules || []) as any[]).map((m: any) => ({
         ...m,
-        resources: m.resources.map((r) => ({
+        resources: ((m.resources || []) as any[]).map((r: any) => ({
           ...r,
           description: r.description || r.content || null,
           content: r.content || r.description || null,
@@ -115,20 +132,28 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
     const userRole = user.role;
     const isAdmin = userRole === Role.ADMIN;
 
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        modules: {
-          orderBy: { order: 'asc' },
-          include: {
-            resources: {
-              orderBy: { order: 'asc' },
+    const cacheKey = `cache:course:detail:${courseId}`;
+    let course = await cacheGet<any>(cacheKey);
+
+    if (!course) {
+      course = await prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          modules: {
+            orderBy: { order: 'asc' },
+            include: {
+              resources: {
+                orderBy: { order: 'asc' },
+              },
+              assignments: true,
             },
-            assignments: true,
           },
         },
-      },
-    });
+      });
+      if (course) {
+        await cacheSet(cacheKey, course, 3600);
+      }
+    }
 
     if (!course) {
       sendError(res, 'Course not found', 404);
@@ -163,7 +188,7 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
     const subMap = new Map<string, any>(userSubmissions.map((s) => [s.assignmentId, s]));
 
     let previousModuleCompleted = true;
-    const modulesWithLockStatus = course.modules.map((mod, index) => {
+    const modulesWithLockStatus = (((course as any).modules || []) as any[]).map((mod: any, index: number) => {
       const progress = userProgress[mod.id] || { isCompleted: false, lastVideoTimestamp: 0 };
       const isLocked = isAdmin ? false : (index === 0 ? false : !previousModuleCompleted);
       
@@ -174,7 +199,7 @@ export async function getCourseById(req: Request, res: Response): Promise<void> 
 
       return {
         ...mod,
-        resources: mod.resources.map((r) => ({
+        resources: ((mod.resources || []) as any[]).map((r: any) => ({
           ...r,
           description: r.description || r.content || null,
           content: r.content || r.description || null,
@@ -289,6 +314,7 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, newCourse, 'Course created successfully', 201);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to create course', 500);
@@ -323,6 +349,7 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, updated, 'Course updated successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update course', 500);
@@ -333,6 +360,7 @@ export async function deleteCourse(req: Request, res: Response): Promise<void> {
   try {
     const courseId = req.params.id as string;
     await prisma.course.delete({ where: { id: courseId } });
+    await invalidateCourseCache();
     sendSuccess(res, { deleted: true }, 'Course deleted successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to delete course', 500);
@@ -371,6 +399,7 @@ export async function createModule(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, newModule, 'Module created successfully', 201);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to create module', 500);
@@ -402,6 +431,7 @@ export async function updateModule(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, updated, 'Module updated successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to update module', 500);
@@ -412,6 +442,7 @@ export async function deleteModule(req: Request, res: Response): Promise<void> {
   try {
     const moduleId = req.params.moduleId as string;
     await prisma.module.delete({ where: { id: moduleId } });
+    await invalidateCourseCache();
     sendSuccess(res, { deleted: true }, 'Module deleted successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to delete module', 500);

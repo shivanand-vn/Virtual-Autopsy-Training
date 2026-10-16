@@ -40,7 +40,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     const normalizedEmail = email.toLowerCase().trim();
 
     // 1. Check if client or account is currently locked out
-    const rateCheck = checkLoginRateLimit(req, normalizedEmail);
+    const rateCheck = await checkLoginRateLimit(req, normalizedEmail);
     if (rateCheck.isBlocked) {
       res.setHeader('Retry-After', rateCheck.retryAfterSeconds);
       sendError(res, rateCheck.message, 429, { retryAfter: rateCheck.retryAfterSeconds });
@@ -58,7 +58,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     if (!user) {
-      const failStatus = recordFailedLogin(req, normalizedEmail);
+      const failStatus = await recordFailedLogin(req, normalizedEmail);
       if (failStatus.isBlocked) {
         res.setHeader('Retry-After', failStatus.retryAfterSeconds);
         sendError(res, failStatus.message, 429, { retryAfter: failStatus.retryAfterSeconds });
@@ -89,7 +89,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     if (!isValidPassword) {
-      const failStatus = recordFailedLogin(req, normalizedEmail);
+      const failStatus = await recordFailedLogin(req, normalizedEmail);
       if (failStatus.isBlocked) {
         res.setHeader('Retry-After', failStatus.retryAfterSeconds);
         sendError(res, failStatus.message, 429, { retryAfter: failStatus.retryAfterSeconds });
@@ -100,19 +100,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     // Login successful: reset rate limiter for this account & IP
-    resetLoginRateLimit(req, normalizedEmail);
-
-    // Allow convenient case-tolerance for default admin
-    if (!isValidPassword && user.email === 'admin@gmail.com') {
-      if (trimmedPassword.toLowerCase() === 'admin@123') {
-        isValidPassword = true;
-      }
-    }
-
-    if (!isValidPassword) {
-      sendError(res, 'Invalid email or password', 401);
-      return;
-    }
+    await resetLoginRateLimit(req, normalizedEmail);
 
     const token = signToken({
       userId: user.id,

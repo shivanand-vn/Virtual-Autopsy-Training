@@ -73,11 +73,18 @@ export async function uploadToCloudinary(
 
     const isVideo = resourceType === 'video';
 
+    // Preserve filename extension for raw binary files (PDF, DOCX, ZIP) so Cloudinary keeps extension in URL
+    const extMatch = fileName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? `.${extMatch[1]}` : (isPdf ? '.pdf' : '');
+    const baseName = fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const publicId = (isPdf || resourceType === 'raw' || folder === 'cvs') ? `${baseName}${ext}` : baseName;
+
     const options: any = {
       folder: `vat-lms/${folder}`,
-      public_id: fileName.replace(/\.[^/.]+$/, ''),
+      public_id: publicId,
       resource_type: resourceType,
       use_filename: true,
+      unique_filename: false,
       timeout: 600000, // 10 minutes timeout to prevent 'Request Timeout'
     };
 
@@ -107,6 +114,26 @@ export async function uploadToCloudinary(
 
     uploadStream.end(fileBuffer);
   });
+}
+
+/**
+ * Diagnostic ping check for Cloudinary storage
+ */
+export async function verifyCloudinaryConnection(): Promise<{
+  connected: boolean;
+  cloudName?: string;
+  error?: string;
+}> {
+  configureCloudinary();
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    return { connected: false, error: 'Cloudinary credentials missing' };
+  }
+  try {
+    await cloudinary.api.ping();
+    return { connected: true, cloudName: env.CLOUDINARY_CLOUD_NAME };
+  } catch (err: any) {
+    return { connected: false, cloudName: env.CLOUDINARY_CLOUD_NAME, error: err?.message || 'Ping failed' };
+  }
 }
 
 export async function deleteFromCloudinary(

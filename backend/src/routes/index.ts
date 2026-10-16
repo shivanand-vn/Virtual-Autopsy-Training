@@ -9,6 +9,7 @@ import discussionRoutes from './discussion.routes.js';
 import paymentRoutes from './payment.routes.js';
 import { verifyEmailService, sendTestEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
+import { prisma } from '../config/prisma.js';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.use('/payments', paymentRoutes);
 
 // Health check endpoint
 router.get('/health', async (_req, res) => {
-  const mailStatus = await verifyEmailService().catch((err) => ({
+  const mailStatusPromise = verifyEmailService().catch((err) => ({
     connected: false,
     provider: 'Brevo',
     sender: env.BREVO_SENDER_EMAIL,
@@ -31,10 +32,35 @@ router.get('/health', async (_req, res) => {
     error: err?.message || 'Check failed',
   }));
 
-  res.status(200).json({
-    status: 'ok',
+  const dbStart = Date.now();
+  let dbStatus = 'connected';
+  let dbLatencyMs = 0;
+  let dbError: string | undefined = undefined;
+
+  try {
+    // 5-second race timeout for DB ping
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Database ping timeout (5s)')), 5000)),
+    ]);
+    dbLatencyMs = Date.now() - dbStart;
+  } catch (err: any) {
+    dbStatus = 'error';
+    dbError = err?.message || 'Database query failed';
+    dbLatencyMs = Date.now() - dbStart;
+  }
+
+  const mailStatus = await mailStatusPromise;
+
+  const isHealthy = dbStatus === 'connected';
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'ok' : 'degraded',
     service: 'VAT-LMS Backend API',
-    database: 'connected',
+    database: {
+      status: dbStatus,
+      latencyMs: dbLatencyMs,
+      ...(dbError ? { error: dbError } : {}),
+    },
     email: {
       status: mailStatus.connected ? 'connected' : 'error',
       provider: mailStatus.provider,

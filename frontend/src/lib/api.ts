@@ -165,24 +165,36 @@ async function request<T = any>(
 
   const url = buildUrl(endpoint);
 
+  const isUpload = options.body instanceof FormData;
+  const timeoutMs = isUpload ? 120000 : 15000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   let response: Response;
   try {
     response = await fetch(url, {
       ...options,
       headers,
       credentials: 'include',
+      signal: options.signal || controller.signal,
     });
-  } catch {
-    const err = new Error(
-      'Unable to continue at the moment. Please check your internet connection and try again.'
-    ) as Error & { status: number; data: any; isNetworkError: boolean };
-    err.status = 0;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    const isTimeout = error?.name === 'AbortError';
+    const fallbackMsg = isTimeout
+      ? 'The request took too long to complete. The server may be warming up, please try again shortly.'
+      : 'Unable to continue at the moment. Please check your internet connection and try again.';
+    const err = new Error(fallbackMsg) as Error & { status: number; data: any; isNetworkError: boolean; isTimeout?: boolean };
+    err.status = isTimeout ? 504 : 0;
     err.data = {
       success: false,
-      message: 'Unable to continue at the moment. Please check your internet connection and try again.',
+      message: fallbackMsg,
     };
-    err.isNetworkError = true;
+    err.isNetworkError = !isTimeout;
+    err.isTimeout = isTimeout;
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const data = await response.json().catch(() => ({

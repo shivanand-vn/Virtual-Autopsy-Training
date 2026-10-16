@@ -275,6 +275,8 @@ export async function getApplicationCv(req: AuthRequest, res: Response): Promise
     const cleanCandidateName = (application.fullName || 'Applicant').replace(/[^a-zA-Z0-9_-]/g, '_');
     const buffer = Buffer.from(await upstreamRes.arrayBuffer());
 
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${cleanCandidateName}_Curriculum_Vitae.pdf"`);
     res.setHeader('Cache-Control', 'private, max-age=3600');

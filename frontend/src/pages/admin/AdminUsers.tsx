@@ -213,13 +213,9 @@ export const AdminUsersPage: React.FC = () => {
   };
 
   const handleViewCv = (user: UserRecord) => {
-    if (user.cvUrl && user.cvUrl.trim()) {
-      const streamUrl = getCvStreamUrl(user.id, user.cvUrl);
-      window.open(streamUrl, '_blank', 'noopener,noreferrer');
-      setViewingCvUser(user);
-    } else {
+    setViewingCvUser(user);
+    if (!user.cvUrl || !user.cvUrl.trim()) {
       showToast(`No CV document was uploaded for ${user.name}.`);
-      setViewingCvUser(user);
     }
   };
 
@@ -610,12 +606,18 @@ export const AdminUsersPage: React.FC = () => {
 
             {/* Embedded Live PDF Document Viewer */}
             {viewingCvUser.cvUrl ? (
-              <div className="w-full h-[620px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shadow-inner relative">
-                <iframe
-                  src={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
+              <div className="w-full h-[640px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shadow-inner relative">
+                <object
+                  data={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
+                  type="application/pdf"
                   className="w-full h-full border-0 rounded-2xl"
-                  title={`${viewingCvUser.name} Curriculum Vitae`}
-                />
+                >
+                  <iframe
+                    src={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
+                    className="w-full h-full border-0 rounded-2xl"
+                    title={`${viewingCvUser.name} Curriculum Vitae`}
+                  />
+                </object>
               </div>
             ) : (
               <div className="py-16 px-6 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">

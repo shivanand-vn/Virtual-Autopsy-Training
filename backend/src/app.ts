@@ -14,6 +14,9 @@ export function createApp(): Express {
   app.use(
     helmet({
       contentSecurityPolicy: false, // Allows media streaming & canvas decoding
+      frameguard: false, // Allow iframing PDF documents in LMS admin preview across frontend origins
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginOpenerPolicy: false,
     })
   );
 

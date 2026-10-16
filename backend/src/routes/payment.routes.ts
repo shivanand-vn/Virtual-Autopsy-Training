@@ -5,11 +5,12 @@ import {
   getPaymentReceipt,
 } from '../controllers/payment.controller.js';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
+import { uploadCV } from '../middlewares/upload.middleware.js';
 
 const router = Router();
 
 // Public: Process tuition payment and complete candidate enrollment
-router.post('/complete-registration', completeRegistrationAndPayment);
+router.post('/complete-registration', uploadCV.single('cvFile'), completeRegistrationAndPayment);
 
 // Public: View single receipt details by transaction reference
 router.get('/receipt/:transactionRef', getPaymentReceipt);

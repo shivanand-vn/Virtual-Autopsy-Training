@@ -5,19 +5,21 @@ import { hashPassword } from '../utils/password.js';
 import { sendWelcomeAndReceiptEmail } from '../services/email.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { isRegistrationOtpVerified, clearRegistrationOtp } from './auth.controller.js';
+import { uploadDocument } from '../services/storage.service.js';
 
 const completePaymentSchema = z.object({
   fullName: z.string().min(2, 'Full name is required'),
   email: z.string().email('Valid email address is required'),
   countryCode: z.string().default('+44'),
   phoneNumber: z.string().optional().default(''),
-  qualification: z.string().optional().default('MBBS / MD'),
-  professionalRole: z.string().optional().default('Forensic Pathologist'),
-  organization: z.string().optional().default('Virtual Autopsy Training Academy'),
+  qualification: z.string().optional().default('Medical Practitioner'),
+  professionalRole: z.string().optional().default('Forensic Pathology Fellow'),
+  organization: z.string().optional().default('Medical Institution'),
+  marketingConsent: z.union([z.boolean(), z.string().transform((v) => v === 'true')]).optional().default(false),
   cvFileUrl: z.string().optional(),
-  amount: z.string().default('£999.00'),
+  amount: z.string().default('£750.00'),
   currency: z.string().default('GBP'),
-  tier: z.string().default('Virtual Autopsy Online Fellowship (£999)'),
+  tier: z.string().default('Virtual Autopsy Online Fellowship (£750)'),
   cardholderName: z.string().optional(),
   cardLast4: z.string().optional().default('4242'),
   transactionRef: z.string().optional(),
@@ -55,6 +57,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     qualification,
     professionalRole,
     organization,
+    marketingConsent,
     cvFileUrl,
     amount,
     currency,
@@ -81,6 +84,20 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     return;
   }
 
+  // Handle CV document upload if a file was submitted via multipart/form-data
+  let finalCvUrl = cvFileUrl || '';
+  if (req.file) {
+    try {
+      const timestamp = Date.now();
+      const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${timestamp}-${sanitizedFilename}`;
+      finalCvUrl = await uploadDocument(req.file.buffer, 'cvs', fileName, req.file.mimetype);
+      console.log(`📄 Uploaded candidate CV to storage: ${finalCvUrl}`);
+    } catch (uploadErr) {
+      console.error('Failed to upload CV during registration payment:', uploadErr);
+    }
+  }
+
   const temporaryPassword = generateCleanTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
 
@@ -94,8 +111,8 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
         passwordHash,
         fullName: fullName.trim(),
         role: 'STUDENT',
-        title: qualification,
-        organization: organization.trim(),
+        title: qualification || 'Medical Practitioner',
+        organization: organization.trim() || 'Medical Institution',
         isActive: true,
       },
     });
@@ -117,6 +134,8 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
           qualification: qualification || existingApp.qualification,
           professionalRole: professionalRole || existingApp.professionalRole,
           organization: organization || existingApp.organization,
+          cvFileUrl: finalCvUrl || existingApp.cvFileUrl,
+          marketingConsent: Boolean(marketingConsent),
           status: 'APPROVED',
           consent: true,
           reviewedAt: new Date(),
@@ -130,11 +149,12 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
           email: normalizedEmail,
           fullName: fullName.trim(),
           countryCode: countryCode || '+44',
-          phoneNumber: phoneNumber || '+44 7700 900077',
-          qualification: qualification || 'MBBS / MD',
-          professionalRole: professionalRole || 'Forensic Pathologist',
-          organization: organization || 'Virtual Autopsy Training Academy',
-          cvFileUrl: cvFileUrl || 'https://res.cloudinary.com/demo/image/upload/sample.pdf',
+          phoneNumber: phoneNumber || '',
+          qualification: qualification || 'Medical Practitioner',
+          professionalRole: professionalRole || 'Forensic Pathology Fellow',
+          organization: organization || 'Medical Institution',
+          cvFileUrl: finalCvUrl || '',
+          marketingConsent: Boolean(marketingConsent),
           status: 'APPROVED',
           consent: true,
           reviewedAt: new Date(),
@@ -185,8 +205,8 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
         userId: user.id,
         candidateName: fullName.trim(),
         email: normalizedEmail,
-        tier: tier || 'Virtual Autopsy Online Fellowship (£999)',
-        amount: amount || '£999.00',
+        tier: tier || 'Virtual Autopsy Online Fellowship (£750)',
+        amount: amount || '£750.00',
         currency: currency || 'GBP',
         paymentMethod: 'Stripe Credit Card',
         cardLast4: cardLast4 || '4242',
@@ -209,7 +229,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       name: fullName.trim(),
       temporaryPassword,
       transactionId: txnId,
-      amount: amount || '£999.00',
+      amount: amount || '£750.00',
       courseTitle,
       date: formattedDate,
     }).catch((emailErr) => {

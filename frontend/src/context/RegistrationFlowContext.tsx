@@ -60,7 +60,7 @@ const initialPaymentData: PaymentData = {
   },
   paymentStatus: 'idle',
   transactionId: '',
-  amount: '£999',
+  amount: '£750',
   error: null,
 };
 
@@ -138,23 +138,26 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     }));
 
     try {
-      const payload = {
-        fullName: registrationData.fullName.trim() || 'Registered Student',
-        email: finalEmail,
-        countryCode: registrationData.countryCode || '+44',
-        phoneNumber: registrationData.phoneNumber || '',
-        qualification: registrationData.qualification || 'MBBS / MD',
-        professionalRole: registrationData.professionalRole || 'Forensic Pathologist',
-        organization: registrationData.organization || 'Virtual Autopsy Training Academy',
-        cvFileUrl: 'https://res.cloudinary.com/demo/image/upload/sample.pdf',
-        amount: paymentData.amount || '£999.00',
-        currency: 'GBP',
-        tier: 'Virtual Autopsy Online Fellowship (£999)',
-        cardholderName: cardData?.cardholderName || registrationData.fullName || 'Cardholder',
-        cardLast4: (cardData?.cardNumber || '4242').replace(/\s/g, '').slice(-4) || '4242',
-      };
+      const formData = new FormData();
+      formData.append('fullName', registrationData.fullName.trim() || 'Medical Candidate');
+      formData.append('email', finalEmail);
+      formData.append('countryCode', registrationData.countryCode || '+44');
+      formData.append('phoneNumber', registrationData.phoneNumber || '');
+      formData.append('qualification', registrationData.qualification || 'Medical Practitioner');
+      formData.append('professionalRole', registrationData.professionalRole || 'Forensic Pathology Fellow');
+      formData.append('organization', registrationData.organization || 'Medical Institution');
+      formData.append('marketingConsent', String(registrationData.marketingConsent || false));
+      formData.append('amount', paymentData.amount || '£750.00');
+      formData.append('currency', 'GBP');
+      formData.append('tier', 'Virtual Autopsy Online Fellowship (£750)');
+      formData.append('cardholderName', cardData?.cardholderName || registrationData.fullName || 'Cardholder');
+      formData.append('cardLast4', (cardData?.cardNumber || '4242').replace(/\s/g, '').slice(-4) || '4242');
 
-      const response = await api.post('/payments/complete-registration', payload);
+      if (registrationData.cvFile) {
+        formData.append('cvFile', registrationData.cvFile);
+      }
+
+      const response = await api.post('/payments/complete-registration', formData);
       const { credentials, payment } = response.data;
 
       if (credentials?.email) {

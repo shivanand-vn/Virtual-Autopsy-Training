@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
-import { api } from '../../lib/api';
+import { api, API_BASE_URL, getAuthToken } from '../../lib/api';
 
 export interface UserRecord {
   id: string;
@@ -204,10 +204,21 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
+  const getCvStreamUrl = (userId: string, directUrl?: string) => {
+    const token = getAuthToken() || '';
+    if (token) {
+      return `${API_BASE_URL}/users/${userId}/cv?token=${encodeURIComponent(token)}`;
+    }
+    return directUrl || `${API_BASE_URL}/users/${userId}/cv`;
+  };
+
   const handleViewCv = (user: UserRecord) => {
     if (user.cvUrl && user.cvUrl.trim()) {
-      window.open(user.cvUrl, '_blank', 'noopener,noreferrer');
+      const streamUrl = getCvStreamUrl(user.id, user.cvUrl);
+      window.open(streamUrl, '_blank', 'noopener,noreferrer');
+      setViewingCvUser(user);
     } else {
+      showToast(`No CV document was uploaded for ${user.name}.`);
       setViewingCvUser(user);
     }
   };
@@ -562,7 +573,7 @@ export const AdminUsersPage: React.FC = () => {
       {/* DYNAMIC CURRICULUM VITAE (CV) VIEWER MODAL */}
       {viewingCvUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-4xl w-full space-y-5 max-h-[95vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center space-x-3">
@@ -570,105 +581,78 @@ export const AdminUsersPage: React.FC = () => {
                   <FileText className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#0A192F]">Curriculum Vitae (CV) Document</h3>
+                  <h3 className="text-base font-extrabold text-[#0A192F]">Candidate Curriculum Vitae (CV)</h3>
                   <p className="text-xs text-slate-500">Applicant: {viewingCvUser.name} • {viewingCvUser.institution}</p>
                 </div>
               </div>
-              <button
-                onClick={() => setViewingCvUser(null)}
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors"
-                title="Close CV Modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Dynamic CV Document Preview Content Card */}
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-5 text-xs text-slate-800 leading-relaxed font-sans">
-              <div className="border-b border-slate-200 pb-4 flex items-start justify-between gap-4">
-                <div className="flex items-center space-x-3.5">
-                  <img
-                    src={viewingCvUser.avatar}
-                    alt={viewingCvUser.name}
-                    className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400/50 shrink-0"
-                  />
-                  <div>
-                    <h2 className="text-lg font-black text-[#0A192F]">{viewingCvUser.name}</h2>
-                    <p className="text-xs font-bold text-amber-700 mt-0.5">{viewingCvUser.role}</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{viewingCvUser.email}</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg shrink-0">
-                  Verified Candidate
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1 p-3.5 bg-white rounded-xl border border-slate-200/70">
-                  <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Medical Qualifications</h4>
-                  <p className="font-bold text-slate-900 text-xs">{viewingCvUser.qualification || 'Forensic Pathology / Medicine'}</p>
-                  <p className="text-slate-500 text-[11px]">Board Certified Medical Practitioner</p>
-                </div>
-
-                <div className="space-y-1 p-3.5 bg-white rounded-xl border border-slate-200/70">
-                  <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Current Appointment</h4>
-                  <p className="font-bold text-slate-900 text-xs">{viewingCvUser.institution}</p>
-                  <p className="text-slate-500 text-[11px]">Department of Forensic Pathology & PMCT Evaluation</p>
-                </div>
-              </div>
-
-              {viewingCvUser.phoneNumber && (
-                <div className="p-3.5 bg-white rounded-xl border border-slate-200/70 flex items-center justify-between text-xs">
-                  <span className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Official Contact Number</span>
-                  <span className="font-mono font-bold text-slate-800">
-                    {formatPhoneNumber(viewingCvUser.countryCode, viewingCvUser.phoneNumber)}
-                  </span>
-                </div>
-              )}
-
-              {/* Dynamic Document Card */}
-              <div className="p-4 bg-gradient-to-r from-[#0A192F] to-[#112240] text-white rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center space-x-3 truncate">
-                  <FileText className="w-5 h-5 text-amber-400 shrink-0" />
-                  <div className="truncate">
-                    <span className="font-mono text-xs font-bold text-white truncate block">
-                      {`${viewingCvUser.name.replace(/\s+/g, '_')}_Curriculum_Vitae.pdf`}
-                    </span>
-                    <span className="text-[10px] text-slate-300">Verified Forensic Medical Credentials & CV (PDF)</span>
-                  </div>
-                </div>
-
-                {viewingCvUser.cvUrl && (
+              <div className="flex items-center space-x-2">
+                {viewingCvUser.cvUrl ? (
                   <a
-                    href={viewingCvUser.cvUrl}
+                    href={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shrink-0 transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#0A192F] hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition-all shadow-xs"
+                    title="Open CV in New Window"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open Uploaded CV</span>
+                    <span>Open in New Tab</span>
+                  </a>
+                ) : null}
+                <button
+                  onClick={() => setViewingCvUser(null)}
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors"
+                  title="Close CV Modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Embedded Live PDF Document Viewer */}
+            {viewingCvUser.cvUrl ? (
+              <div className="w-full h-[620px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shadow-inner relative">
+                <iframe
+                  src={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
+                  className="w-full h-full border-0 rounded-2xl"
+                  title={`${viewingCvUser.name} Curriculum Vitae`}
+                />
+              </div>
+            ) : (
+              <div className="py-16 px-6 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">No CV Document Attached</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Candidate {viewingCvUser.name} did not submit a CV document during registration.
+                </p>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-[11px] text-slate-500 font-mono">
+                {viewingCvUser.email} • {viewingCvUser.qualification || 'Forensic Medical Practitioner'}
+              </span>
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setViewingCvUser(null)}
+                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors"
+                >
+                  Close Preview
+                </button>
+                {viewingCvUser.cvUrl && (
+                  <a
+                    href={getCvStreamUrl(viewingCvUser.id, viewingCvUser.cvUrl)}
+                    download={`${viewingCvUser.name.replace(/\s+/g, '_')}_CV.pdf`}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs cursor-pointer transition-colors inline-flex items-center space-x-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download CV</span>
                   </a>
                 )}
               </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setViewingCvUser(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors"
-              >
-                Close Preview
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs cursor-pointer transition-colors inline-flex items-center space-x-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Print / Save PDF</span>
-              </button>
             </div>
           </div>
         </div>

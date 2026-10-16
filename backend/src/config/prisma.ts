@@ -6,6 +6,11 @@ import { env } from './env.js';
  * This prevents idle connection drops (OS error 10054 ConnectionReset) and pool exhaustion (P1001).
  */
 export function getOptimizedDatabaseUrl(): string | undefined {
+  // In development, prefer DIRECT_URL if available for maximum speed and rock-solid stability
+  if (process.env.NODE_ENV !== 'production' && process.env.DIRECT_URL) {
+    return process.env.DIRECT_URL.trim();
+  }
+
   const rawUrl = process.env.DATABASE_URL || env.DATABASE_URL;
   if (!rawUrl) return undefined;
 

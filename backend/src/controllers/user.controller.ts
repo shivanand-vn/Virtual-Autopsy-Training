@@ -69,6 +69,7 @@ export async function getAllUsers(req: AuthRequest, res: Response): Promise<void
             countryCode: true,
             phoneNumber: true,
             consent: true,
+            marketingConsent: true,
             cvFileUrl: true,
             status: true,
             createdAt: true,

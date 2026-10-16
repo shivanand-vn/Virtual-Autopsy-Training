@@ -67,6 +67,8 @@ export async function getAllUsers(req: AuthRequest, res: Response): Promise<void
             professionalRole: true,
             organization: true,
             countryCode: true,
+            phoneNumber: true,
+            consent: true,
             cvFileUrl: true,
             status: true,
             createdAt: true,

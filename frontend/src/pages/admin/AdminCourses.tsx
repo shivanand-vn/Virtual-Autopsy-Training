@@ -18,11 +18,52 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+/**
+ * Derives a clean, concise course name for deletion confirmation prompts.
+ * E.g.:
+ * - "Authorization Test Course" -> "Authorization Test"
+ * - "Virtual Autopsy Online Training" -> "Virtual Autopsy"
+ * - "Post-Mortem Computed Tomography (PMCT) Comprehensive Training" -> "PMCT"
+ */
+export const getShortCourseName = (fullName: string): string => {
+  if (!fullName || typeof fullName !== 'string') return 'Course';
+  const trimmed = fullName.trim();
+
+  // 1. If there's an acronym in parentheses (e.g. "(PMCT)"), use that
+  const parenMatch = trimmed.match(/\(([A-Z0-9]{2,8})\)/i);
+  if (parenMatch && parenMatch[1]) {
+    return parenMatch[1];
+  }
+
+  // 2. Remove common trailing suffixes
+  const cleaned = trimmed
+    .replace(/\s+(online\s+)?(training|course|curriculum|program|fellowship|masterclass)$/i, '')
+    .trim();
+
+  // 3. Keep concise (up to 3 words)
+  const words = (cleaned || trimmed).split(/\s+/);
+  if (words.length > 3) {
+    return words.slice(0, 3).join(' ');
+  }
+
+  return cleaned || trimmed;
+};
+
 export const AdminCoursesPage: React.FC = () => {
   const navigate = useNavigate();
   const { courses, deleteCourse } = useCourse();
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  const deletingCourse = courses.find((c) => c.id === deletingCourseId);
+  const deletingCourseFullName = deletingCourse?.name || deletingCourse?.title || '';
+  const expectedConfirmText = getShortCourseName(deletingCourseFullName);
+
+  const isDeleteMatched =
+    Boolean(deleteConfirmText.trim()) &&
+    (deleteConfirmText.trim().toLowerCase() === expectedConfirmText.trim().toLowerCase() ||
+      deleteConfirmText.trim().toLowerCase() === deletingCourseFullName.trim().toLowerCase());
 
   const filteredCourses = courses.filter(
     (c) =>
@@ -183,7 +224,10 @@ export const AdminCoursesPage: React.FC = () => {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => setDeletingCourseId(c.id)}
+                            onClick={() => {
+                              setDeletingCourseId(c.id);
+                              setDeleteConfirmText('');
+                            }}
                             className="p-2 text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors cursor-pointer"
                             title="Delete Course"
                           >
@@ -210,25 +254,54 @@ export const AdminCoursesPage: React.FC = () => {
               <div className="space-y-1">
                 <h3 className="text-xl font-extrabold text-[#0A192F]">Delete Course?</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  Are you sure you want to delete this course and its curriculum structure?
+                  Are you sure you want to permanently delete{' '}
+                  <strong className="text-slate-900 font-bold">
+                    "{deletingCourseFullName || 'this course'}"
+                  </strong>{' '}
+                  and all of its curriculum modules?
                 </p>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200/80 rounded-2xl p-3 text-left space-y-1.5">
+                <label className="block text-[11px] font-bold text-rose-900">
+                  Type <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-rose-300 text-rose-700 font-black">{expectedConfirmText}</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={`Type "${expectedConfirmText}"`}
+                  autoFocus
+                  className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-rose-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-normal"
+                />
               </div>
 
               <div className="flex items-center space-x-3 pt-2">
                 <button
-                  onClick={() => setDeletingCourseId(null)}
+                  type="button"
+                  onClick={() => {
+                    setDeletingCourseId(null);
+                    setDeleteConfirmText('');
+                  }}
                   className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
+                  disabled={!isDeleteMatched}
                   onClick={async () => {
-                    if (deletingCourseId) {
+                    if (deletingCourseId && isDeleteMatched) {
                       await deleteCourse(deletingCourseId);
+                      setDeletingCourseId(null);
+                      setDeleteConfirmText('');
                     }
-                    setDeletingCourseId(null);
                   }}
-                  className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-colors cursor-pointer"
+                  className={`flex-1 py-2.5 text-xs font-bold text-white rounded-xl shadow-md transition-all ${
+                    isDeleteMatched
+                      ? 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+                      : 'bg-rose-300 cursor-not-allowed opacity-60'
+                  }`}
                 >
                   Delete
                 </button>

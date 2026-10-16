@@ -1,4 +1,105 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+declare const __INJECTED_API_URL__: string | undefined;
+
+function cleanApiUrl(url?: string): string {
+  if (!url || typeof url !== 'string' || !url.trim()) return '';
+  let cleaned = url.trim().replace(/\/+$/, '');
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = `https://${cleaned}`;
+  }
+  if (!cleaned.endsWith('/api')) {
+    cleaned = `${cleaned}/api`;
+  }
+  return cleaned;
+}
+
+export function getApiBaseUrl(): string {
+  // 1. Compile-time injected variable from vite.config.ts
+  if (typeof __INJECTED_API_URL__ !== 'undefined' && __INJECTED_API_URL__) {
+    const cleaned = cleanApiUrl(__INJECTED_API_URL__);
+    if (cleaned) return cleaned;
+  }
+
+  // 2. Client-side import.meta.env variations
+  const envCandidates = [
+    import.meta.env.VITE_API_URL,
+    import.meta.env.VITE_BACKEND_URL,
+    import.meta.env.VITE_RENDER_URL,
+    (import.meta.env as any).RENDER_URL,
+    (import.meta.env as any).RENDER_LINK,
+    (import.meta.env as any).BACKEND_URL,
+    (import.meta.env as any).API_URL,
+    (import.meta.env as any).RENDER_API,
+    (import.meta.env as any).SERVER_URL,
+  ];
+
+  for (const candidate of envCandidates) {
+    if (candidate && typeof candidate === 'string' && candidate.trim()) {
+      const cleaned = cleanApiUrl(candidate);
+      if (cleaned) return cleaned;
+    }
+  }
+
+  // 3. Browser runtime storage (allows quick testing / override without redeploy)
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('vat_api_url') || sessionStorage.getItem('vat_api_url');
+      if (stored) {
+        const cleaned = cleanApiUrl(stored);
+        if (cleaned) return cleaned;
+      }
+    } catch {}
+
+    const hostname = window.location.hostname;
+    // In production on Vercel or any remote domain: connect to live Render backend
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return 'https://virtual-autopsy-training.onrender.com/api';
+    }
+  }
+
+  return 'http://localhost:5000/api';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
+
+export function buildUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${base}${path}`;
+}
+
+export function sanitizeErrorMessage(
+  message?: string,
+  fallback = 'Unable to continue at the moment. Please check your internet connection and try again.'
+): string {
+  if (!message || typeof message !== 'string') return fallback;
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('failed to fetch') ||
+    lower.includes('network') ||
+    lower.includes('connection_refused') ||
+    lower.includes('connection refused') ||
+    lower.includes('econnrefused') ||
+    lower.includes('server') ||
+    lower.includes('backend') ||
+    lower.includes('load failed') ||
+    lower.includes('cors') ||
+    lower.includes('internal') ||
+    lower.includes('status 5') ||
+    lower.includes('status 404') ||
+    lower.includes('status 502') ||
+    lower.includes('status 503') ||
+    lower.includes('status 504') ||
+    lower.includes('invalid server response') ||
+    lower.includes('unexpected token') ||
+    lower.includes('localhost')
+  ) {
+    return fallback;
+  }
+  return message;
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -62,22 +163,40 @@ async function request<T = any>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const url = buildUrl(endpoint);
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+  } catch {
+    const err = new Error(
+      'Unable to continue at the moment. Please check your internet connection and try again.'
+    ) as Error & { status: number; data: any; isNetworkError: boolean };
+    err.status = 0;
+    err.data = {
+      success: false,
+      message: 'Unable to continue at the moment. Please check your internet connection and try again.',
+    };
+    err.isNetworkError = true;
+    throw err;
+  }
 
   const data = await response.json().catch(() => ({
     success: false,
-    message: 'Invalid server response',
+    message: 'Unable to process request right now. Please try again.',
   }));
 
   if (!response.ok || data.success === false) {
-    const errorMsg = data.message || `Request failed with status ${response.status}`;
-    const err = new Error(errorMsg) as Error & { status: number; data: any; retryAfter?: number };
+    const rawMsg = data.message || `Request could not be completed`;
+    const cleanMsg = sanitizeErrorMessage(
+      rawMsg,
+      'Unable to continue at the moment. Please check your internet connection and try again.'
+    );
+    const err = new Error(cleanMsg) as Error & { status: number; data: any; retryAfter?: number };
     err.status = response.status;
     err.data = data;
     const retryHeader = response.headers.get('Retry-After');
@@ -131,7 +250,7 @@ export const api = {
       }
 
       const token = getAuthToken();
-      const endpoint = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+      const endpoint = buildUrl(url);
       const xhr = new XMLHttpRequest();
 
       if (signal) {
@@ -171,14 +290,17 @@ export const api = {
             if (onProgress) onProgress(100);
             resolve(data);
           } else {
-            const errorMsg = data.message || `Request failed with status ${xhr.status}`;
+            const errorMsg = sanitizeErrorMessage(
+              data.message,
+              'Unable to complete upload. Please try again.'
+            );
             const err = new Error(errorMsg) as Error & { status: number; data: any };
             err.status = xhr.status;
             err.data = data;
             reject(err);
           }
         } catch {
-          reject(new Error('Invalid server response'));
+          reject(new Error('Unable to complete upload. Please try again.'));
         }
       };
 
@@ -187,11 +309,11 @@ export const api = {
       };
 
       xhr.onerror = () => {
-        reject(new Error('Network error during media upload. Please check your connection.'));
+        reject(new Error('Unable to complete upload. Please check your connection and try again.'));
       };
 
       xhr.ontimeout = () => {
-        reject(new Error('Upload timed out. Please try again with a faster connection or smaller file.'));
+        reject(new Error('Upload timed out. Please try again with a faster connection.'));
       };
 
       xhr.send(formData);

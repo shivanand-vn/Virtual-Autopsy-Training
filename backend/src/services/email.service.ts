@@ -294,7 +294,6 @@ export async function sendWelcomeAndReceiptEmail({
   console.log('📧 DISPATCHING WELCOME & PAYMENT RECEIPT EMAIL');
   console.log(`To: ${name} <${email}>`);
   console.log(`Transaction ID: ${transactionId} | Amount: ${amount}`);
-  console.log(`Generated Password: ${temporaryPassword}`);
   console.log('====================================================');
 
   return sendEmail({
@@ -566,13 +565,13 @@ export async function sendPasswordResetOtpEmail({
 
   console.log('====================================================');
   console.log(`🔑 DISPATCHING PASSWORD RESET OTP EMAIL`);
-  console.log(`To: ${name} <${email}> | OTP Code: ${otp}`);
+  console.log(`To: ${name} <${email}>`);
   console.log('====================================================');
 
   return sendEmail({
     toEmail: email,
     toName: name,
-    subject: `Virtual Autopsy Training - Your Password Reset OTP (${otp})`,
+    subject: 'Virtual Autopsy Training - Your Password Reset OTP',
     htmlContent: html,
   });
 }
@@ -641,7 +640,7 @@ export async function sendRegistrationOtpEmail({
   return sendEmail({
     toEmail: email,
     toName: name,
-    subject: `Virtual Autopsy Training - Your Email Verification Code (${otp})`,
+    subject: 'Virtual Autopsy Training - Your Email Verification Code',
     htmlContent: html,
   });
 }

@@ -30,9 +30,28 @@ export function sendSuccess<T = any>(
 }
 
 export function sendError(res: Response, message: string, statusCode = 400, errors?: unknown) {
+  let cleanMessage = message;
+
+  const technicalPatterns = [
+    /prisma/i,
+    /database server/i,
+    /pooler\.supabase/i,
+    /postgresql/i,
+    /10054/i,
+    /ConnectionReset/i,
+    /P100\d/i,
+    /ECONNREFUSED/i,
+    /Can't reach database/i,
+    /Invalid `prisma\./i,
+  ];
+
+  if (cleanMessage && technicalPatterns.some((pattern) => pattern.test(cleanMessage))) {
+    cleanMessage = 'Unable to complete your request at this time. Please try again shortly.';
+  }
+
   return res.status(statusCode).json({
     success: false,
-    message,
+    message: cleanMessage,
     errors,
   });
 }

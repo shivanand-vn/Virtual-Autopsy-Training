@@ -102,7 +102,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* 2. KEY STATISTICS GRID (DYNAMIC STATS FROM FRONTEND STATE) */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div
             onClick={() => navigate('/admin/users')}
             className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all"
@@ -201,29 +201,37 @@ export const AdminDashboardPage: React.FC = () => {
 
               {recentApplications.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs table-fixed">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                        <th className="py-3 px-3">APPLICANT</th>
-                        <th className="py-3 px-3">QUALIFICATION</th>
-                        <th className="py-3 px-3">ORGANIZATION</th>
-                        <th className="py-3 px-3">STATUS</th>
+                        <th className="w-[36%] py-3 px-3">APPLICANT</th>
+                        <th className="w-[26%] py-3 px-3">QUALIFICATION</th>
+                        <th className="w-[23%] py-3 px-3">ORGANIZATION</th>
+                        <th className="w-[15%] py-3 px-3 text-center">STATUS</th>
                       </tr>
                     </thead>
                     <tbody>
                       {recentApplications.map((app) => (
                         <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-3 px-3 font-bold text-slate-900">
-                            {app.fullName}
-                            <div className="text-[10px] text-slate-400 font-normal">{app.email}</div>
+                          <td className="py-3 px-3 max-w-0 overflow-hidden font-bold text-slate-900">
+                            <div className="truncate" title={app.fullName}>
+                              {app.fullName}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-normal truncate" title={app.email}>
+                              {app.email}
+                            </div>
                           </td>
-                          <td className="py-3 px-3 font-medium text-slate-700">
-                            {app.qualification || 'Pathology Practitioner'}
+                          <td className="py-3 px-3 max-w-0 overflow-hidden font-medium text-slate-700">
+                            <div className="truncate" title={app.qualification || 'Pathology Practitioner'}>
+                              {app.qualification || 'Pathology Practitioner'}
+                            </div>
                           </td>
-                          <td className="py-3 px-3 text-slate-600">
-                            {app.organization || 'Medical Center'}
+                          <td className="py-3 px-3 max-w-0 overflow-hidden text-slate-600">
+                            <div className="truncate" title={app.organization || 'Medical Center'}>
+                              {app.organization || 'Medical Center'}
+                            </div>
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-3 px-3 text-center">
                             <span
                               className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase ${
                                 app.status === 'APPROVED'
@@ -243,28 +251,36 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               ) : hasApplicant ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs table-fixed">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                        <th className="py-3 px-3">APPLICANT</th>
-                        <th className="py-3 px-3">QUALIFICATION</th>
-                        <th className="py-3 px-3">ORGANIZATION</th>
-                        <th className="py-3 px-3">STATUS</th>
+                        <th className="w-[36%] py-3 px-3">APPLICANT</th>
+                        <th className="w-[26%] py-3 px-3">QUALIFICATION</th>
+                        <th className="w-[23%] py-3 px-3">ORGANIZATION</th>
+                        <th className="w-[15%] py-3 px-3 text-center">STATUS</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-3 font-bold text-slate-900">
-                          {registrationData.fullName || 'Student'}
-                          <div className="text-[10px] text-slate-400 font-normal">{registrationData.email}</div>
+                        <td className="py-3 px-3 max-w-0 overflow-hidden font-bold text-slate-900">
+                          <div className="truncate" title={registrationData.fullName || 'Student'}>
+                            {registrationData.fullName || 'Student'}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-normal truncate" title={registrationData.email}>
+                            {registrationData.email}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 font-medium text-slate-700">
-                          {registrationData.qualification || 'Pathology Practitioner'}
+                        <td className="py-3 px-3 max-w-0 overflow-hidden font-medium text-slate-700">
+                          <div className="truncate" title={registrationData.qualification || 'Pathology Practitioner'}>
+                            {registrationData.qualification || 'Pathology Practitioner'}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 text-slate-600">
-                          {registrationData.organization || 'Medical Center'}
+                        <td className="py-3 px-3 max-w-0 overflow-hidden text-slate-600">
+                          <div className="truncate" title={registrationData.organization || 'Medical Center'}>
+                            {registrationData.organization || 'Medical Center'}
+                          </div>
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 text-center">
                           <span className="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase bg-emerald-100 text-emerald-800">
                             Approved & Active
                           </span>
@@ -294,24 +310,32 @@ export const AdminDashboardPage: React.FC = () => {
 
               {hasSuccessfulPayment ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs table-fixed">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                        <th className="py-2.5 px-3">TRANSACTION ID</th>
-                        <th className="py-2.5 px-3">Payer Email</th>
-                        <th className="py-2.5 px-3">AMOUNT</th>
-                        <th className="py-2.5 px-3 text-right">STATUS</th>
+                        <th className="w-[30%] py-2.5 px-3">TRANSACTION ID</th>
+                        <th className="w-[35%] py-2.5 px-3">Payer Email</th>
+                        <th className="w-[20%] py-2.5 px-3">AMOUNT</th>
+                        <th className="w-[15%] py-2.5 px-3 text-right">STATUS</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       <tr>
-                        <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                          {paymentData.transactionId || 'TXN-SUCCESS'}
+                        <td className="py-3 px-3 max-w-0 overflow-hidden font-mono font-bold text-slate-800">
+                          <div className="truncate" title={paymentData.transactionId || 'TXN-SUCCESS'}>
+                            {paymentData.transactionId || 'TXN-SUCCESS'}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 text-slate-700">
-                          {paymentData.confirmedEmail || registrationData.email || 'Student'}
+                        <td className="py-3 px-3 max-w-0 overflow-hidden text-slate-700">
+                          <div className="truncate" title={paymentData.confirmedEmail || registrationData.email || 'Student'}>
+                            {paymentData.confirmedEmail || registrationData.email || 'Student'}
+                          </div>
                         </td>
-                        <td className="py-3 px-3 font-mono font-bold text-amber-700">{paymentData.amount}</td>
+                        <td className="py-3 px-3 max-w-0 overflow-hidden font-mono font-bold text-amber-700">
+                          <div className="truncate" title={paymentData.amount}>
+                            {paymentData.amount}
+                          </div>
+                        </td>
                         <td className="py-3 px-3 text-right">
                           <span className="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase bg-emerald-100 text-emerald-800">
                             Completed

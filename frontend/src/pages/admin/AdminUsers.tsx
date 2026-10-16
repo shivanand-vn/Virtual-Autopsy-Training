@@ -1,30 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users as UsersIcon,
   Search,
   Filter,
   UserCheck,
-  UserX,
-  Shield,
-  Mail,
-  Building,
-  Calendar,
-  MoreVertical,
-  Edit3,
-  ShieldAlert,
   CheckCircle2,
-  XCircle,
-  Eye,
-  X,
-  FileText,
-  Download,
-  ExternalLink,
-  Award,
-  BookOpen,
   RefreshCw,
   Loader2,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  FileText,
+  Phone,
+  Download,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { api } from '../../lib/api';
@@ -34,16 +23,18 @@ export interface UserRecord {
   name: string;
   avatar: string;
   email: string;
-  role: 'Fellow / Student' | 'Pathologist' | 'Faculty / Admin';
+  role: string;
   institution: string;
   country: string;
-  joinedDate: string;
-  phone?: string;
-  status: 'active' | 'suspended' | 'pending';
+  status: 'active' | 'suspended';
   cmeCredits: number;
   qualification?: string;
-  qualificationOther?: string;
-  cvDocument: {
+  phoneNumber?: string;
+  countryCode?: string;
+  consent?: boolean;
+  marketingConsent?: boolean;
+  cvUrl?: string;
+  cvDocument?: {
     title: string;
     fileName: string;
     fileSize: string;
@@ -54,44 +45,41 @@ export interface UserRecord {
   };
 }
 
-const formatCountry = (code?: string): string => {
-  if (!code) return 'United Kingdom';
-  const clean = code.trim();
-  if (clean === '+44') return 'United Kingdom';
-  if (clean === '+91') return 'India';
-  if (clean === '+1') return 'United States';
-  if (clean === '+61') return 'Australia';
-  if (clean === '+971') return 'UAE';
-  if (clean === '+49') return 'Germany';
-  if (clean === '+33') return 'France';
-  if (clean === '+81') return 'Japan';
-  if (clean === '+65') return 'Singapore';
-  if (clean === '+92') return 'Pakistan';
-  if (clean === '+880') return 'Bangladesh';
-  if (clean === '+234') return 'Nigeria';
-  if (clean === '+27') return 'South Africa';
-  if (clean.startsWith('+')) return `Region (${clean})`;
-  return clean;
+/**
+ * Formats a phone number safely without duplicating country codes (e.g. "+44 +44 123456" -> "+44 123456")
+ */
+export const formatPhoneNumber = (countryCode?: string, phoneNumber?: string): string => {
+  if (!phoneNumber) return '';
+  const trimmedPhone = phoneNumber.trim();
+  const trimmedCode = (countryCode || '+44').trim();
+
+  // If already starts with '+', clean any accidental duplicate prefix
+  if (trimmedPhone.startsWith('+')) {
+    return trimmedPhone.replace(/^(\+\d{1,4})\s*\1\s*/, '$1 ');
+  }
+
+  return `${trimmedCode} ${trimmedPhone}`;
 };
 
-const mapBackendUserToRecord = (bu: any): UserRecord => {
-  const roleName = (bu.title?.toLowerCase().includes('pathologist') || bu.application?.professionalRole?.toLowerCase().includes('pathologist'))
-    ? 'Pathologist'
-    : 'Fellow / Student';
+export const mapBackendUserToRecord = (bu: any): UserRecord => {
+  const roleName =
+    bu.title?.toLowerCase().includes('pathologist') ||
+    bu.application?.professionalRole?.toLowerCase().includes('pathologist')
+      ? 'Pathologist'
+      : 'Fellow / Student';
 
   const defaultAvatar = `https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=150&auto=format&fit=crop&q=80`;
 
   const cvFileName = bu.application?.cvFileUrl
-    ? bu.application.cvFileUrl.split('/').pop()?.split('?')[0] || `${bu.fullName}_CV.pdf`
+    ? bu.application.cvFileUrl.split('/').pop()?.split('?')[0] || `${bu.fullName || 'User'}_CV.pdf`
     : `${(bu.fullName || 'User').replace(/\s+/g, '_')}_Credentials.pdf`;
 
-  const joinedFormatted = bu.createdAt
-    ? new Date(bu.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    : 'Recently';
+  const cvUrl = bu.application?.cvFileUrl || '';
 
-  const uploadedDateFormatted = bu.application?.createdAt
-    ? new Date(bu.application.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    : joinedFormatted;
+  const phoneNumber = bu.application?.phoneNumber || '';
+  const countryCode = bu.application?.countryCode || '+44';
+  const consent = Boolean(bu.application?.consent);
+  const marketingConsent = Boolean(bu.application?.marketingConsent);
 
   return {
     id: bu.id,
@@ -99,20 +87,24 @@ const mapBackendUserToRecord = (bu: any): UserRecord => {
     avatar: bu.avatar || defaultAvatar,
     email: bu.email,
     role: roleName,
-    institution: bu.organization || bu.application?.organization || 'Virtual Autopsy Institute',
-    country: formatCountry(bu.application?.countryCode || bu.country),
-    joinedDate: joinedFormatted,
-    phone: bu.application?.phoneNumber ? `${bu.application.countryCode || ''} ${bu.application.phoneNumber}` : undefined,
+    institution: bu.organization || bu.application?.organization || '—',
+    country: bu.application?.countryCode || 'UK',
     status: bu.isActive ? 'active' : 'suspended',
     cmeCredits: (bu._count?.certificates || 0) * 12 || (bu._count?.courseProgress || 0) * 4 || 12,
     qualification: bu.application?.qualification || bu.title || (bu.role === 'ADMIN' ? 'Head of Education' : 'Medical Practitioner'),
-    qualificationOther: '',
+    phoneNumber,
+    countryCode,
+    consent,
+    marketingConsent,
+    cvUrl,
     cvDocument: {
       title: `Curriculum Vitae - ${bu.fullName || 'Candidate'}`,
       fileName: cvFileName,
       fileSize: '1.4 MB',
-      uploadedDate: uploadedDateFormatted,
-      downloadUrl: bu.application?.cvFileUrl || '#',
+      uploadedDate: bu.application?.createdAt
+        ? new Date(bu.application.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'Recently',
+      downloadUrl: cvUrl,
       qualifications: bu.application?.qualification || bu.title || 'Forensic Medical Qualifications',
       medicalLicense: bu.application?.professionalRole || 'GMC / National Board Certified',
     },
@@ -128,8 +120,12 @@ export const AdminUsersPage: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
-  const [viewingCv, setViewingCv] = useState<UserRecord | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic CV Document viewer modal
+  const [viewingCvUser, setViewingCvUser] = useState<UserRecord | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -160,16 +156,20 @@ export const AdminUsersPage: React.FC = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.institution.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-
-    return matchesSearch && matchesRole;
-  });
+  // Click outside to close filter popover
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isFilterOpen]);
 
   const toggleUserStatus = async (id: string) => {
     const targetUser = users.find((u) => u.id === id);
@@ -184,9 +184,6 @@ export const AdminUsersPage: React.FC = () => {
     setUsers((prev) =>
       prev.map((u) => (u.id === id ? { ...u, status: nextStatus } : u))
     );
-    if (selectedUser && selectedUser.id === id) {
-      setSelectedUser((prev) => (prev ? { ...prev, status: nextStatus } : null));
-    }
 
     try {
       const res = await api.patch(`/users/${id}/status`, { isActive: nextIsActive });
@@ -201,14 +198,46 @@ export const AdminUsersPage: React.FC = () => {
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? { ...u, status: targetUser.status } : u))
       );
-      if (selectedUser && selectedUser.id === id) {
-        setSelectedUser((prev) => (prev ? { ...prev, status: targetUser.status } : null));
-      }
       showToast(err?.message || 'Failed to update user status.');
     } finally {
       setActionLoadingId(null);
     }
   };
+
+  const handleViewCv = (user: UserRecord) => {
+    if (user.cvUrl && user.cvUrl.trim()) {
+      window.open(user.cvUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      setViewingCvUser(user);
+    }
+  };
+
+  // Derive dynamic list of roles from loaded users
+  const dynamicRoles = Array.from(new Set(users.map((u) => u.role))).filter(Boolean);
+  const availableRoles = ['all', ...Array.from(new Set(['Fellow / Student', 'Pathologist', ...dynamicRoles]))];
+
+  const hasActiveFilters = roleFilter !== 'all' || statusFilter !== 'all';
+
+  const filteredUsers = users.filter((u) => {
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.qualification && u.qualification.toLowerCase().includes(q)) ||
+      (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q)) ||
+      u.institution.toLowerCase().includes(q);
+
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && u.status === 'active') ||
+      (statusFilter === 'inactive' && u.status === 'suspended') ||
+      (statusFilter === 'suspended' && u.status === 'suspended');
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   return (
     <AdminLayout title="User Management" subtitle="Users">
@@ -221,81 +250,145 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Top Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Users</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">
-                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-amber-500" /> : users.length}
-              </h3>
+        {/* TOP BAR: Single Row containing the 2 Metric Cards on Left, and Search + Filter Icon + Refresh on Right */}
+        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3.5">
+          {/* Left: 2 Cards (Total Users & Active Fellows) */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Card 1: Total Users */}
+            <div className="bg-slate-50 hover:bg-slate-100/80 transition-colors p-3 px-4 rounded-2xl border border-slate-200/80 flex items-center space-x-3 min-w-[150px]">
+              <div className="w-10 h-10 bg-amber-100 border border-amber-300 text-amber-900 rounded-xl flex items-center justify-center font-bold shrink-0">
+                <UsersIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Total Users</p>
+                <h3 className="text-xl font-black text-[#0A192F] mt-1 leading-none">
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-amber-500 inline" /> : users.length}
+                </h3>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-amber-100 border border-amber-300 text-amber-900 rounded-2xl flex items-center justify-center font-bold">
-              <UsersIcon className="w-6 h-6" />
+
+            {/* Card 2: Active Fellows */}
+            <div className="bg-slate-50 hover:bg-slate-100/80 transition-colors p-3 px-4 rounded-2xl border border-slate-200/80 flex items-center space-x-3 min-w-[150px]">
+              <div className="w-10 h-10 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl flex items-center justify-center shrink-0">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">Active Fellows</p>
+                <h3 className="text-xl font-black text-emerald-600 mt-1 leading-none">
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-emerald-500 inline" /> : users.filter((u) => u.status === 'active').length}
+                </h3>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Fellows</p>
-              <h3 className="text-2xl font-black text-emerald-600 mt-1">
-                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : users.filter((u) => u.status === 'active').length}
-              </h3>
+          {/* Right: Search Bar, Filter Icon Popover, Refresh */}
+          <div className="flex items-center gap-2.5 flex-1 xl:max-w-xl xl:justify-end">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+              />
             </div>
-            <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-2xl flex items-center justify-center">
-              <UserCheck className="w-6 h-6" />
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Suspended Accounts</p>
-              <h3 className="text-2xl font-black text-rose-600 mt-1">
-                {isLoading ? <Loader2 className="w-6 h-6 animate-spin text-rose-500" /> : users.filter((u) => u.status === 'suspended').length}
-              </h3>
-            </div>
-            <div className="w-12 h-12 bg-rose-100 border border-rose-300 text-rose-800 rounded-2xl flex items-center justify-center">
-              <UserX className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search users by name, email, or institution..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-            />
-          </div>
-
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
-            {['all', 'Fellow / Student', 'Pathologist'].map((role) => (
+            {/* Filter Dropdown Popover */}
+            <div className="relative" ref={filterDropdownRef}>
               <button
-                key={role}
-                onClick={() => setRoleFilter(role)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                  roleFilter === role
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`p-2.5 rounded-2xl text-xs font-bold inline-flex items-center space-x-1.5 transition-all cursor-pointer border ${
+                  hasActiveFilters
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs ring-2 ring-amber-400/30'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                 }`}
+                title="Filter users by Status and Role"
               >
-                {role === 'all' ? 'All Roles' : role}
+                <Filter className="w-4 h-4" />
+                <span className="hidden sm:inline">Filter</span>
+                {hasActiveFilters && (
+                  <span className="w-2 h-2 rounded-full bg-slate-950 ring-2 ring-white animate-pulse" />
+                )}
               </button>
-            ))}
 
+              {isFilterOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-40 space-y-4 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-xs font-black text-[#0A192F] uppercase tracking-wider flex items-center gap-1.5">
+                      <Filter className="w-3.5 h-3.5 text-amber-500" />
+                      Filter Options
+                    </span>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={() => {
+                          setStatusFilter('all');
+                          setRoleFilter('all');
+                        }}
+                        className="text-[10px] font-bold text-amber-600 hover:text-amber-700 cursor-pointer"
+                      >
+                        Reset All
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account Status</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { label: 'All', value: 'all' },
+                        { label: 'Active', value: 'active' },
+                        { label: 'Inactive', value: 'inactive' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setStatusFilter(opt.value)}
+                          className={`py-1.5 px-2 rounded-xl text-[11px] font-bold text-center cursor-pointer transition-colors ${
+                            statusFilter === opt.value
+                              ? 'bg-[#0A192F] text-amber-400'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Role Filter */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Role</label>
+                    <div className="space-y-1">
+                      {availableRoles.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setRoleFilter(r)}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center justify-between ${
+                            roleFilter === r
+                              ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
+                              : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{r === 'all' ? 'All Roles' : r}</span>
+                          {roleFilter === r && <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Refresh Button */}
             <button
               onClick={fetchUsers}
               disabled={isLoading}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 ml-1"
+              className="p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-2xl text-xs font-bold transition-colors inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
               title="Refresh User List"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
@@ -316,126 +409,18 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Users Container: Responsive Table on Desktop, Cards on Mobile */}
+        {/* Users Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          {/* Mobile Card View (md:hidden - no horizontal scroll needed) */}
-          <div className="md:hidden divide-y divide-slate-100">
-            {isLoading ? (
-              <div className="py-16 text-center text-slate-400 font-semibold text-xs">
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
-                  <span>Loading registered users from database...</span>
-                </div>
-              </div>
-            ) : filteredUsers.length > 0 ? (
-              filteredUsers.map((user) => (
-                <div key={user.id} className="p-4 space-y-3">
-                  {/* Top Row: User Avatar, Name, Email, and Status */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className="font-extrabold text-slate-900 text-sm truncate" title={user.name}>
-                            {user.name}
-                          </h4>
-                          <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-md text-[10px]">
-                            {user.role}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-mono truncate mt-0.5" title={user.email}>
-                          {user.email}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`shrink-0 inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                        user.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                          user.status === 'active' ? 'bg-emerald-600' : 'bg-rose-600'
-                        }`}
-                      />
-                      {user.status}
-                    </span>
-                  </div>
-
-                  {/* Info Details Box */}
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
-                    <div className="col-span-2">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Institution / Organization</span>
-                      <span className="text-xs font-semibold text-slate-800 truncate block mt-0.5" title={user.institution}>
-                        {user.institution} {user.country ? `(${user.country})` : ''}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Joined Date</span>
-                      <span className="text-[11px] font-mono text-slate-700 font-medium block mt-0.5">
-                        {user.joinedDate}
-                      </span>
-                    </div>
-                    {user.phone && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Phone</span>
-                        <span className="text-[11px] font-mono text-slate-700 font-medium block mt-0.5 truncate">
-                          {user.phone}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      onClick={() => setSelectedUser(user)}
-                      className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Details</span>
-                    </button>
-                    <button
-                      onClick={() => toggleUserStatus(user.id)}
-                      disabled={actionLoadingId === user.id}
-                      className={`w-full py-2 font-bold rounded-xl text-xs transition-colors text-white cursor-pointer disabled:opacity-50 inline-flex items-center justify-center space-x-1.5 ${
-                        user.status === 'active'
-                          ? 'bg-rose-600 hover:bg-rose-700'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {actionLoadingId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
-                      <span>{user.status === 'active' ? 'Suspend' : 'Activate'}</span>
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="py-12 text-center text-slate-400 font-semibold text-xs px-4">
-                {searchQuery || roleFilter !== 'all'
-                  ? 'No users match your search criteria.'
-                  : 'No users available in database.'}
-              </div>
-            )}
-          </div>
-
-          {/* Desktop Table View (hidden md:block) */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed min-w-[960px]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="w-[24%] py-3.5 pl-6 pr-3 font-bold text-left">USER</th>
-                  <th className="w-[13%] py-3.5 px-3 font-bold text-center">ROLE</th>
-                  <th className="w-[21%] py-3.5 px-3 font-bold text-left">ORGANIZATION</th>
-                  <th className="w-[12%] py-3.5 px-3 font-bold text-center">JOINED DATE</th>
-                  <th className="w-[10%] py-3.5 px-3 font-bold text-center">STATUS</th>
-                  <th className="w-[20%] py-3.5 pl-3 pr-6 font-bold text-center">ACTIONS</th>
+                  <th className="py-3.5 px-4 font-bold w-[220px] text-left">USER</th>
+                  <th className="py-3.5 px-4 font-bold w-[210px] text-left">EMAIL & CONTACT</th>
+                  <th className="py-3.5 px-4 font-bold w-[140px] text-center">ROLE</th>
+                  <th className="py-3.5 px-4 font-bold w-[180px] text-left">ORGANIZATION</th>
+                  <th className="py-3.5 px-4 font-bold w-[130px] text-center">CV DOCUMENT</th>
+                  <th className="py-3.5 px-4 font-bold w-[210px] text-center">STATUS & ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -451,73 +436,106 @@ export const AdminUsersPage: React.FC = () => {
                 ) : filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-amber-50/20 transition-colors">
-                      <td className="py-4 pl-6 pr-3 text-left max-w-0 overflow-hidden">
-                        <div className="flex items-center space-x-3">
+                      {/* 1. USER: Avatar + Full Name + Qualification below name */}
+                      <td className="py-4 px-4 w-[220px] max-w-[220px] text-left">
+                        <div className="flex items-center space-x-3 min-w-0">
                           <img
                             src={user.avatar}
                             alt={user.name}
                             className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
                           />
-                          <div className="min-w-0 flex-1 text-left">
-                            <div className="font-extrabold text-slate-900 text-sm truncate [overflow-wrap:anywhere] break-words" title={user.name}>
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <div
+                              className="font-extrabold text-slate-900 text-sm truncate"
+                              title={user.name}
+                            >
                               {user.name}
                             </div>
-                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate [overflow-wrap:anywhere] break-all" title={user.email}>
-                              {user.email}
+                            <div
+                              className="text-[11px] text-amber-700 font-semibold mt-0.5 truncate"
+                              title={user.qualification}
+                            >
+                              {user.qualification || 'Forensic Pathologist / Fellow'}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-4 px-3 text-center max-w-0 overflow-hidden">
-                        <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px] truncate">
-                          {user.role}
-                        </span>
+                      {/* 2. EMAIL & CONTACT: Email on top, mobile shown ONLY if 2nd checkbox (marketingConsent) was accepted */}
+                      <td className="py-4 px-4 w-[210px] max-w-[210px] text-left">
+                        <div className="min-w-0 overflow-hidden">
+                          <div className="font-mono font-bold text-slate-800 text-xs truncate" title={user.email}>
+                            {user.email}
+                          </div>
+                          {user.marketingConsent && user.phoneNumber ? (
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-1.5 truncate">
+                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{formatPhoneNumber(user.countryCode, user.phoneNumber)}</span>
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
 
-                      <td className="py-4 px-3 text-left max-w-0 overflow-hidden">
-                        <div className="font-semibold text-slate-800 truncate" title={user.institution}>{user.institution}</div>
-                        <div className="text-[11px] text-slate-500 truncate" title={user.country}>{user.country}</div>
-                      </td>
-
-                      <td className="py-4 px-3 text-center text-slate-600 font-mono text-[11px] max-w-0 overflow-hidden truncate">
-                        {user.joinedDate}
-                      </td>
-
-                      <td className="py-4 px-3 text-center">
-                        <span
-                          className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                            user.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
+                      {/* 3. ROLE: Centered column aligned with header */}
+                      <td className="py-4 px-4 w-[140px] max-w-[140px] text-center">
+                        <div className="flex justify-center">
                           <span
-                            className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                              user.status === 'active' ? 'bg-emerald-600' : 'bg-rose-600'
-                            }`}
-                          />
-                          {user.status}
-                        </span>
+                            className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-[11px] truncate max-w-[130px] border border-slate-200/60"
+                            title={user.role}
+                          >
+                            {user.role}
+                          </span>
+                        </div>
                       </td>
 
-                      <td className="py-4 pl-3 pr-6 text-center">
+                      {/* 4. ORGANIZATION: Organization name ONLY (country code removed) */}
+                      <td className="py-4 px-4 w-[180px] max-w-[180px] text-left">
+                        <div className="font-semibold text-slate-800 text-xs truncate" title={user.institution}>
+                          {user.institution || '—'}
+                        </div>
+                      </td>
+
+                      {/* 5. CV DOCUMENT: Opens uploaded CV or credentials */}
+                      <td className="py-4 px-4 w-[130px] max-w-[130px] text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleViewCv(user)}
+                          className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-[#0A192F] hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer border border-amber-400/30"
+                          title={user.cvUrl ? `Open uploaded CV for ${user.name}` : `View credentials for ${user.name}`}
+                        >
+                          <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>View CV</span>
+                        </button>
+                      </td>
+
+                      {/* 6. STATUS & ACTIONS: Fixed widths for badge (94px) and button (88px) centered under header */}
+                      <td className="py-4 px-4 w-[210px] max-w-[210px] text-center">
                         <div className="flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => setSelectedUser(user)}
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-1 shrink-0 cursor-pointer"
+                          <span
+                            className={`w-[94px] inline-flex items-center justify-center text-[10px] py-1 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                              user.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}
                           >
-                            <Eye className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span>Details</span>
-                          </button>
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full mr-1.5 shrink-0 ${
+                                user.status === 'active' ? 'bg-emerald-600' : 'bg-rose-600'
+                              }`}
+                            />
+                            <span>{user.status === 'active' ? 'Active' : 'Suspended'}</span>
+                          </span>
+
                           <button
+                            type="button"
                             onClick={() => toggleUserStatus(user.id)}
                             disabled={actionLoadingId === user.id}
-                            className={`px-3 py-1.5 font-bold rounded-xl text-xs transition-colors text-white shrink-0 cursor-pointer disabled:opacity-50 inline-flex items-center space-x-1 ${
+                            className={`w-[88px] py-1 font-bold rounded-xl text-xs transition-all text-white cursor-pointer disabled:opacity-50 inline-flex items-center justify-center space-x-1 shrink-0 shadow-xs ${
                               user.status === 'active'
                                 ? 'bg-rose-600 hover:bg-rose-700'
                                 : 'bg-emerald-600 hover:bg-emerald-700'
                             }`}
+                            title={user.status === 'active' ? 'Suspend User Account' : 'Activate User Account'}
                           >
                             {actionLoadingId === user.id && <Loader2 className="w-3 h-3 animate-spin mr-1 shrink-0" />}
                             <span>{user.status === 'active' ? 'Suspend' : 'Activate'}</span>
@@ -529,8 +547,8 @@ export const AdminUsersPage: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
-                      {searchQuery || roleFilter !== 'all'
-                        ? 'No users match your search criteria.'
+                      {searchQuery || roleFilter !== 'all' || statusFilter !== 'all'
+                        ? 'No users match your search and filter criteria.'
                         : 'No users available in database.'}
                     </td>
                   </tr>
@@ -541,218 +559,116 @@ export const AdminUsersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* User Details Modal (Includes CV Section) */}
-      {selectedUser && (
+      {/* DYNAMIC CURRICULUM VITAE (CV) VIEWER MODAL */}
+      {viewingCvUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-lg w-full space-y-5 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-4">
-                <img
-                  src={selectedUser.avatar}
-                  alt={selectedUser.name}
-                  className="w-14 h-14 rounded-full object-cover ring-4 ring-amber-400/50"
-                />
-                <div>
-                  <h3 className="text-lg font-black text-[#0A192F]">{selectedUser.name}</h3>
-                  <p className="text-xs text-slate-500">{selectedUser.role}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedUser(null)}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* General User Info */}
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                <span className="font-bold text-slate-400 uppercase">EMAIL</span>
-                <p className="font-mono font-bold text-slate-800">{selectedUser.email}</p>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                <span className="font-bold text-slate-400 uppercase">QUALIFICATION</span>
-                <p className="font-bold text-slate-800">
-                  {selectedUser.qualification || selectedUser.qualificationOther || 'Radiologist / Pathologist'}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                <span className="font-bold text-slate-400 uppercase">ORGANIZATION / INSTITUTION</span>
-                <p className="font-bold text-slate-800">{selectedUser.institution}</p>
-                <p className="text-slate-500">{selectedUser.country}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                  <span className="font-bold text-slate-400 uppercase">JOINED DATE</span>
-                  <p className="font-bold text-slate-800">{selectedUser.joinedDate}</p>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-2xl space-y-1">
-                  <span className="font-bold text-slate-400 uppercase">CME CREDITS</span>
-                  <p className="font-bold text-amber-700 text-sm">{selectedUser.cmeCredits} Hours</p>
-                </div>
-              </div>
-            </div>
-
-            {/* CURRICULUM VITAE (CV) / APPLICATION DOCUMENT SECTION */}
-            <div className="p-4 bg-gradient-to-r from-[#0A192F] to-[#112240] text-white rounded-2xl border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center space-x-1.5">
-                  <FileText className="w-4 h-4 text-amber-400" />
-                  <span>Curriculum Vitae (CV)</span>
-                </span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono border border-amber-500/30">
-                  PDF Document
-                </span>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-bold text-white truncate">
-                  {selectedUser.cvDocument.fileName}
-                </h4>
-                <p className="text-[11px] text-slate-300 mt-0.5">
-                  {selectedUser.cvDocument.fileSize} • Uploaded {selectedUser.cvDocument.uploadedDate}
-                </p>
-                {selectedUser.cvDocument.qualifications && (
-                  <p className="text-[11px] text-amber-200/90 mt-1 font-medium">
-                    Qualifications: {selectedUser.cvDocument.qualifications}
-                  </p>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end space-x-2">
-                <button
-                  onClick={() => setViewingCv(selectedUser)}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all border border-white/15 cursor-pointer"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
-                  <span>View CV</span>
-                </button>
-                {selectedUser.cvDocument.downloadUrl && selectedUser.cvDocument.downloadUrl !== '#' ? (
-                  <a
-                    href={selectedUser.cvDocument.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download CV</span>
-                  </a>
-                ) : (
-                  <button
-                    onClick={() => alert('No CV document attached for this user account.')}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-700 text-slate-400 rounded-xl text-xs font-bold transition-all cursor-not-allowed"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>No CV Uploaded</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-2">
-              <button
-                onClick={() => setSelectedUser(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
-              >
-                Close Details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CV Document Viewer Modal */}
-      {viewingCv && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 sm:p-8 max-w-2xl w-full space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#0A192F] text-amber-400 flex items-center justify-center shadow-xs">
-                  <FileText className="w-5 h-5" />
+                <div className="w-11 h-11 rounded-2xl bg-[#0A192F] text-amber-400 flex items-center justify-center shadow-xs">
+                  <FileText className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-[#0A192F]">{viewingCv.cvDocument.title}</h3>
-                  <p className="text-xs text-slate-500">Applicant: {viewingCv.name} ({viewingCv.institution})</p>
+                  <h3 className="text-base font-extrabold text-[#0A192F]">Curriculum Vitae (CV) Document</h3>
+                  <p className="text-xs text-slate-500">Applicant: {viewingCvUser.name} • {viewingCvUser.institution}</p>
                 </div>
               </div>
               <button
-                onClick={() => setViewingCv(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer"
+                onClick={() => setViewingCvUser(null)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full cursor-pointer transition-colors"
+                title="Close CV Modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* CV Document Preview Content Card */}
+            {/* Dynamic CV Document Preview Content Card */}
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 space-y-5 text-xs text-slate-800 leading-relaxed font-sans">
-              <div className="border-b border-slate-200 pb-4 flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-[#0A192F]">{viewingCv.name}</h2>
-                  <p className="text-xs font-bold text-amber-700 mt-0.5">{viewingCv.role}</p>
-                  <p className="text-[11px] text-slate-500 mt-1">{viewingCv.email} • {viewingCv.country}</p>
+              <div className="border-b border-slate-200 pb-4 flex items-start justify-between gap-4">
+                <div className="flex items-center space-x-3.5">
+                  <img
+                    src={viewingCvUser.avatar}
+                    alt={viewingCvUser.name}
+                    className="w-12 h-12 rounded-full object-cover ring-2 ring-amber-400/50 shrink-0"
+                  />
+                  <div>
+                    <h2 className="text-lg font-black text-[#0A192F]">{viewingCvUser.name}</h2>
+                    <p className="text-xs font-bold text-amber-700 mt-0.5">{viewingCvUser.role}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{viewingCvUser.email}</p>
+                  </div>
                 </div>
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg">
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg shrink-0">
                   Verified Candidate
                 </span>
               </div>
 
-              <div className="space-y-1">
-                <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Medical Qualifications</h4>
-                <p className="font-bold text-slate-900">{viewingCv.cvDocument.qualifications || 'MBBS / Specialist Certification'}</p>
-                <p className="text-slate-500 text-[11px]">Role / Registration: {viewingCv.cvDocument.medicalLicense || 'Verified Practitioner'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1 p-3.5 bg-white rounded-xl border border-slate-200/70">
+                  <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Medical Qualifications</h4>
+                  <p className="font-bold text-slate-900 text-xs">{viewingCvUser.qualification || 'Forensic Pathology / Medicine'}</p>
+                  <p className="text-slate-500 text-[11px]">Board Certified Medical Practitioner</p>
+                </div>
+
+                <div className="space-y-1 p-3.5 bg-white rounded-xl border border-slate-200/70">
+                  <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Current Appointment</h4>
+                  <p className="font-bold text-slate-900 text-xs">{viewingCvUser.institution}</p>
+                  <p className="text-slate-500 text-[11px]">Department of Forensic Pathology & PMCT Evaluation</p>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <h4 className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Current Appointment</h4>
-                <p className="font-bold text-slate-900">{viewingCv.institution}</p>
-                <p className="text-slate-500 text-[11px]">Department of Forensic Pathology & PMCT Volumetric Evaluation</p>
-              </div>
-
-              {viewingCv.cvDocument.downloadUrl && viewingCv.cvDocument.downloadUrl !== '#' && (
-                <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center space-x-2 truncate">
-                    <FileText className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span className="font-mono text-[11px] text-slate-700 truncate">{viewingCv.cvDocument.fileName}</span>
-                  </div>
-                  <a
-                    href={viewingCv.cvDocument.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold rounded-lg shrink-0 transition-colors"
-                  >
-                    Open Document
-                  </a>
+              {viewingCvUser.phoneNumber && (
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200/70 flex items-center justify-between text-xs">
+                  <span className="font-extrabold uppercase tracking-wider text-slate-400 text-[10px]">Official Contact Number</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {formatPhoneNumber(viewingCvUser.countryCode, viewingCvUser.phoneNumber)}
+                  </span>
                 </div>
               )}
-            </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <span className="text-xs text-slate-400">User ID: {viewingCv.id}</span>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setViewingCv(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-                >
-                  Close Preview
-                </button>
-                {viewingCv.cvDocument.downloadUrl && viewingCv.cvDocument.downloadUrl !== '#' ? (
+              {/* Dynamic Document Card */}
+              <div className="p-4 bg-gradient-to-r from-[#0A192F] to-[#112240] text-white rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center space-x-3 truncate">
+                  <FileText className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div className="truncate">
+                    <span className="font-mono text-xs font-bold text-white truncate block">
+                      {`${viewingCvUser.name.replace(/\s+/g, '_')}_Curriculum_Vitae.pdf`}
+                    </span>
+                    <span className="text-[10px] text-slate-300">Verified Forensic Medical Credentials & CV (PDF)</span>
+                  </div>
+                </div>
+
+                {viewingCvUser.cvUrl && (
                   <a
-                    href={viewingCv.cvDocument.downloadUrl}
+                    href={viewingCvUser.cvUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs cursor-pointer"
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg shrink-0 transition-colors inline-flex items-center space-x-1 cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Uploaded CV</span>
                   </a>
-                ) : null}
+                )}
               </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end space-x-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setViewingCvUser(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors"
+              >
+                Close Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs cursor-pointer transition-colors inline-flex items-center space-x-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Print / Save PDF</span>
+              </button>
             </div>
           </div>
         </div>

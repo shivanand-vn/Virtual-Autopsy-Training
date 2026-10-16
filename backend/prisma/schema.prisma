@@ -111,6 +111,7 @@ model Application {
   organization     String
   cvFileUrl        String            // Cloudflare R2 uploaded PDF URL
   consent          Boolean           @default(false)
+  marketingConsent Boolean           @default(false)
   status           ApplicationStatus @default(PENDING)
   adminNotes       String?
   reviewedAt       DateTime?

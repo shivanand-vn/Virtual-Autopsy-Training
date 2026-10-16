@@ -433,7 +433,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             onChange={(e) => setFormData({ ...formData, marketingConsent: e.target.checked })}
             label={
               <span className="text-slate-600 text-[11px] leading-relaxed">
-                I agree to receive optional academic updates and educational newsletters, and consent to Virtual Autopsy Global processing my personal data for these communications.
+                I consent to Virtual Autopsy Training accessing and utilizing my contact details (including mobile phone number) for official administration and academic communications.
               </span>
             }
           />

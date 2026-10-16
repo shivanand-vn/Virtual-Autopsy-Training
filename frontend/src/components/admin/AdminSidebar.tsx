@@ -9,7 +9,6 @@ import {
   GraduationCap,
   CreditCard,
   Award,
-  BarChart3,
   MessageSquare,
   LifeBuoy,
   Settings,
@@ -55,7 +54,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
     { name: 'Discussions', path: '/admin/discussions', icon: MessageSquare, badge: discussions.length > 0 ? String(discussions.length) : undefined },
-    { name: 'Analytics', path: '/admin/analytics', icon: BarChart3 },
   ];
 
   const accountNav = [

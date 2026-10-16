@@ -62,6 +62,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   ];
 
   const confirmLogout = async () => {
+    setShowLogoutModal(false);
     setIsLoggingOut(true);
     try {
       await logout();
@@ -69,7 +70,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
       console.warn('Logout error:', err);
     } finally {
       setIsLoggingOut(false);
-      setShowLogoutModal(false);
       navigate('/login', { replace: true });
     }
   };

@@ -9,6 +9,7 @@ import type { LoginFormData, FormErrors } from '../../types/auth';
 import { Mail, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { sanitizeErrorMessage } from '../../lib/api';
+import { VatAnimatedLogo } from '../common/VatAnimatedLogo';
 
 interface LoginFormProps {
   onFlipToRegister?: () => void;
@@ -143,9 +144,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onFlipToRegister }) => {
   return (
     <div className="bg-white rounded-2xl shadow-card-lg border border-slate-200/80 p-6 sm:p-8 lg:p-8 h-full min-h-full flex flex-col justify-between overflow-hidden">
       <div className="my-auto space-y-5">
-        {/* Top Pill Badge */}
+        {/* Top Pill Badge & Biometric Identity Badge */}
         <div className="flex items-center justify-between">
           <StatusBadge>ACADEMY PORTAL LOGIN</StatusBadge>
+          <VatAnimatedLogo mode="minimal" size="xs" priority={true} />
         </div>
 
         {/* Title & Subtitle */}

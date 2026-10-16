@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api, getAuthToken, setAuthToken, clearAuthToken, getStoredUser, setStoredUser } from '../lib/api';
+import { VatAnimatedLogo, VatLogoMode } from '../components/common/VatAnimatedLogo';
 
 export interface User {
   id: string;
@@ -10,6 +11,13 @@ export interface User {
   title?: string;
   organization?: string;
   isTemporaryPassword?: boolean;
+}
+
+export interface AuthOverlayState {
+  show: boolean;
+  mode?: VatLogoMode;
+  title?: string;
+  subtitle?: string;
 }
 
 interface AuthContextType {
@@ -25,6 +33,8 @@ interface AuthContextType {
   uploadAvatar: (file: File) => Promise<string>;
   removeAvatar: () => Promise<void>;
   updateProfile: (profileData: { fullName?: string; organization?: string; title?: string }) => Promise<User>;
+  authOverlay: AuthOverlayState | null;
+  setAuthOverlay: React.Dispatch<React.SetStateAction<AuthOverlayState | null>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +46,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(initialToken);
   // If valid credentials already exist in localStorage, do not block the UI with full-screen spinner
   const [isLoading, setIsLoading] = useState<boolean>(!initialUser && !!initialToken);
+  const [authOverlay, setAuthOverlay] = useState<AuthOverlayState | null>(null);
 
   const isAdmin = user?.role === 'ADMIN';
   const isStudent = user?.role === 'STUDENT';
@@ -106,25 +117,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
-    const res = await api.post('/auth/login', { email, password });
-    const { user: loggedInUser, token: authToken } = res.data;
+    setAuthOverlay({
+      show: true,
+      mode: 'scanner',
+      title: 'BIOMETRIC AUTHENTICATION',
+      subtitle: 'Verifying Security Credentials...',
+    });
+    const startTime = Date.now();
+    try {
+      const res = await api.post('/auth/login', { email, password });
+      const { user: loggedInUser, token: authToken } = res.data;
 
-    const isTemp = checkIsTempPassword(loggedInUser?.email || email, loggedInUser?.isTemporaryPassword);
-    const updatedUser: User = {
-      ...loggedInUser,
-      isTemporaryPassword: isTemp,
-    };
+      const isTemp = checkIsTempPassword(loggedInUser?.email || email, loggedInUser?.isTemporaryPassword);
+      const updatedUser: User = {
+        ...loggedInUser,
+        isTemporaryPassword: isTemp,
+      };
 
-    setUser(updatedUser);
-    setToken(authToken);
-    setAuthToken(authToken);
-    setStoredUser(updatedUser);
-    window.dispatchEvent(new Event('auth-login'));
+      setUser(updatedUser);
+      setToken(authToken);
+      setAuthToken(authToken);
+      setStoredUser(updatedUser);
+      window.dispatchEvent(new Event('auth-login'));
 
-    return updatedUser;
+      // Ensure smooth perceived scan window (min 650ms) so user visibly experiences the biometric scan
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 650) {
+        await new Promise((r) => setTimeout(r, 650 - elapsed));
+      }
+
+      return updatedUser;
+    } finally {
+      setTimeout(() => {
+        setAuthOverlay(null);
+      }, 200);
+    }
   };
 
   const logout = async () => {
+    setAuthOverlay({
+      show: true,
+      mode: 'pulse',
+      title: 'TERMINATING SESSION',
+      subtitle: 'Signing out from Virtual Autopsy LMS...',
+    });
+    const startTime = Date.now();
     try {
       await api.post('/auth/logout');
     } catch (e) {
@@ -133,6 +170,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       clearAuthToken();
       setUser(null);
       setToken(null);
+
+      // Ensure smooth perceived logout pulse (min 600ms)
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 600) {
+        await new Promise((r) => setTimeout(r, 600 - elapsed));
+      }
+
+      setTimeout(() => {
+        setAuthOverlay(null);
+      }, 200);
     }
   };
 
@@ -193,8 +240,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         uploadAvatar,
         removeAvatar,
         updateProfile,
+        authOverlay,
+        setAuthOverlay,
       }}
     >
+      {/* Global Biometric Authentication & Session Overlay */}
+      {authOverlay?.show && (
+        <div className="fixed inset-0 z-[9999] bg-[#050c17]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+          <VatAnimatedLogo
+            mode={authOverlay.mode || 'scanner'}
+            size="lg"
+            showLabel={true}
+            labelTitle={authOverlay.title || 'VIRTUAL AUTOPSY'}
+            labelSubtitle={authOverlay.subtitle || 'Verifying Security Session...'}
+            priority={true}
+          />
+          <div className="mt-4 flex items-center gap-2 font-mono text-[11px] text-slate-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+            <span>Biometric LMS Security Handshake</span>
+          </div>
+        </div>
+      )}
+
       {children}
     </AuthContext.Provider>
   );

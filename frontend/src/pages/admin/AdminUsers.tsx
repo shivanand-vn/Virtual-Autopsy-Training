@@ -458,7 +458,7 @@ export const AdminUsersPage: React.FC = () => {
                             alt={user.name}
                             className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-400/40 shrink-0"
                           />
-                          <div className="min-w-0 text-left">
+                          <div className="min-w-0 flex-1 text-left">
                             <div className="font-extrabold text-slate-900 text-sm truncate [overflow-wrap:anywhere] break-words" title={user.name}>
                               {user.name}
                             </div>

@@ -7,9 +7,11 @@ import { StatusBadge } from '../common/StatusBadge';
 import type { FormErrors } from '../../types/auth';
 import { Mail, KeyRound, CheckCircle2, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import { api, sanitizeErrorMessage } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export const ForgotPasswordForm: React.FC = () => {
   const navigate = useNavigate();
+  const { setAuthOverlay } = useAuth();
 
   // Wizard Steps: 1 = Email Input, 2 = OTP Verification, 3 = New Password, 4 = Success
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -152,6 +154,11 @@ export const ForgotPasswordForm: React.FC = () => {
       return;
     }
 
+    // If OTP verification takes more time (>250ms), activate scan overlay
+    const otpTimer = setTimeout(() => {
+      setAuthOverlay({ show: true, mode: 'scanner', title: 'Verifying code...' });
+    }, 250);
+
     try {
       setIsLoading(true);
       const cleanEmail = email.trim().toLowerCase();
@@ -168,6 +175,8 @@ export const ForgotPasswordForm: React.FC = () => {
       setOtp(['', '', '', '', '', '']);
       document.getElementById('otp-input-0')?.focus();
     } finally {
+      clearTimeout(otpTimer);
+      setAuthOverlay(null);
       setIsLoading(false);
     }
   };

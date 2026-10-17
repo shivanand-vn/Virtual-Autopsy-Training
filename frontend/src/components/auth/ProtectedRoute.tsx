@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAuthToken, getStoredUser } from '../../lib/api';
-import { Loader2 } from 'lucide-react';
+import { VatAnimatedLogo } from '../common/VatAnimatedLogo';
 
 interface ProtectedRouteProps {
   children: React.ReactElement;
@@ -50,12 +50,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-          <p className="text-xs font-bold text-slate-300 tracking-wider uppercase">
-            Verifying Security Session...
-          </p>
-        </div>
+        <VatAnimatedLogo
+          mode="orbit"
+          size="md"
+          showLabel={true}
+          labelTitle="Loading..."
+          priority={true}
+        />
       </div>
     );
   }
@@ -99,12 +100,13 @@ export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({ children }) =>
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-          <p className="text-xs font-bold text-slate-300 tracking-wider uppercase">
-            Loading...
-          </p>
-        </div>
+        <VatAnimatedLogo
+          mode="orbit"
+          size="md"
+          showLabel={true}
+          labelTitle="Loading..."
+          priority={true}
+        />
       </div>
     );
   }

@@ -4,6 +4,7 @@ import {
   getUserById,
   updateUserStatus,
   deleteUser,
+  getUserCv,
 } from '../controllers/user.controller.js';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 
@@ -14,6 +15,7 @@ router.use(requireAuth, requireRole('ADMIN'));
 
 router.get('/', getAllUsers);
 router.get('/:id', getUserById);
+router.get('/:id/cv', getUserCv);
 router.patch('/:id/status', updateUserStatus);
 router.delete('/:id', deleteUser);
 

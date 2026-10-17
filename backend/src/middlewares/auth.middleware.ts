@@ -10,8 +10,9 @@ export interface AuthRequest extends Request {
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const headerToken = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   const cookieToken = req.cookies?.vat_auth_token;
+  const queryToken = typeof req.query?.token === 'string' ? req.query.token : undefined;
 
-  let token = headerToken || cookieToken;
+  let token = headerToken || cookieToken || queryToken;
 
   if (!token) {
     sendError(res, 'Authentication required. Please log in.', 401);

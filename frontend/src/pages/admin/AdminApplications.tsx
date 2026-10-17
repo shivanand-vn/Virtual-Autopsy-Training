@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import type { ApplicantRecord } from '../../types/admin';
-import { api } from '../../lib/api';
+import { api, API_BASE_URL, getAuthToken } from '../../lib/api';
 
 export interface ExtendedApplicant extends ApplicantRecord {
   phone: string;
@@ -603,23 +603,31 @@ export const AdminApplicationsPage: React.FC = () => {
                 </div>
 
                 {selectedApplicant.cvFileUrl ? (
-                  <a
-                    href={selectedApplicant.cvFileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950 text-amber-400 font-bold rounded-xl text-xs hover:bg-slate-800 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download CV</span>
-                  </a>
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href={`${API_BASE_URL}/applications/${selectedApplicant.id}/cv?token=${encodeURIComponent(getAuthToken() || '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#0A192F] hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition-colors shadow-xs"
+                      title="Open candidate CV in new tab"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View CV</span>
+                    </a>
+                    <a
+                      href={`${API_BASE_URL}/applications/${selectedApplicant.id}/cv?token=${encodeURIComponent(getAuthToken() || '')}`}
+                      download={`${(selectedApplicant.applicantName || 'Applicant').replace(/\s+/g, '_')}_CV.pdf`}
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition-colors"
+                      title="Download PDF"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </a>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => alert('No CV document uploaded for this applicant.')}
-                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-200 text-slate-400 font-bold rounded-xl text-xs cursor-not-allowed"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>No CV</span>
-                  </button>
+                  <span className="px-3 py-1.5 bg-slate-100 text-slate-400 font-bold rounded-xl text-xs">
+                    No CV Attached
+                  </span>
                 )}
               </div>
 

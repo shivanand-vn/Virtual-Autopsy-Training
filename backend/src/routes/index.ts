@@ -22,6 +22,9 @@ router.use('/assignments', assignmentRoutes);
 router.use('/discussions', discussionRoutes);
 router.use('/payments', paymentRoutes);
 
+import { verifyRedisConnection } from '../services/redis.service.js';
+import { verifyCloudinaryConnection } from '../services/cloudinary.service.js';
+
 // Health check endpoint
 router.get('/health', async (_req, res) => {
   const mailStatusPromise = verifyEmailService().catch((err) => ({
@@ -29,6 +32,19 @@ router.get('/health', async (_req, res) => {
     provider: 'Brevo',
     sender: env.BREVO_SENDER_EMAIL,
     accountEmail: undefined as string | undefined,
+    error: err?.message || 'Check failed',
+  }));
+
+  const redisStatusPromise = verifyRedisConnection().catch((err) => ({
+    connected: false,
+    provider: 'Upstash Redis',
+    latencyMs: undefined as number | undefined,
+    error: err?.message || 'Check failed',
+  }));
+
+  const storageStatusPromise = verifyCloudinaryConnection().catch((err) => ({
+    connected: false,
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
     error: err?.message || 'Check failed',
   }));
 
@@ -50,7 +66,11 @@ router.get('/health', async (_req, res) => {
     dbLatencyMs = Date.now() - dbStart;
   }
 
-  const mailStatus = await mailStatusPromise;
+  const [mailStatus, redisStatus, storageStatus] = await Promise.all([
+    mailStatusPromise,
+    redisStatusPromise,
+    storageStatusPromise,
+  ]);
 
   const isHealthy = dbStatus === 'connected';
   res.status(isHealthy ? 200 : 503).json({
@@ -60,6 +80,18 @@ router.get('/health', async (_req, res) => {
       status: dbStatus,
       latencyMs: dbLatencyMs,
       ...(dbError ? { error: dbError } : {}),
+    },
+    redis: {
+      status: redisStatus.connected ? 'connected' : 'error',
+      provider: redisStatus.provider,
+      latencyMs: redisStatus.latencyMs,
+      error: redisStatus.error,
+    },
+    storage: {
+      status: storageStatus.connected ? 'connected' : 'error',
+      provider: 'Cloudinary',
+      cloudName: storageStatus.cloudName,
+      error: storageStatus.error,
     },
     email: {
       status: mailStatus.connected ? 'connected' : 'error',

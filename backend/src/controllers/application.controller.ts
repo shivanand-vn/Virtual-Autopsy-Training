@@ -240,3 +240,50 @@ export async function rejectApplication(req: AuthRequest, res: Response): Promis
     status: updatedApp.status,
   });
 }
+
+/**
+ * GET /api/applications/:id/cv
+ * Streams applicant's uploaded CV as an inline PDF
+ */
+export async function getApplicationCv(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const id = String(req.params.id);
+
+    const application = await prisma.application.findUnique({
+      where: { id },
+      select: { cvFileUrl: true, fullName: true },
+    });
+
+    if (!application) {
+      sendError(res, 'Application record not found.', 404);
+      return;
+    }
+
+    const cvUrl = application.cvFileUrl;
+    if (!cvUrl || !cvUrl.trim()) {
+      sendError(res, 'No CV document has been uploaded for this applicant.', 404);
+      return;
+    }
+
+    const upstreamRes = await fetch(cvUrl);
+    if (!upstreamRes.ok) {
+      console.error(`[getApplicationCv] Upstream storage fetch failed (${upstreamRes.status}) for: ${cvUrl}`);
+      sendError(res, 'Unable to retrieve CV document from storage.', 502);
+      return;
+    }
+
+    const cleanCandidateName = (application.fullName || 'Applicant').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const buffer = Buffer.from(await upstreamRes.arrayBuffer());
+
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${cleanCandidateName}_Curriculum_Vitae.pdf"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('[getApplicationCv] Error serving CV:', error);
+    sendError(res, 'Failed to load CV document', 500);
+  }
+}
+

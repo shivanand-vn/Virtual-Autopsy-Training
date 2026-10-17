@@ -67,19 +67,52 @@ const initialPaymentData: PaymentData = {
 const RegistrationFlowContext = createContext<RegistrationFlowContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_REG_KEY = 'virtual_autopsy_registration_email';
+const SESSION_STORAGE_DRAFT_KEY = 'vat_registration_draft';
+const SESSION_STORAGE_CV_KEY = 'vat_registration_cv_b64';
+
+function dataUrlToFile(dataUrl: string, filename: string): File | null {
+  try {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  } catch (e) {
+    console.error('Failed to reconstruct file from DataURL:', e);
+    return null;
+  }
+}
 
 export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [registrationData, setRegistrationData] = useState<RegistrationFormData>(() => {
+    let base = { ...initialRegistrationData };
     try {
+      const draftJson = sessionStorage.getItem(SESSION_STORAGE_DRAFT_KEY);
+      if (draftJson) {
+        const parsed = JSON.parse(draftJson);
+        base = { ...base, ...parsed };
+      }
+      const cvJson = sessionStorage.getItem(SESSION_STORAGE_CV_KEY);
+      if (cvJson) {
+        const parsedCv = JSON.parse(cvJson);
+        if (parsedCv?.dataUrl && parsedCv?.name) {
+          const file = dataUrlToFile(parsedCv.dataUrl, parsedCv.name);
+          if (file) base.cvFile = file;
+        }
+      }
       const savedEmail = localStorage.getItem(LOCAL_STORAGE_REG_KEY);
-      if (savedEmail) {
-        return { ...initialRegistrationData, email: savedEmail };
+      if (savedEmail && !base.email) {
+        base.email = savedEmail;
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed restoring registration draft:', e);
     }
-    return initialRegistrationData;
+    return base;
   });
 
   const [paymentData, setPaymentData] = useState<PaymentData>(initialPaymentData);
@@ -95,6 +128,12 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
           console.error(e);
         }
       }
+      try {
+        const { cvFile, ...textualFields } = updated;
+        sessionStorage.setItem(SESSION_STORAGE_DRAFT_KEY, JSON.stringify(textualFields));
+      } catch (e) {
+        console.error(e);
+      }
       return updated;
     });
   };
@@ -108,6 +147,23 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     try {
       if (data.email) {
         localStorage.setItem(LOCAL_STORAGE_REG_KEY, data.email.trim());
+      }
+      const { cvFile, ...textualFields } = data;
+      sessionStorage.setItem(SESSION_STORAGE_DRAFT_KEY, JSON.stringify(textualFields));
+
+      if (cvFile && cvFile.size <= 4.5 * 1024 * 1024) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            sessionStorage.setItem(
+              SESSION_STORAGE_CV_KEY,
+              JSON.stringify({ name: cvFile.name, dataUrl: reader.result })
+            );
+          } catch (e) {
+            console.warn('Could not cache CV in sessionStorage (exceeds quota)', e);
+          }
+        };
+        reader.readAsDataURL(cvFile);
       }
     } catch (e) {
       console.error(e);
@@ -202,6 +258,8 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     setStep(1);
     try {
       localStorage.removeItem(LOCAL_STORAGE_REG_KEY);
+      sessionStorage.removeItem(SESSION_STORAGE_DRAFT_KEY);
+      sessionStorage.removeItem(SESSION_STORAGE_CV_KEY);
     } catch (e) {
       console.error(e);
     }

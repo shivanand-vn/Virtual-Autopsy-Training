@@ -6,9 +6,9 @@ export type VatLogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export interface VatAnimatedLogoProps {
   /**
    * Animation mode preset:
-   * - 'scanner': Biometric forensic laser sweep with corner targeting reticles & radar pulse
-   * - 'pulse': Holographic organic breathing with concentric radar ripples
-   * - 'orbit': High-tech circular HUD reticle with counter-rotating rings
+   * - 'scanner': Precision laser sweep with corner targeting reticles
+   * - 'pulse': Holographic organic breathing with subtle sheen
+   * - 'orbit': Circular tech reticle with counter-rotating rings
    * - 'badge': Compact status badge with subtle live indicator
    * - 'minimal': Clean logo with subtle hover sheen
    */
@@ -95,11 +95,11 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
           interactive ? 'cursor-pointer' : ''
         }`}
         role={interactive || onClick ? 'button' : 'img'}
-        aria-label="Virtual Autopsy Biometric Identity Logo"
+        aria-label="Virtual Autopsy Logo"
       >
         {/* Mode: Orbit / Loader Reticles */}
         {mode === 'orbit' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-70">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
             <svg className={`${sizeConfig.reticle} animate-vat-spin`} viewBox="0 0 100 100">
               <circle
                 cx="50"
@@ -107,9 +107,9 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
                 r="46"
                 fill="none"
                 stroke="#facc15"
-                strokeWidth="0.8"
+                strokeWidth="1.2"
                 strokeDasharray="4 8 16 6"
-                opacity="0.7"
+                opacity="0.8"
               />
               <circle
                 cx="50"
@@ -117,9 +117,9 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
                 r="41"
                 fill="none"
                 stroke="#38bdf8"
-                strokeWidth="0.6"
+                strokeWidth="0.8"
                 strokeDasharray="10 14"
-                opacity="0.5"
+                opacity="0.6"
               />
             </svg>
             <svg className={`absolute ${sizeConfig.reticle} animate-vat-spin-reverse`} viewBox="0 0 100 100">
@@ -129,32 +129,19 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
                 r="36"
                 fill="none"
                 stroke="#f59e0b"
-                strokeWidth="1.2"
+                strokeWidth="1.4"
                 strokeDasharray="4 24"
-                opacity="0.6"
+                opacity="0.7"
               />
             </svg>
           </div>
         )}
 
-        {/* Mode: Scanner & Pulse Radar Rings */}
-        {(mode === 'scanner' || mode === 'pulse') && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-visible">
-            <div
-              className={`absolute rounded-full border border-amber-400/50 shadow-[0_0_12px_rgba(250,204,21,0.3)] animate-vat-radar ${sizeConfig.radar}`}
-            />
-            <div
-              className={`absolute rounded-full border border-sky-400/40 shadow-[0_0_10px_rgba(56,189,248,0.25)] animate-vat-radar ${sizeConfig.radar}`}
-              style={{ animationDelay: '0.9s' }}
-            />
-          </div>
-        )}
-
-        {/* Floating Logo Anchor */}
+        {/* Logo Container (Centered and Aligned) */}
         <div
           className={`relative ${sizeConfig.logo} transition-transform duration-200 ${
             mode === 'badge' ? '' : 'animate-vat-float'
-          } ${isPressed ? 'scale-110' : 'scale-100'}`}
+          } ${isPressed ? 'scale-105' : 'scale-100'}`}
         >
           {/* Scanner: Corner Reticle Brackets */}
           {mode === 'scanner' && (
@@ -166,7 +153,7 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
             </div>
           )}
 
-          {/* Scanner: High-Tech Vertical Laser Beam */}
+          {/* Scanner: Laser Beam */}
           {mode === 'scanner' && (
             <div
               className="absolute left-[-15%] right-[-15%] h-[2.5px] rounded-full bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_14px_2px_#facc15,0_0_24px_4px_#38bdf8] animate-vat-laser z-20 pointer-events-none"
@@ -185,10 +172,10 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
             <div className="absolute -inset-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-vat-sheen" />
           </div>
 
-          {/* High-Resolution Biometric Fingerprint Image */}
+          {/* High-Resolution Logo Image */}
           <img
             src="/vat-logo.png"
-            alt="Virtual Autopsy Fingerprint"
+            alt="Virtual Autopsy Logo"
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
             fetchPriority={priority ? 'high' : 'auto'}
@@ -202,17 +189,14 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
         </div>
       </div>
 
-      {/* Optional Branded Label Telemetry */}
-      {showLabel && (
-        <div className="mt-3 flex flex-col items-center text-center">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-xs font-mono font-bold tracking-widest text-white uppercase">
-              {labelTitle}
-            </span>
-          </div>
+      {/* Label (Clean text without unnecessary telemetry or dots) */}
+      {showLabel && labelTitle && (
+        <div className="mt-4 flex flex-col items-center text-center">
+          <span className="text-sm font-medium tracking-wide text-slate-200">
+            {labelTitle}
+          </span>
           {labelSubtitle && (
-            <span className="text-[10px] font-mono font-medium tracking-wider text-amber-400/90 uppercase mt-0.5">
+            <span className="text-xs text-slate-400 mt-1">
               {labelSubtitle}
             </span>
           )}

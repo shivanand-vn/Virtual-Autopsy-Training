@@ -18,9 +18,11 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { api, sanitizeErrorMessage } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
+  const { setAuthOverlay } = useAuth();
   const {
     registrationData,
     paymentData,
@@ -133,6 +135,11 @@ export const PaymentForm: React.FC = () => {
     setOtpError(null);
     setOtpSuccessMsg(null);
 
+    // If OTP verification takes more time (>250ms), activate scan overlay
+    const otpTimer = setTimeout(() => {
+      setAuthOverlay({ show: true, mode: 'scanner', title: 'Verifying code...' });
+    }, 250);
+
     try {
       const res = await api.post('/auth/verify-registration-otp', {
         email: confirmEmail.trim(),
@@ -144,6 +151,8 @@ export const PaymentForm: React.FC = () => {
     } catch (err: any) {
       setOtpError(sanitizeErrorMessage(err.message, 'Invalid or expired verification code.'));
     } finally {
+      clearTimeout(otpTimer);
+      setAuthOverlay(null);
       setIsVerifyingOtp(false);
     }
   };
@@ -256,12 +265,17 @@ export const PaymentForm: React.FC = () => {
       return;
     }
 
-    await processPayment(enteredEmail, {
-      cardholderName,
-      cardNumber,
-      expiryDate,
-      cvc,
-    });
+    setAuthOverlay({ show: true, mode: 'scanner', title: 'Registering user...' });
+    try {
+      await processPayment(enteredEmail, {
+        cardholderName,
+        cardNumber,
+        expiryDate,
+        cvc,
+      });
+    } finally {
+      setAuthOverlay(null);
+    }
   };
 
   const handleConfirmEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {

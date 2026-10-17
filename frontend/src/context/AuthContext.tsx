@@ -120,8 +120,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthOverlay({
       show: true,
       mode: 'scanner',
-      title: 'BIOMETRIC AUTHENTICATION',
-      subtitle: 'Verifying Security Credentials...',
+      title: 'Verifying user...',
     });
     const startTime = Date.now();
     try {
@@ -140,7 +139,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setStoredUser(updatedUser);
       window.dispatchEvent(new Event('auth-login'));
 
-      // Ensure smooth perceived scan window (min 650ms) so user visibly experiences the biometric scan
       const elapsed = Date.now() - startTime;
       if (elapsed < 650) {
         await new Promise((r) => setTimeout(r, 650 - elapsed));
@@ -157,9 +155,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     setAuthOverlay({
       show: true,
-      mode: 'pulse',
-      title: 'TERMINATING SESSION',
-      subtitle: 'Signing out from Virtual Autopsy LMS...',
+      mode: 'orbit',
+      title: 'Signing out...',
     });
     const startTime = Date.now();
     try {
@@ -171,7 +168,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setToken(null);
 
-      // Ensure smooth perceived logout pulse (min 600ms)
       const elapsed = Date.now() - startTime;
       if (elapsed < 600) {
         await new Promise((r) => setTimeout(r, 600 - elapsed));
@@ -244,21 +240,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAuthOverlay,
       }}
     >
-      {/* Global Biometric Authentication & Session Overlay */}
+      {/* Global Session & Action Overlay */}
       {authOverlay?.show && (
         <div className="fixed inset-0 z-[9999] bg-[#050c17]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
           <VatAnimatedLogo
             mode={authOverlay.mode || 'scanner'}
             size="lg"
             showLabel={true}
-            labelTitle={authOverlay.title || 'VIRTUAL AUTOPSY'}
-            labelSubtitle={authOverlay.subtitle || 'Verifying Security Session...'}
+            labelTitle={authOverlay.title}
+            labelSubtitle={authOverlay.subtitle}
             priority={true}
           />
-          <div className="mt-4 flex items-center gap-2 font-mono text-[11px] text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-            <span>Biometric LMS Security Handshake</span>
-          </div>
         </div>
       )}
 

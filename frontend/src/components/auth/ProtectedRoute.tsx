@@ -51,11 +51,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
         <VatAnimatedLogo
-          mode="scanner"
+          mode="orbit"
           size="md"
           showLabel={true}
-          labelTitle="VIRTUAL AUTOPSY"
-          labelSubtitle="Verifying Security Session..."
+          labelTitle="Loading..."
           priority={true}
         />
       </div>
@@ -102,11 +101,10 @@ export const PublicOnlyRoute: React.FC<PublicOnlyRouteProps> = ({ children }) =>
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
         <VatAnimatedLogo
-          mode="pulse"
+          mode="orbit"
           size="md"
           showLabel={true}
-          labelTitle="VIRTUAL AUTOPSY"
-          labelSubtitle="Loading Portal..."
+          labelTitle="Loading..."
           priority={true}
         />
       </div>

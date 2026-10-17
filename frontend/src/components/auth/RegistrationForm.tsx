@@ -13,7 +13,6 @@ import { validateMobileNumber, getCountryIso } from '../../utils/phoneValidation
 import { api, sanitizeErrorMessage } from '../../lib/api';
 import { AlertCircle } from 'lucide-react';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
-import { VatAnimatedLogo } from '../common/VatAnimatedLogo';
 
 const QUALIFICATION_OPTIONS = [
   { value: 'Medical Doctors', label: 'Medical Doctors' },
@@ -161,7 +160,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       <div className="shrink-0 pb-1.5 space-y-2">
         <div className="flex items-center justify-between gap-4">
           <StatusBadge>APPLICATION FORM</StatusBadge>
-          <VatAnimatedLogo mode="minimal" size="xs" priority={true} />
         </div>
 
         {/* Step 1 Indicator */}

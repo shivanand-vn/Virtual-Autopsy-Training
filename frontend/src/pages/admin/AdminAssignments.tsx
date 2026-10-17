@@ -163,7 +163,7 @@ export const AdminAssignmentsPage: React.FC = () => {
   };
 
   return (
-    <AdminLayout title="Assignment Submissions" subtitle="Review & grade student assignment submissions">
+    <AdminLayout title="Assignment Submissions" subtitle="Assignments">
       <div className="space-y-6">
         {/* Top Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -241,15 +241,15 @@ export const AdminAssignmentsPage: React.FC = () => {
         {/* Submissions Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed">
+            <table className="w-full text-left text-xs table-fixed min-w-[950px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="w-1/4 py-3.5 px-4 font-bold text-left">STUDENT</th>
-                  <th className="w-1/4 py-3.5 px-4 font-bold text-left">COURSE & MODULE</th>
-                  <th className="w-1/4 py-3.5 px-4 font-bold text-left">TOPIC TITLE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">SUBMITTED DATE</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">STATUS</th>
-                  <th className="w-1/6 py-3.5 px-4 font-bold text-center">ACTIONS</th>
+                  <th className="w-[220px] py-3.5 px-4 font-bold text-left">STUDENT</th>
+                  <th className="w-[210px] py-3.5 px-4 font-bold text-left">COURSE & MODULE</th>
+                  <th className="w-[180px] py-3.5 px-4 font-bold text-left">TOPIC TITLE</th>
+                  <th className="w-[120px] py-3.5 px-4 font-bold text-center">SUBMITTED DATE</th>
+                  <th className="w-[120px] py-3.5 px-4 font-bold text-center">STATUS</th>
+                  <th className="w-[100px] py-3.5 px-4 font-bold text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

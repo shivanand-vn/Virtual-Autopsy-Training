@@ -78,7 +78,7 @@ export const AdminCoursesPage: React.FC = () => {
   );
 
   return (
-    <AdminLayout title="Course Management" subtitle="Manage courses, modules, and topic curriculum structure.">
+    <AdminLayout title="Course Management" subtitle="Courses">
       <div className="space-y-6 pb-12">
         {/* Top Header Card */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -149,7 +149,7 @@ export const AdminCoursesPage: React.FC = () => {
         {/* Courses Table / List */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[750px]">
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-mono text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4 font-bold">Course Name</th>

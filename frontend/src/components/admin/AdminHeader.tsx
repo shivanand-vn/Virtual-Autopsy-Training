@@ -28,7 +28,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1 mr-2 sm:mr-4">
         {onMenuToggle && (
           <button
             onClick={onMenuToggle}
@@ -37,13 +37,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <Menu className="w-5 h-5" />
           </button>
         )}
-        <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500">
-            <span className="font-semibold text-[#0A192F]">ADMIN</span>
-            <span>/</span>
-            <span className="text-amber-700 font-bold">{subtitle}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center space-x-1.5 text-[11px] sm:text-xs font-semibold text-slate-500 min-w-0">
+            <span className="font-semibold text-[#0A192F] shrink-0">ADMIN</span>
+            <span className="shrink-0">/</span>
+            <span className="text-amber-700 font-bold truncate max-w-[160px] sm:max-w-xs md:max-w-md lg:max-w-none">{subtitle}</span>
           </div>
-          <h1 className="text-lg font-bold text-[#0A192F]">{title}</h1>
+          <h1 className="text-base sm:text-lg font-bold text-[#0A192F] truncate">{title}</h1>
         </div>
       </div>
 

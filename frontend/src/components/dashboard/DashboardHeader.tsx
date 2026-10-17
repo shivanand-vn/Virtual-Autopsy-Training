@@ -29,29 +29,29 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1 mr-2 sm:mr-4">
         {onMenuToggle && (
           <button
             onClick={onMenuToggle}
-            className="md:hidden text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100"
+            className="md:hidden text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100 shrink-0"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
-        <div>
-          <div className="flex items-center space-x-2 text-xs sm:text-sm font-semibold text-slate-500">
-            <span className="font-semibold text-[#0A192F]">ACADEMY</span>
-            <span>/</span>
-            <span>STUDENT PORTAL</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center space-x-1.5 text-[10px] sm:text-xs font-semibold text-slate-500 min-w-0">
+            <span className="font-semibold text-[#0A192F] shrink-0">ACADEMY</span>
+            <span className="shrink-0">/</span>
+            <span className="shrink-0 hidden xs:inline sm:inline">STUDENT PORTAL</span>
+            <span className="shrink-0 hidden xs:inline sm:inline">/</span>
             {subtitle && (
-              <>
-                <span>/</span>
-                <span className="text-amber-700 font-bold uppercase">{subtitle}</span>
-              </>
+              <span className="text-amber-700 font-bold uppercase truncate">
+                {subtitle.replace(/^ACADEMY\s*\/\s*STUDENT PORTAL\s*\/\s*/i, '').trim()}
+              </span>
             )}
           </div>
           {title && (
-            <h1 className="text-lg font-extrabold text-[#0A192F] mt-0.5">{title}</h1>
+            <h1 className="text-base sm:text-lg font-extrabold text-[#0A192F] mt-0.5 truncate">{title}</h1>
           )}
         </div>
       </div>

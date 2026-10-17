@@ -405,7 +405,7 @@ export const AdminAssignmentCreationPage: React.FC = () => {
   };
 
   return (
-    <AdminLayout title="Assignment Creation" subtitle="Create, configure, and publish practical case assignments for course modules.">
+    <AdminLayout title="Assignment Creation" subtitle="Assignments">
       <div className="space-y-6 pb-12">
         {/* Toast Notification */}
         {toastMessage && (

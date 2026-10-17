@@ -91,7 +91,9 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
       {/* Animated Core Viewport */}
       <div
         onClick={handleClick}
-        className={`relative flex items-center justify-center ${sizeConfig.container} ${
+        className={`relative flex items-center justify-center ${
+          mode === 'orbit' ? sizeConfig.reticle : sizeConfig.container
+        } ${
           interactive ? 'cursor-pointer' : ''
         }`}
         role={interactive || onClick ? 'button' : 'img'}
@@ -100,7 +102,7 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
         {/* Mode: Orbit / Loader Reticles */}
         {mode === 'orbit' && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
-            <svg className={`${sizeConfig.reticle} animate-vat-spin`} viewBox="0 0 100 100">
+            <svg className="w-full h-full animate-vat-spin" viewBox="0 0 100 100">
               <circle
                 cx="50"
                 cy="50"
@@ -122,7 +124,7 @@ export const VatAnimatedLogo: React.FC<VatAnimatedLogoProps> = memo(({
                 opacity="0.6"
               />
             </svg>
-            <svg className={`absolute ${sizeConfig.reticle} animate-vat-spin-reverse`} viewBox="0 0 100 100">
+            <svg className="absolute w-full h-full animate-vat-spin-reverse" viewBox="0 0 100 100">
               <circle
                 cx="50"
                 cy="50"

@@ -33,10 +33,10 @@ export interface VatAnimatedLogoProps {
 
 const SIZE_MAP: Record<VatLogoSize, { container: string; logo: string; radar: string; reticle: string }> = {
   xs: {
-    container: 'w-10 h-11',
-    logo: 'w-7 aspect-[376/418]',
-    radar: 'w-14 h-14',
-    reticle: 'w-16 h-16',
+    container: 'w-8 h-8',
+    logo: 'w-4 aspect-[376/418]',
+    radar: 'w-10 h-10',
+    reticle: 'w-8 h-8',
   },
   sm: {
     container: 'w-16 h-18',

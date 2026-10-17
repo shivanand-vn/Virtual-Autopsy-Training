@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
+import { VatAnimatedLogo } from '../../components/common/VatAnimatedLogo';
 import { api, API_BASE_URL, getAuthToken } from '../../lib/api';
 
 export interface UserRecord {
@@ -666,7 +667,7 @@ export const AdminUsersPage: React.FC = () => {
             {viewingCvUser.cvUrl ? (
               isPdfLoading ? (
                 <div className="w-full h-[640px] rounded-2xl border border-slate-200 bg-slate-50 flex flex-col items-center justify-center space-y-3">
-                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                  <VatAnimatedLogo mode="orbit" size="xs" priority={true} />
                   <p className="text-xs font-bold text-slate-800">Loading Candidate CV Document...</p>
                   <p className="text-[11px] text-slate-500">Preparing high-resolution credentials preview</p>
                 </div>

@@ -194,7 +194,7 @@ export const FinalExamPage: React.FC = () => {
 
   if (!publishedExam) {
     return (
-      <DashboardLayout headerTitle="Final Examination" headerSubtitle="ACADEMY / STUDENT PORTAL / FINAL EXAM">
+      <DashboardLayout headerTitle="Final Examination" headerSubtitle="FINAL EXAM">
         <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center space-y-4 max-w-xl mx-auto my-12">
           <div className="w-16 h-16 bg-amber-100 border border-amber-300 text-amber-800 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
             <GraduationCap className="w-8 h-8" />
@@ -299,7 +299,7 @@ export const FinalExamPage: React.FC = () => {
   };
 
   return (
-    <DashboardLayout headerTitle={publishedExam.title} headerSubtitle="ACADEMY / STUDENT PORTAL / FINAL EXAM">
+    <DashboardLayout headerTitle={publishedExam.title} headerSubtitle="FINAL EXAM">
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
 
         {/* STAGE 1: INTRO SCREEN */}

@@ -354,9 +354,9 @@ export const DashboardPage: React.FC = () => {
                     >
                       <div
                         onClick={() => toggleModule(mod.id)}
-                        className="p-4 flex items-center justify-between cursor-pointer select-none"
+                        className="p-3.5 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-4 cursor-pointer select-none"
                       >
-                        <div className="flex items-center space-x-3.5 min-w-0">
+                        <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0 flex-1">
                           <div
                             className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
                               modStatus === 'completed'
@@ -368,23 +368,23 @@ export const DashboardPage: React.FC = () => {
                           >
                             0{mod.moduleNumber}
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm text-[#0A192F] truncate">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-xs sm:text-sm text-[#0A192F] truncate">
                               {mod.title}
                             </h4>
-                            <div className="flex items-center space-x-2 text-xs text-slate-500 mt-0.5">
-                              <span>{modDoneTopics}/{modTopics.length} Topics Completed</span>
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-xs text-slate-500 mt-0.5">
+                              <span className="truncate">{modDoneTopics}/{modTopics.length} <span className="hidden xs:inline">Topics </span>Completed</span>
                               <span>•</span>
                               <span>{mod.duration}</span>
-                              <span>•</span>
-                              <span className="text-amber-700 font-medium">{mod.cmeCredits} CME Pts</span>
+                              <span className="hidden sm:inline">•</span>
+                              <span className="text-amber-700 font-medium hidden sm:inline">{mod.cmeCredits} CME Pts</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-3 shrink-0">
+                        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
                           {modStatus === 'completed' ? (
-                            <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
                               ✓ Completed
                             </span>
                           ) : assessmentUnlocked ? (
@@ -393,20 +393,20 @@ export const DashboardPage: React.FC = () => {
                                 e.stopPropagation();
                                 navigate(`/assessment/${mod.id}`);
                               }}
-                              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer"
+                              className="px-2.5 sm:px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap"
                             >
-                              Take Assessment
+                              Take <span className="hidden sm:inline">Assessment</span><span className="sm:hidden">Test</span>
                             </button>
                           ) : (
-                            <span className="text-[11px] px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                              🔒 Assessment Locked
+                            <span className="text-[10px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full font-bold bg-slate-100 text-slate-500 border border-slate-200 whitespace-nowrap">
+                              <span>🔒 </span><span className="hidden sm:inline">Assessment </span>Locked
                             </span>
                           )}
 
                           {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-slate-400" />
+                            <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                            <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                           )}
                         </div>
                       </div>

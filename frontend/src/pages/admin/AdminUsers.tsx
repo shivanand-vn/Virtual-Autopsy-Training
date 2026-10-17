@@ -477,7 +477,7 @@ export const AdminUsersPage: React.FC = () => {
         {/* Users Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed">
+            <table className="w-full text-left text-xs table-fixed min-w-[1050px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
                   <th className="py-3.5 px-4 font-bold w-[220px] text-left">USER</th>

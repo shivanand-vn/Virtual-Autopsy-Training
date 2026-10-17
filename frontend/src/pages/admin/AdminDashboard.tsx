@@ -200,7 +200,7 @@ export const AdminDashboardPage: React.FC = () => {
 
               {recentApplications.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs table-fixed">
+                  <table className="w-full text-left text-xs table-fixed min-w-[650px]">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
                         <th className="w-[36%] py-3 px-3">APPLICANT</th>
@@ -250,7 +250,7 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               ) : hasApplicant ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs table-fixed">
+                  <table className="w-full text-left text-xs table-fixed min-w-[650px]">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
                         <th className="w-[36%] py-3 px-3">APPLICANT</th>
@@ -318,7 +318,7 @@ export const AdminDashboardPage: React.FC = () => {
 
               {payments.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs table-fixed">
+                  <table className="w-full text-left text-xs table-fixed min-w-[650px]">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
                         <th className="w-[30%] py-2.5 px-3">TRANSACTION ID</th>

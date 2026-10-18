@@ -81,7 +81,7 @@ export const AdminExamDetailPage: React.FC = () => {
     <AdminLayout title={exam.title} subtitle="Exams">
       <div className="space-y-6 max-w-5xl mx-auto pb-12">
         {/* Navigation & Controls */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <Link
             to="/admin/exams"
             className="inline-flex items-center space-x-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors"
@@ -90,10 +90,10 @@ export const AdminExamDetailPage: React.FC = () => {
             <span>Back to Final Exams</span>
           </Link>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link
               to={`/admin/exams/${exam.id}/edit`}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-2"
+              className="flex-1 sm:flex-none px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors inline-flex items-center justify-center space-x-2"
             >
               <Edit className="w-4 h-4" />
               <span>Edit Exam</span>
@@ -101,7 +101,7 @@ export const AdminExamDetailPage: React.FC = () => {
 
             <button
               onClick={handleTogglePublish}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors ${
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-colors ${
                 exam.status === 'published'
                   ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -214,48 +214,50 @@ export const AdminExamDetailPage: React.FC = () => {
           </div>
 
           {/* 3 TABS */}
-          <div className="flex border-b border-slate-200 gap-2">
-            <button
-              onClick={() => setActiveSetTab('set1')}
-              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set1'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <span>Question Set 1 (Attempt 1)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
-                {set1.length} Qs
-              </span>
-            </button>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <div className="flex border-b border-slate-200 gap-1 min-w-max">
+              <button
+                onClick={() => setActiveSetTab('set1')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set1'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>Set 1 (Attempt 1)</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                  {set1.length} Qs
+                </span>
+              </button>
 
-            <button
-              onClick={() => setActiveSetTab('set2')}
-              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set2'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <span>Question Set 2 (Attempt 2)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
-                {set2.length} Qs
-              </span>
-            </button>
+              <button
+                onClick={() => setActiveSetTab('set2')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set2'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>Set 2 (Attempt 2)</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                  {set2.length} Qs
+                </span>
+              </button>
 
-            <button
-              onClick={() => setActiveSetTab('set3')}
-              className={`px-4 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set3'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <span>Question Set 3 (Attempt 3 - Final)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
-                {set3.length} Qs
-              </span>
-            </button>
+              <button
+                onClick={() => setActiveSetTab('set3')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set3'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>Set 3 (Attempt 3 - Final)</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-slate-700">
+                  {set3.length} Qs
+                </span>
+              </button>
+            </div>
           </div>
 
           {activeQuestions.length === 0 ? (

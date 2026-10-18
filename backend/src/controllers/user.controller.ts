@@ -46,44 +46,91 @@ export async function getAllUsers(req: AuthRequest, res: Response): Promise<void
       }
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        avatar: true,
-        title: true,
-        organization: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        application: {
+    let users: any[];
+    try {
+      users = await prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          avatar: true,
+          title: true,
+          organization: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          application: {
+            select: {
+              id: true,
+              qualification: true,
+              professionalRole: true,
+              organization: true,
+              countryCode: true,
+              phoneNumber: true,
+              consent: true,
+              marketingConsent: true,
+              cvFileUrl: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+          _count: {
+            select: {
+              courseProgress: true,
+              submissions: true,
+              certificates: true,
+            },
+          },
+        },
+      });
+    } catch (queryErr: any) {
+      // Graceful fallback if local @prisma/client has not been regenerated with marketingConsent yet
+      if (queryErr?.message?.includes('marketingConsent')) {
+        console.warn('[getAllUsers] Outdated local Prisma client detected; falling back to query without marketingConsent');
+        users = await prisma.user.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
           select: {
             id: true,
-            qualification: true,
-            professionalRole: true,
+            email: true,
+            fullName: true,
+            role: true,
+            avatar: true,
+            title: true,
             organization: true,
-            countryCode: true,
-            phoneNumber: true,
-            consent: true,
-            marketingConsent: true,
-            cvFileUrl: true,
-            status: true,
+            isActive: true,
             createdAt: true,
+            updatedAt: true,
+            application: {
+              select: {
+                id: true,
+                qualification: true,
+                professionalRole: true,
+                organization: true,
+                countryCode: true,
+                phoneNumber: true,
+                consent: true,
+                cvFileUrl: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+            _count: {
+              select: {
+                courseProgress: true,
+                submissions: true,
+                certificates: true,
+              },
+            },
           },
-        },
-        _count: {
-          select: {
-            courseProgress: true,
-            submissions: true,
-            certificates: true,
-          },
-        },
-      },
-    });
+        });
+      } else {
+        throw queryErr;
+      }
+    }
 
     sendSuccess(res, 'Users retrieved successfully', { users });
   } catch (error: any) {

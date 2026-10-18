@@ -361,7 +361,7 @@ export const AdminExamFormPage: React.FC = () => {
     <AdminLayout title={isEditMode ? 'Edit Final Exam' : 'Create Final Exam'} subtitle="Exams">
       <div className="space-y-6 max-w-5xl mx-auto pb-12">
         {/* Header Bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <Link
             to="/admin/exams"
             className="inline-flex items-center space-x-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors"
@@ -370,17 +370,17 @@ export const AdminExamFormPage: React.FC = () => {
             <span>Back to Final Exams</span>
           </Link>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleSaveExam('draft')}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors inline-flex items-center space-x-2"
+              className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors inline-flex items-center justify-center space-x-2"
             >
               <Save className="w-4 h-4" />
               <span>Save as Draft</span>
             </button>
             <button
               onClick={() => handleSaveExam('published')}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm inline-flex items-center space-x-2"
+              className="flex-1 sm:flex-none px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-sm inline-flex items-center justify-center space-x-2"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>Publish Exam</span>
@@ -404,11 +404,11 @@ export const AdminExamFormPage: React.FC = () => {
 
         {/* Exam Metadata Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3 gap-2">
             <h3 className="font-extrabold text-base text-[#0A192F]">
               Final Exam Details & Accreditation Policy
             </h3>
-            <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 self-start sm:self-center">
               Strict 70% Pass Rule • 3-Set Dynamic Engine
             </span>
           </div>
@@ -526,51 +526,53 @@ export const AdminExamFormPage: React.FC = () => {
           </div>
 
           {/* 3 TABS */}
-          <div className="flex border-b border-slate-200 gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveSetTab('set1')}
-              className={`px-4 py-3 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set1'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              <span>Question Set 1 (Attempt 1)</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set1' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {set1Questions.length} Qs • {set1Marks} Pts
-              </span>
-            </button>
+          <div className="overflow-x-auto -mx-1 px-1 pb-0">
+            <div className="flex border-b border-slate-200 gap-1 min-w-max">
+              <button
+                type="button"
+                onClick={() => setActiveSetTab('set1')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set1'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <span>Set 1 (Attempt 1)</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set1' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  {set1Questions.length} Qs • {set1Marks} Pts
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveSetTab('set2')}
-              className={`px-4 py-3 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set2'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              <span>Question Set 2 (Attempt 2)</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set2' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {set2Questions.length} Qs • {set2Marks} Pts
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveSetTab('set2')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set2'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <span>Set 2 (Attempt 2)</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set2' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  {set2Questions.length} Qs • {set2Marks} Pts
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveSetTab('set3')}
-              className={`px-4 py-3 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 ${
-                activeSetTab === 'set3'
-                  ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
-                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              <span>Question Set 3 (Attempt 3 - Final)</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set3' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                {set3Questions.length} Qs • {set3Marks} Pts
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveSetTab('set3')}
+                className={`px-3 py-2.5 text-xs font-black rounded-t-2xl transition-all border-b-2 flex items-center space-x-2 whitespace-nowrap ${
+                  activeSetTab === 'set3'
+                    ? 'border-amber-500 text-amber-900 bg-amber-50/60 shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <span>Set 3 (Attempt 3 - Final)</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${activeSetTab === 'set3' ? 'bg-amber-200/60 text-amber-950 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  {set3Questions.length} Qs • {set3Marks} Pts
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Active Question List */}
@@ -589,13 +591,13 @@ export const AdminExamFormPage: React.FC = () => {
                   key={q.id}
                   className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 hover:border-slate-300 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-7 h-7 bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <span className="w-7 h-7 bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center flex-shrink-0">
                         {String(idx + 1).padStart(2, '0')}
                       </span>
                       <span className="text-[10px] uppercase font-extrabold tracking-wider bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
-                        {q.type.replace('-', ' ')}
+                        {q.type.replace(/-/g, ' ')}
                       </span>
                       <span className="text-xs font-bold text-amber-700">
                         {q.marks} Mark{q.marks > 1 ? 's' : ''}

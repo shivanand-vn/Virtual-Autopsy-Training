@@ -1940,117 +1940,16 @@ export const AdminCourseForm: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Content Type *</label>
-                    <select
-                      value={topicContentType}
-                      onChange={(e) => setTopicContentType(e.target.value as ContentType)}
-                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
-                    >
-                      <option value="video">Video</option>
-                      <option value="theory">Theory</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#0A192F] mb-1">Topic Status *</label>
-                    <select
-                      value={topicStatus}
-                      onChange={(e) => setTopicStatus(e.target.value as 'draft' | 'published')}
-                      className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
-                    >
-                      <option value="published">Published</option>
-                      <option value="draft">Draft</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* THUMBNAIL IMAGE (DIRECT APPLICATION UPLOAD ONLY) */}
-                <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                    <label className="text-xs font-extrabold text-[#0A192F] uppercase tracking-wider flex items-center space-x-1.5">
-                      <ImageIcon className="w-4 h-4 text-amber-500" />
-                      <span>Thumbnail Image (Optional)</span>
-                    </label>
-                    <span className="text-[10px] text-slate-400 font-semibold">Direct upload only</span>
-                  </div>
-
-                  {thumbnailUploadError && (
-                    <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center space-x-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                      <span>{thumbnailUploadError}</span>
-                    </div>
-                  )}
-
-                  <div>
-                    {isUploadingThumbnail ? (
-                      <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                          <div className="flex items-center space-x-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                            <span>
-                              {thumbnailUploadProgress < 100
-                                ? `Uploading thumbnail (${thumbnailUploadProgress}%)...`
-                                : 'Finalizing image upload...'}
-                            </span>
-                          </div>
-                          <span className="font-mono text-amber-700">{thumbnailUploadProgress}%</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
-                          <div
-                            className="bg-amber-500 h-2 rounded-full transition-all duration-200 ease-out"
-                            style={{ width: `${Math.max(5, thumbnailUploadProgress)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : (topicThumbnail || thumbnailLocalPreview) ? (
-                      <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                        <div className="flex items-center space-x-2.5 min-w-0">
-                          <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden relative">
-                            <ImageIcon className="w-6 h-6 text-slate-400" />
-                            {(thumbnailLocalPreview || topicThumbnail) && (
-                              <img
-                                src={thumbnailLocalPreview || topicThumbnail}
-                                alt="Thumbnail preview"
-                                className="w-full h-full object-cover absolute inset-0"
-                                onError={(e) => {
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-800 truncate">{uploadedThumbnailFileName || 'Uploaded Thumbnail'}</p>
-                            <p className="text-[10px] text-emerald-600 font-semibold flex items-center">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Uploaded successfully
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={isDeletingThumbnail}
-                          onClick={handleRemoveThumbnail}
-                          className="text-xs font-bold text-rose-600 hover:text-rose-700 ml-2 cursor-pointer disabled:opacity-50"
-                        >
-                          {isDeletingThumbnail ? 'Removing...' : 'Remove'}
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="w-full p-4 bg-white border border-dashed border-slate-300 hover:border-amber-500 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-colors space-y-1.5 text-center">
-                        <Upload className="w-6 h-6 text-amber-600" />
-                        <span className="text-xs font-bold text-slate-800">+ Select Image File (JPG, PNG, WebP)</span>
-                        <span className="text-[10px] text-slate-400">Direct upload to secure storage (Max 10MB)</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleThumbnailFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1">Content Type *</label>
+                  <select
+                    value={topicContentType}
+                    onChange={(e) => setTopicContentType(e.target.value as ContentType)}
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 font-bold"
+                  >
+                    <option value="video">Video</option>
+                    <option value="theory">Theory</option>
+                  </select>
                 </div>
 
                 {/* CONDITIONALLY RENDER CONTENT INPUT BASED ON TYPE */}

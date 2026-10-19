@@ -22,7 +22,7 @@ export const AssignmentsPage: React.FC = () => {
   const [narrativeText, setNarrativeText] = useState(
     `1. Cranial Calvarium & Base: Multi-slice volumetric 3D reconstruction reveals an oblique non-displaced fracture traversing the right squamous temporal bone extending directly through the petrous ridge into the middle cranial fossa.\n2. Extra-Axial Spaces: Right hemispheric crescentic hyperdense extra-axial mass compatible with acute subdural hematoma (mean attenuation: 68.4 HU, range 62-74 HU; maximum thickness 14.2 mm).`
   );
-  const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'graded' | 'locked'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'graded' | 'available'>('all');
 
   return (
     <DashboardLayout>
@@ -87,12 +87,12 @@ export const AssignmentsPage: React.FC = () => {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PREREQUISITE LOCKED</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">01 <span className="text-xs font-normal text-slate-400">Assessment</span></h3>
-              <p className="text-xs text-slate-500 mt-0.5">Gate Condition: Pass Module 03</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">DIRECT ACCESS</p>
+              <h3 className="text-2xl font-black text-[#0A192F] mt-1">Open <span className="text-xs font-normal text-slate-400">Access</span></h3>
+              <p className="text-xs text-emerald-600 font-bold mt-0.5">No Admin Approval Required</p>
             </div>
-            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center">
-              <Lock className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ export const AssignmentsPage: React.FC = () => {
         {/* Filter Bar */}
         <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200/80">
           <div className="flex items-center space-x-2">
-            {(['all', 'pending', 'graded', 'locked'] as const).map((tab) => (
+            {(['all', 'pending', 'graded', 'available'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
@@ -351,7 +351,7 @@ export const AssignmentsPage: React.FC = () => {
                     ) : asg.status === 'pending' ? (
                       <Clock className="w-5 h-5" />
                     ) : (
-                      <Lock className="w-5 h-5" />
+                      <FileText className="w-5 h-5" />
                     )}
                   </div>
                   <div className="min-w-0">
@@ -378,9 +378,9 @@ export const AssignmentsPage: React.FC = () => {
                       ? 'bg-emerald-100 text-emerald-800'
                       : asg.status === 'pending'
                       ? 'bg-amber-100 text-amber-800'
-                      : 'bg-slate-100 text-slate-500'
+                      : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {asg.status === 'graded' ? 'Submitted ✓' : asg.status === 'pending' ? 'Action Required' : 'Locked'}
+                    {asg.status === 'graded' ? 'Submitted ✓' : asg.status === 'pending' ? 'Action Required' : 'Available'}
                   </span>
 
                   {asg.status === 'graded' && (

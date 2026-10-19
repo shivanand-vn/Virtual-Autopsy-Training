@@ -9,10 +9,16 @@ import { FileUpload, MAX_FILE_SIZE, MAX_FILE_SIZE_ERROR } from '../common/FileUp
 import { Checkbox } from '../common/Checkbox';
 import { PrimaryButton } from '../common/PrimaryButton';
 import { StatusBadge } from '../common/StatusBadge';
-import { validateMobileNumber, getCountryIso } from '../../utils/phoneValidation';
+import { validateMobileNumber, getCountryIso, ALL_COUNTRIES } from '../../utils/phoneValidation';
 import { api, sanitizeErrorMessage } from '../../lib/api';
 import { AlertCircle } from 'lucide-react';
 import type { RegistrationFormData, FormErrors } from '../../types/auth';
+import type { CountryCode } from 'libphonenumber-js/max';
+
+const COUNTRY_OPTIONS = ALL_COUNTRIES.map((c) => ({
+  value: c.iso,
+  label: c.label,
+}));
 
 const QUALIFICATION_OPTIONS = [
   { value: 'Medical Doctors', label: 'Medical Doctors' },
@@ -46,11 +52,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
   }, [registrationData]);
 
   // Step 1 Validation Order:
-  // 1. Required registration fields
+  // 1. Required registration fields (Full Name, Email, Country, Reg Number)
   // 2. Email format
-  // 3. Optional country-specific phone number validation (only if provided)
-  // 4. CV/file upload requirements
-  // 5. Privacy consent
+  // 3. Country-specific phone number validation (if entered)
+  // 4. Qualification & Organization requirements
+  // 5. CV/file upload requirements
+  // 6. Privacy consent
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -64,10 +71,20 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       newErrors.email = 'Please enter a valid email address.';
     }
 
-    // Phone number is optional per requirements. Only validate if user typed a number.
-    const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
+    // Country selection is mandatory
+    if (!formData.country?.trim() && !formData.countryIso?.trim()) {
+      newErrors.country = 'Please select your country.';
+    }
+
+    // Registration Number is mandatory
+    if (!formData.regNumber?.trim()) {
+      newErrors.regNumber = 'Registration Number is required.';
+    }
+
+    // Mobile number validation
+    const currentIso = (formData.countryIso as CountryCode) || getCountryIso(formData.countryCode, formData.countryIso);
     if (formData.phoneNumber.trim()) {
-      const phoneValidation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode);
+      const phoneValidation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode, formData.country);
       if (!phoneValidation.isValid) {
         newErrors.phoneNumber = phoneValidation.error || 'Please enter a valid mobile number for the selected country.';
       }
@@ -154,6 +171,85 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
     }
   };
 
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedIso = e.target.value as CountryCode;
+    const countryObj = ALL_COUNTRIES.find((c) => c.iso === selectedIso);
+    const countryName = countryObj ? countryObj.name : selectedIso;
+    const callingCode = countryObj ? countryObj.code : '+44';
+
+    setFormData((prev) => ({
+      ...prev,
+      country: countryName,
+      countryIso: selectedIso,
+      countryCode: callingCode,
+    }));
+
+    setErrors((prev) => {
+      const updated = { ...prev };
+      delete updated.country;
+      return updated;
+    });
+
+    // Dynamic country-specific re-validation if user has already entered a phone number
+    if (formData.phoneNumber.trim()) {
+      const validation = validateMobileNumber(formData.phoneNumber, selectedIso, callingCode, countryName);
+      if (!validation.isValid) {
+        setErrors((prev) => ({
+          ...prev,
+          phoneNumber: validation.error || `Please enter a valid mobile number for ${countryName}.`,
+        }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          delete updated.phoneNumber;
+          return updated;
+        });
+      }
+    }
+  };
+
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setFormData((prev) => ({ ...prev, phoneNumber: val }));
+
+    const currentIso = (formData.countryIso as CountryCode) || getCountryIso(formData.countryCode, formData.countryIso);
+    if (!val.trim()) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated.phoneNumber;
+        return updated;
+      });
+    } else if (errors.phoneNumber) {
+      const validation = validateMobileNumber(val, currentIso, formData.countryCode, formData.country);
+      if (validation.isValid) {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          delete updated.phoneNumber;
+          return updated;
+        });
+      }
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (formData.phoneNumber.trim()) {
+      const currentIso = (formData.countryIso as CountryCode) || getCountryIso(formData.countryCode, formData.countryIso);
+      const validation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode, formData.country);
+      if (!validation.isValid) {
+        setErrors((prev) => ({
+          ...prev,
+          phoneNumber: validation.error || `Please enter a valid mobile number for ${formData.country || 'the selected country'}.`,
+        }));
+      } else {
+        setErrors((prev) => {
+          const updated = { ...prev };
+          delete updated.phoneNumber;
+          return updated;
+        });
+      }
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-card-lg border border-slate-200/80 p-6 sm:p-8 lg:p-8 h-full min-h-full flex flex-col justify-between overflow-hidden">
       {/* Top Header Card Info */}
@@ -236,93 +332,47 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           />
         </div>
 
-        {/* Row 2: Phone Number & Qualification */}
+        {/* Row 2: Country & Registration Number (Immediately below Full Name & Email) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <SelectInput
+            label="Country"
+            required
+            placeholder="Select your country"
+            options={COUNTRY_OPTIONS}
+            value={formData.countryIso || ''}
+            onChange={handleCountryChange}
+            error={errors.country}
+          />
+
+          <FormInput
+            label="Registration Number"
+            required
+            placeholder="Enter Your Medical Registration Number"
+            className="placeholder:text-[10.5px] sm:placeholder:text-[11px] placeholder:tracking-tight"
+            value={formData.regNumber || ''}
+            onChange={(e) => {
+              setFormData({ ...formData, regNumber: e.target.value });
+              setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated.regNumber;
+                return updated;
+              });
+            }}
+            error={errors.regNumber}
+          />
+        </div>
+
+        {/* Row 3: Mobile Number & Qualification */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           <PhoneInput
-            label="Phone Number"
+            label="Mobile Number"
             required={false}
             countryCode={formData.countryCode}
             countryIso={formData.countryIso}
+            countryName={formData.country}
             phoneNumber={formData.phoneNumber}
-            onCountryCodeChange={(e) => {
-              const code = e.target.value;
-              const iso = (e.target as any).dataset?.iso || getCountryIso(code);
-              setFormData((prev) => ({
-                ...prev,
-                countryCode: code,
-                countryIso: iso,
-              }));
-
-              // Dynamic country-specific re-validation only if user entered a phone number
-              if (formData.phoneNumber.trim()) {
-                const validation = validateMobileNumber(formData.phoneNumber, iso, code);
-                if (!validation.isValid) {
-                  setErrors((prev) => ({
-                    ...prev,
-                    phoneNumber: validation.error || 'Please enter a valid mobile number for the selected country.',
-                  }));
-                } else {
-                  setErrors((prev) => {
-                    const updated = { ...prev };
-                    delete updated.phoneNumber;
-                    return updated;
-                  });
-                }
-              } else {
-                setErrors((prev) => {
-                  const updated = { ...prev };
-                  delete updated.phoneNumber;
-                  return updated;
-                });
-              }
-            }}
-            onPhoneNumberChange={(e) => {
-              const val = e.target.value;
-              setFormData((prev) => ({ ...prev, phoneNumber: val }));
-
-              // Real-time error dismissal when user clears or types a valid number
-              const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
-              if (!val.trim()) {
-                setErrors((prev) => {
-                  const updated = { ...prev };
-                  delete updated.phoneNumber;
-                  return updated;
-                });
-              } else if (errors.phoneNumber) {
-                const validation = validateMobileNumber(val, currentIso, formData.countryCode);
-                if (validation.isValid) {
-                  setErrors((prev) => {
-                    const updated = { ...prev };
-                    delete updated.phoneNumber;
-                    return updated;
-                  });
-                }
-              }
-            }}
-            onBlur={() => {
-              if (formData.phoneNumber.trim()) {
-                const currentIso = getCountryIso(formData.countryCode, formData.countryIso);
-                const validation = validateMobileNumber(formData.phoneNumber, currentIso, formData.countryCode);
-                if (!validation.isValid) {
-                  setErrors((prev) => ({
-                    ...prev,
-                    phoneNumber: validation.error || 'Please enter a valid mobile number for the selected country.',
-                  }));
-                } else {
-                  setErrors((prev) => {
-                    const updated = { ...prev };
-                    delete updated.phoneNumber;
-                    return updated;
-                  });
-                }
-              } else {
-                setErrors((prev) => {
-                  const updated = { ...prev };
-                  delete updated.phoneNumber;
-                  return updated;
-                });
-              }
-            }}
+            onPhoneNumberChange={handlePhoneNumberChange}
+            onBlur={handlePhoneBlur}
             error={errors.phoneNumber}
           />
 
@@ -338,6 +388,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
                 ...formData,
                 qualification: val,
                 qualificationOther: val === 'Others' ? formData.qualificationOther : '',
+              });
+              setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated.qualification;
+                return updated;
               });
             }}
             error={errors.qualification}

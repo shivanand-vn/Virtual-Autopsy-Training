@@ -3,32 +3,21 @@ import {
   ClipboardList,
   Search,
   CheckCircle2,
-  Clock,
   FileText,
   Eye,
   Download,
-  Check,
   X,
-  XCircle,
-  AlertCircle,
   User,
-  BookOpen,
-  Loader2,
-  RefreshCw
+  Loader2
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { useCourse } from '../../context/CourseContext';
-import { type AssignmentSubmission, type SubmissionStatus } from '../../types/course';
+import { type AssignmentSubmission } from '../../types/course';
 
 export const AdminAssignmentsPage: React.FC = () => {
-  const { assignmentSubmissions, updateSubmissionStatus, refreshAssignmentSubmissions } = useCourse();
+  const { assignmentSubmissions, refreshAssignmentSubmissions } = useCourse();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<AssignmentSubmission | null>(null);
-  const [adminFeedbackInput, setAdminFeedbackInput] = useState('');
-  const [adminScoreInput, setAdminScoreInput] = useState<number | string>(100);
-  const [feedbackError, setFeedbackError] = useState('');
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // Fetch real submissions on mount
   React.useEffect(() => {
@@ -36,81 +25,20 @@ export const AdminAssignmentsPage: React.FC = () => {
   }, [refreshAssignmentSubmissions]);
 
   const totalCount = assignmentSubmissions.length;
-  const pendingCount = assignmentSubmissions.filter((s) => s.status === 'PENDING').length;
-  const approvedCount = assignmentSubmissions.filter((s) => s.status === 'APPROVED').length;
-  const rejectedCount = assignmentSubmissions.filter((s) => s.status === 'REJECTED').length;
 
   const filteredSubmissions = assignmentSubmissions.filter((s) => {
     const q = searchQuery.toLowerCase();
-    const matchesSearch =
+    return (
       s.studentName.toLowerCase().includes(q) ||
       s.studentEmail.toLowerCase().includes(q) ||
       s.courseName.toLowerCase().includes(q) ||
       s.moduleTitle.toLowerCase().includes(q) ||
-      s.topicTitle.toLowerCase().includes(q);
-
-    const isResub = (s as any).status === 'RESUBMITTED' || Boolean((s as any).isResubmission);
-    const matchesStatus =
-      statusFilter === 'ALL' ||
-      s.status === statusFilter ||
-      (statusFilter === 'PENDING' && isResub && s.status !== 'APPROVED');
-    return matchesSearch && matchesStatus;
+      s.topicTitle.toLowerCase().includes(q)
+    );
   });
 
-  const handleOpenReview = (submission: AssignmentSubmission) => {
+  const handleOpenView = (submission: AssignmentSubmission) => {
     setSelectedSubmission(submission);
-    setAdminFeedbackInput(submission.adminFeedback || '');
-    const currentScore = (submission as any).score;
-    const maxAllowed = submission.maxScore || 100;
-    setAdminScoreInput(
-      currentScore !== undefined && currentScore !== null
-        ? Math.min(maxAllowed, Number(currentScore))
-        : maxAllowed
-    );
-    setFeedbackError('');
-  };
-
-  const handleApprove = async () => {
-    if (!selectedSubmission) return;
-    const maxMarks = selectedSubmission.maxScore || 100;
-    const scoreVal = Number(adminScoreInput);
-
-    if (isNaN(scoreVal) || scoreVal < 0) {
-      setFeedbackError('Please enter a valid non-negative score.');
-      return;
-    }
-
-    if (scoreVal > maxMarks) {
-      setFeedbackError(`Score cannot exceed maximum allowed marks of ${maxMarks}.`);
-      return;
-    }
-
-    setIsSubmittingReview(true);
-    try {
-      await updateSubmissionStatus(
-        selectedSubmission.id,
-        'APPROVED',
-        adminFeedbackInput,
-        scoreVal
-      );
-      setSelectedSubmission(null);
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!selectedSubmission) return;
-    const feedback =
-      adminFeedbackInput.trim() ||
-      'Case assignment rejected. Please review faculty guidelines and submit a revised report.';
-    setIsSubmittingReview(true);
-    try {
-      await updateSubmissionStatus(selectedSubmission.id, 'REJECTED', feedback, 0);
-      setSelectedSubmission(null);
-    } finally {
-      setIsSubmittingReview(false);
-    }
   };
 
   const [isDownloading, setIsDownloading] = useState(false);
@@ -165,50 +93,7 @@ export const AdminAssignmentsPage: React.FC = () => {
   return (
     <AdminLayout title="Assignment Submissions" subtitle="Assignments">
       <div className="space-y-6">
-        {/* Top Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Submissions</p>
-              <h3 className="text-2xl font-black text-[#0A192F] mt-1">{totalCount}</h3>
-            </div>
-            <div className="w-12 h-12 bg-amber-100 border border-amber-300 text-amber-900 rounded-2xl flex items-center justify-center font-bold">
-              <ClipboardList className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</p>
-              <h3 className="text-2xl font-black text-amber-600 mt-1">{pendingCount}</h3>
-            </div>
-            <div className="w-12 h-12 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl flex items-center justify-center">
-              <Clock className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Approved</p>
-              <h3 className="text-2xl font-black text-emerald-600 mt-1">{approvedCount}</h3>
-            </div>
-            <div className="w-12 h-12 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rejected</p>
-              <h3 className="text-2xl font-black text-rose-600 mt-1">{rejectedCount}</h3>
-            </div>
-            <div className="w-12 h-12 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-center justify-center">
-              <XCircle className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
+        {/* Search Bar & Total Submissions Counter */}
         <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -221,35 +106,26 @@ export const AdminAssignmentsPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
-                  statusFilter === st
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {st === 'ALL' ? 'All' : st.charAt(0) + st.slice(1).toLowerCase()}
-              </button>
-            ))}
+          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-600 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-2xl shrink-0 self-start sm:self-auto">
+            <ClipboardList className="w-4 h-4 text-amber-600" />
+            <span>Total Submissions:</span>
+            <span className="font-extrabold text-[#0A192F] bg-amber-100 text-amber-950 px-2 py-0.5 rounded-lg border border-amber-300">
+              {totalCount}
+            </span>
           </div>
         </div>
 
         {/* Submissions Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed min-w-[950px]">
+            <table className="w-full text-left text-xs table-fixed min-w-[850px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="w-[220px] py-3.5 px-4 font-bold text-left">STUDENT</th>
-                  <th className="w-[210px] py-3.5 px-4 font-bold text-left">COURSE & MODULE</th>
-                  <th className="w-[180px] py-3.5 px-4 font-bold text-left">TOPIC TITLE</th>
-                  <th className="w-[120px] py-3.5 px-4 font-bold text-center">SUBMITTED DATE</th>
-                  <th className="w-[120px] py-3.5 px-4 font-bold text-center">STATUS</th>
-                  <th className="w-[100px] py-3.5 px-4 font-bold text-center">ACTIONS</th>
+                  <th className="w-[240px] py-3.5 px-4 font-bold text-left">STUDENT</th>
+                  <th className="w-[230px] py-3.5 px-4 font-bold text-left">COURSE & MODULE</th>
+                  <th className="w-[200px] py-3.5 px-4 font-bold text-left">TOPIC TITLE</th>
+                  <th className="w-[140px] py-3.5 px-4 font-bold text-center">SUBMITTED DATE</th>
+                  <th className="w-[140px] py-3.5 px-4 font-bold text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -284,45 +160,19 @@ export const AdminAssignmentsPage: React.FC = () => {
                       </td>
 
                       <td className="py-4 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center space-x-1 text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
-                            item.status === 'APPROVED'
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : item.status === 'REJECTED'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                              : (item as any).status === 'RESUBMITTED' || (item as any).isResubmission
-                              ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                              : 'bg-amber-100 text-amber-900 border border-amber-300'
-                          }`}
-                        >
-                          {item.status === 'APPROVED' && <Check className="w-3 h-3 text-emerald-600" />}
-                          {item.status === 'REJECTED' && <X className="w-3 h-3 text-rose-600" />}
-                          {((item as any).status === 'RESUBMITTED' || (item as any).isResubmission) && item.status !== 'APPROVED' && item.status !== 'REJECTED' && (
-                            <RefreshCw className="w-3 h-3 text-purple-600" />
-                          )}
-                          {item.status === 'PENDING' && !((item as any).isResubmission) && <Clock className="w-3 h-3 text-amber-600" />}
-                          <span>
-                            {((item as any).status === 'RESUBMITTED' || (item as any).isResubmission) && item.status !== 'APPROVED' && item.status !== 'REJECTED'
-                              ? 'RESUBMITTED'
-                              : item.status}
-                          </span>
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-4 text-center">
                         <button
-                          onClick={() => handleOpenReview(item)}
-                          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-xs inline-flex items-center space-x-1 cursor-pointer"
+                          onClick={() => handleOpenView(item)}
+                          className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors shadow-xs inline-flex items-center space-x-1.5 cursor-pointer active:scale-95"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Review</span>
+                          <span>View Assignment</span>
                         </button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                    <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold text-xs">
                       No assignment submissions found.
                     </td>
                   </tr>
@@ -341,14 +191,8 @@ export const AdminAssignmentsPage: React.FC = () => {
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                    Assignment Review
+                    Assignment Submission
                   </span>
-                  {((selectedSubmission as any).status === 'RESUBMITTED' || (selectedSubmission as any).isResubmission) && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 bg-purple-100 border border-purple-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-sans">
-                      <RefreshCw className="w-3 h-3 text-purple-600" />
-                      <span>Resubmitted Case Report</span>
-                    </span>
-                  )}
                 </div>
                 <h3 className="text-lg font-black text-[#0A192F] mt-1">{selectedSubmission.topicTitle}</h3>
                 <p className="text-xs text-slate-500">
@@ -440,105 +284,17 @@ export const AdminAssignmentsPage: React.FC = () => {
                   </button>
                 </div>
               )}
-
-              {/* Evaluation Score Input */}
-              <div className="space-y-1.5 pt-2">
-                <label className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wider block">
-                  Evaluation Marks / Score:
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    min={0}
-                    max={selectedSubmission.maxScore || 100}
-                    value={adminScoreInput}
-                    onChange={(e) => {
-                      const maxAllowed = selectedSubmission.maxScore || 100;
-                      const raw = e.target.value;
-                      if (raw === '') {
-                        setAdminScoreInput('');
-                        return;
-                      }
-                      const num = Number(raw);
-                      if (num > maxAllowed) {
-                        setAdminScoreInput(maxAllowed);
-                      } else if (num < 0) {
-                        setAdminScoreInput(0);
-                      } else {
-                        setAdminScoreInput(raw);
-                      }
-                    }}
-                    placeholder={String(selectedSubmission.maxScore || 100)}
-                    className="w-28 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="text-xs font-bold text-slate-400">/ {selectedSubmission.maxScore || 100} Marks</span>
-                </div>
-              </div>
-
-              {/* Admin Feedback Input */}
-              <div className="space-y-1.5 pt-2">
-                <label className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wider block">
-                  Admin Feedback & Remarks:
-                </label>
-                <textarea
-                  rows={3}
-                  value={adminFeedbackInput}
-                  onChange={(e) => {
-                    setAdminFeedbackInput(e.target.value);
-                    if (e.target.value.trim()) setFeedbackError('');
-                  }}
-                  placeholder="Enter evaluation remarks or rejection feedback for the student..."
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-                />
-                {feedbackError && (
-                  <p className="text-rose-600 font-bold text-[11px] flex items-center space-x-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    <span>{feedbackError}</span>
-                  </p>
-                )}
-              </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setSelectedSubmission(null)}
-                disabled={isSubmittingReview}
-                className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
               >
-                Cancel
+                Close
               </button>
-
-              <div className="w-full sm:w-auto flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={handleReject}
-                  disabled={isSubmittingReview}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingReview ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <X className="w-4 h-4" />
-                  )}
-                  <span>Reject Assignment</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleApprove}
-                  disabled={isSubmittingReview}
-                  className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md inline-flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingReview ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4" />
-                  )}
-                  <span>Approve Assignment</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

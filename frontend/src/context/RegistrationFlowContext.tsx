@@ -39,8 +39,10 @@ interface RegistrationFlowContextType {
 const initialRegistrationData: RegistrationFormData = {
   fullName: '',
   email: '',
+  country: '',
   countryCode: '+44',
   countryIso: 'GB',
+  regNumber: '',
   phoneNumber: '',
   qualification: '',
   qualificationOther: '',
@@ -197,6 +199,9 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       const formData = new FormData();
       formData.append('fullName', registrationData.fullName.trim() || 'Medical Candidate');
       formData.append('email', finalEmail);
+      formData.append('country', registrationData.country || '');
+      formData.append('countryIso', registrationData.countryIso || '');
+      formData.append('regNumber', registrationData.regNumber || '');
       formData.append('countryCode', registrationData.countryCode || '+44');
       formData.append('phoneNumber', registrationData.phoneNumber || '');
       formData.append('qualification', registrationData.qualification || 'Medical Practitioner');

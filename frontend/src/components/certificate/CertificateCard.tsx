@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Award, Download, CheckCircle2, ArrowRight, RotateCcw } from 'lucide-react';
+import { Award, Download, CheckCircle2, ArrowRight, RotateCcw, PartyPopper, X, Clock } from 'lucide-react';
 import { useCourse } from '../../context/CourseContext';
 import { useFinalExams } from '../../context/FinalExamContext';
 import { useRegistrationFlow } from '../../context/RegistrationFlowContext';
@@ -15,6 +15,36 @@ export const CertificateCard: React.FC<CertificateCardProps> = ({ className = ''
   const { activeCourse, completedTopicIds } = useCourse();
   const { studentExamResult } = useFinalExams();
   const { registrationData } = useRegistrationFlow();
+
+  const [showSuccessCard, setShowSuccessCard] = useState<boolean>(false);
+
+  const handleDownloadPdf = () => {
+    try {
+      const sessionKey = 'vat_certificate_download_congrats_shown';
+      const alreadyShown = sessionStorage.getItem(sessionKey) === 'true';
+
+      if (!alreadyShown) {
+        const onAfterPrint = () => {
+          setShowSuccessCard(true);
+          sessionStorage.setItem(sessionKey, 'true');
+          window.removeEventListener('afterprint', onAfterPrint);
+        };
+        window.addEventListener('afterprint', onAfterPrint);
+
+        // Fallback in case afterprint does not fire in specific browser environments
+        setTimeout(() => {
+          if (!sessionStorage.getItem(sessionKey)) {
+            setShowSuccessCard(true);
+            sessionStorage.setItem(sessionKey, 'true');
+          }
+        }, 1200);
+      }
+
+      window.print();
+    } catch (err) {
+      console.error('Failed to trigger certificate download/print:', err);
+    }
+  };
 
   const allTopics = activeCourse?.modules.flatMap((m) => m.topics) || [];
   const completedTopicsCount = allTopics.filter((t) => Boolean(completedTopicIds[t.id])).length;
@@ -157,12 +187,74 @@ export const CertificateCard: React.FC<CertificateCardProps> = ({ className = ''
           </div>
 
           <button
-            onClick={() => window.print()}
+            onClick={handleDownloadPdf}
             className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer transform active:scale-95"
           >
             <Download className="w-4 h-4" />
             <span>Download Certificate PDF</span>
           </button>
+        </div>
+      )}
+
+      {/* CERTIFICATE DOWNLOAD SUCCESS CONGRATULATIONS MODAL */}
+      {showSuccessCard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200 print:hidden"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-slate-200/90 shadow-2xl p-6 sm:p-8 space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Top Close Dismiss Button */}
+            <button
+              type="button"
+              onClick={() => setShowSuccessCard(false)}
+              className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Close message"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header Icon & Congratulations */}
+            <div className="text-center space-y-3 pt-1">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-3xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center shadow-xs">
+                <PartyPopper className="w-7 h-7 sm:w-8 sm:h-8 text-amber-600" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-xl sm:text-2xl font-black text-[#0A192F] flex items-center justify-center gap-1.5">
+                  <span>🎉</span>
+                  <span>Congratulations!</span>
+                </h3>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                You have successfully completed the course. Congratulations on your achievement!
+              </p>
+            </div>
+
+            {/* Highlighted 15-Day Access Expiration Warning */}
+            <div className="p-4 sm:p-4.5 rounded-2xl bg-amber-50/80 border-2 border-amber-300/90 shadow-2xs space-y-2">
+              <div className="flex items-center space-x-2 text-amber-900 font-extrabold text-xs uppercase tracking-wider">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Account Access Notice</span>
+              </div>
+              <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                <strong className="font-extrabold text-amber-900">Note: </strong>
+                This portal will remain accessible for the next <strong className="font-extrabold text-amber-950 underline decoration-amber-400 decoration-2">15 days</strong> from the date you first downloaded your certificate PDF. After that, your account access will be deactivated.
+              </p>
+            </div>
+
+            {/* Dismiss Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowSuccessCard(false)}
+                className="w-full inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                <span>Continue</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

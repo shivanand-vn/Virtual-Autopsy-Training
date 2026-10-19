@@ -8,6 +8,7 @@ import {
   ArrowRight,
   PlayCircle,
   FileText,
+  FileCheck,
   AlertCircle,
   ChevronDown,
   ChevronUp,
@@ -449,6 +450,34 @@ export const DashboardPage: React.FC = () => {
                                 </div>
                               );
                             })
+                          )}
+
+                          {/* Direct Access to Available Module Assignment */}
+                          {mod.assignment && (
+                            <div
+                              onClick={() => navigate(`/my-course/${mod.id}/assignment`)}
+                              className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50/50 hover:bg-amber-100/60 border border-amber-200/80 text-xs transition-colors cursor-pointer mt-1"
+                            >
+                              <div className="flex items-center space-x-2.5 min-w-0">
+                                <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span className="font-bold text-slate-900 truncate">
+                                  Assignment: {mod.assignment.title || `Module ${mod.moduleNumber} Assignment`}
+                                </span>
+                              </div>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ml-2 ${
+                                mod.assignment.submissionStatus === 'graded'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : mod.assignment.submissionStatus === 'submitted'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {mod.assignment.submissionStatus === 'graded'
+                                  ? '✓ Graded'
+                                  : mod.assignment.submissionStatus === 'submitted'
+                                  ? '✓ Submitted'
+                                  : 'Direct Access'}
+                              </span>
+                            </div>
                           )}
                         </div>
                       )}

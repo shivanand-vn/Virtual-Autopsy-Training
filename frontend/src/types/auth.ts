@@ -1,8 +1,10 @@
 export interface RegistrationFormData {
   fullName: string;
   email: string;
+  country: string;
   countryCode: string;
   countryIso?: string;
+  regNumber: string;
   phoneNumber: string;
   qualification: string;
   qualificationOther: string;

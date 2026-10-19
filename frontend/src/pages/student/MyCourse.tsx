@@ -509,13 +509,13 @@ export const MyCoursePage: React.FC = () => {
       }
     } else if (activeSection === 'assignment') {
       if (!isCurrentModuleTestUnlocked) {
-        showGatingMessage('Please wait for faculty evaluation and grading of your assignment before proceeding to the quiz.');
+        showGatingMessage('Please complete all module topics and submit your assignment before proceeding to the quiz.');
         return;
       }
       goToTest(currentModule.id);
     } else if (activeSection === 'test') {
       if (!isCurrentModuleTestUnlocked) {
-        showGatingMessage('Please complete all module topics and have your assignment evaluated before starting the test.');
+        showGatingMessage('Please complete all module topics and submit your assignment before starting the test.');
         return;
       }
       navigate(`/assessment/${currentModule.id}`);
@@ -684,7 +684,7 @@ export const MyCoursePage: React.FC = () => {
 
   const handleSubmitAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || !currentModule) return;
+    if (!selectedFile || !currentModule || isUploading) return;
 
     if (
       currentModule.assignment?.submissionStatus === 'submitted' ||
@@ -728,8 +728,11 @@ export const MyCoursePage: React.FC = () => {
 
       setSelectedFile(null);
       setStudentResponseText('');
-      setUploadSuccessMessage(`Successfully submitted "${selectedFile.name}" for evaluation.`);
+      setUploadSuccessMessage(`Successfully submitted "${selectedFile.name}". Opening module test...`);
       await refreshCourses();
+
+      // Automatically open corresponding Module Test (Practice Quiz)
+      goToTest(currentModule.id);
     } catch (err: any) {
       console.error('Assignment submission failed:', err);
       setUploadError(err.message || 'Failed to submit assignment. Please try again.');
@@ -874,7 +877,7 @@ export const MyCoursePage: React.FC = () => {
                 </button>
               ) : (
                 <button
-                  onClick={() => showGatingMessage('Please wait for faculty evaluation and grading before proceeding to the quiz.')}
+                  onClick={() => showGatingMessage('Please submit your assignment before proceeding to the quiz.')}
                   className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl cursor-pointer border border-amber-300 shadow-2xs transition-colors"
                   title="Click to view unlock requirements"
                 >
@@ -893,7 +896,7 @@ export const MyCoursePage: React.FC = () => {
             ) : (
               <button
                 onClick={() =>
-                  showGatingMessage('Please complete all module topics and have your assignment evaluated before starting the test.')
+                  showGatingMessage('Please complete all module topics and submit your assignment before starting the test.')
                 }
                 className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200/80 px-3 py-2 rounded-xl cursor-pointer border border-amber-300 shadow-2xs transition-colors"
                 title="Click to view unlock requirements"
@@ -1169,13 +1172,17 @@ export const MyCoursePage: React.FC = () => {
                         ? 'bg-purple-100 text-purple-800'
                         : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
+                        : currentModule.assignment?.submissionStatus === 'rejected'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-emerald-100 text-emerald-800'
                     }`}>
                       {currentModule.assignment?.submissionStatus === 'graded'
                         ? 'Graded'
                         : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'Submitted'
-                        : 'Pending'}
+                        : currentModule.assignment?.submissionStatus === 'rejected'
+                        ? 'Resubmit'
+                        : 'Available'}
                     </span>
                   </div>
                 </div>
@@ -1576,7 +1583,7 @@ export const MyCoursePage: React.FC = () => {
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                         : currentModule.assignment?.submissionStatus === 'rejected'
                         ? 'bg-rose-50 text-rose-800 border-rose-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     }`}>
                       {currentModule.assignment?.submissionStatus === 'graded'
                         ? '✓ Evaluated & Graded'
@@ -1584,10 +1591,10 @@ export const MyCoursePage: React.FC = () => {
                         ? '✓ Submitted'
                         : currentModule.assignment?.submissionStatus === 'rejected'
                         ? '⚠️ Resubmission Requested'
-                        : 'Pending Submission'}
+                        : 'Direct Access • Available'}
                     </span>
 
-                    {currentModule.assignment?.submissionStatus === 'graded' && (
+                    {(currentModule.assignment?.submissionStatus === 'graded' || currentModule.assignment?.submissionStatus === 'submitted') && (
                       <button
                         type="button"
                         onClick={() => goToTest(currentModule.id)}
@@ -1778,15 +1785,23 @@ export const MyCoursePage: React.FC = () => {
                       </div>
                     )}
 
-                    {currentModule.assignment?.submissionStatus === 'graded' && (
+                    {(currentModule.assignment?.submissionStatus === 'submitted' || currentModule.assignment?.submissionStatus === 'graded') && (
                       <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs mt-3">
                         <div className="flex items-center space-x-3.5">
                           <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0">
                             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                           </div>
                           <div>
-                            <p className="text-xs font-extrabold text-emerald-950">Assignment Evaluated & Passed</p>
-                            <p className="text-[11px] text-emerald-800 font-medium">Your submission has been approved. You are ready to launch the Level 3 Module Quiz.</p>
+                            <p className="text-xs font-extrabold text-emerald-950">
+                              {currentModule.assignment?.submissionStatus === 'graded'
+                                ? 'Assignment Evaluated & Graded'
+                                : 'Assignment Submitted — Module Test Unlocked'}
+                            </p>
+                            <p className="text-[11px] text-emerald-800 font-medium">
+                              {currentModule.assignment?.submissionStatus === 'graded'
+                                ? 'Your submission has been evaluated and graded. You are ready to launch the Level 3 Module Quiz.'
+                                : 'Your assignment has been submitted successfully. You can now proceed directly to the Level 3 Module Test (Practice Quiz).'}
+                            </p>
                           </div>
                         </div>
                         <button
@@ -2017,10 +2032,10 @@ export const MyCoursePage: React.FC = () => {
                 <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <span className="text-xs text-slate-500">
                     {isCurrentModuleTestUnlocked
-                      ? 'All educational topics and assignment evaluation are completed. You can launch your quiz now.'
+                      ? 'All educational topics and assignment submission are completed. You can launch your quiz now.'
                       : !isModuleTopicsCompleted(currentModule.id)
                       ? 'Please complete all educational lessons above before taking this quiz.'
-                      : 'Please wait for your case assignment to be evaluated and approved before taking this quiz.'}
+                      : 'Please submit your module assignment before taking this quiz.'}
                   </span>
 
                   {isCurrentModuleTestUnlocked ? (
@@ -2038,7 +2053,7 @@ export const MyCoursePage: React.FC = () => {
                         showGatingMessage(
                           !isModuleTopicsCompleted(currentModule.id)
                             ? 'Please complete all educational lessons (at least 99% video watch) before taking this quiz.'
-                            : 'Please wait for faculty evaluation and grading before launching the quiz.'
+                            : 'Please submit your module assignment before launching the quiz.'
                         )
                       }
                       className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-300 cursor-pointer transition-colors shadow-2xs"
@@ -2048,7 +2063,7 @@ export const MyCoursePage: React.FC = () => {
                       <span>
                         {!isModuleTopicsCompleted(currentModule.id)
                           ? 'Quiz Locked (Complete Lessons First)'
-                          : 'Quiz Locked (Awaiting Assignment Evaluation)'}
+                          : 'Quiz Locked (Submit Assignment First)'}
                       </span>
                     </button>
                   )}
@@ -2269,13 +2284,13 @@ export const MyCoursePage: React.FC = () => {
                                       ? 'bg-purple-100 text-purple-800'
                                       : mod.assignment?.submissionStatus === 'submitted'
                                       ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-800'
                                   }`}>
                                     {mod.assignment?.submissionStatus === 'graded'
                                       ? '✓ Graded'
                                       : mod.assignment?.submissionStatus === 'submitted'
                                       ? '✓ Submitted'
-                                      : 'Pending'}
+                                      : 'Available'}
                                   </span>
                                 </div>
                               </div>
@@ -2298,7 +2313,7 @@ export const MyCoursePage: React.FC = () => {
                                         showGatingMessage(
                                           !isModuleTopicsCompleted(mod.id)
                                             ? 'Please complete all module topics before opening the test.'
-                                            : 'Please wait for faculty evaluation and grading of your assignment before opening the test.'
+                                            : 'Please submit your assignment before opening the test.'
                                         );
                                       }
                                     }}
@@ -2320,7 +2335,7 @@ export const MyCoursePage: React.FC = () => {
                                     <div className="flex items-center space-x-1.5 shrink-0">
                                       {isModTestUnlocked ? (
                                         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                                          Unlimited
+                                          Available
                                         </span>
                                       ) : (
                                         <span className="text-[10px] font-medium text-slate-400 flex items-center">

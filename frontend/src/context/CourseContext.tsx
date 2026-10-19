@@ -319,9 +319,27 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 ...mCourse,
                 modules: mCourse.modules.map((mod) => {
                   const existingMod = existingCourse?.modules.find((em) => em.id === mod.id);
+                  const existingAsgn = existingMod?.assignment;
+                  const modAsgn = mod.assignment;
+                  const resolvedAsgn = modAsgn
+                    ? {
+                        ...modAsgn,
+                        submissionStatus:
+                          existingAsgn?.submissionStatus === 'submitted' || existingAsgn?.submissionStatus === 'graded'
+                            ? existingAsgn.submissionStatus
+                            : modAsgn.submissionStatus,
+                        submittedFileName: existingAsgn?.submittedFileName || modAsgn.submittedFileName,
+                        submittedFileUrl: existingAsgn?.submittedFileUrl || modAsgn.submittedFileUrl,
+                        submittedAt: existingAsgn?.submittedAt || modAsgn.submittedAt,
+                        studentResponseText: existingAsgn?.studentResponseText || modAsgn.studentResponseText,
+                        score: existingAsgn?.score !== undefined ? existingAsgn.score : modAsgn.score,
+                        feedback: existingAsgn?.feedback || modAsgn.feedback,
+                      }
+                    : existingAsgn;
+
                   return {
                     ...mod,
-                    assignment: mod.assignment !== undefined ? mod.assignment : undefined,
+                    assignment: resolvedAsgn,
                     test: mod.test || existingMod?.test,
                   };
                 }),
@@ -1062,13 +1080,22 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return Boolean(completedTopicIds[prevTopic.id]);
   };
 
-  // Rule: Module Assessment unlocks ONLY after ALL topics in that module are completed and assignment is evaluated (if present)!
+  // Rule: Module Assessment unlocks ONLY after ALL topics in that module are completed and assignment is submitted (if present)!
   const isModuleAssessmentUnlocked = (moduleId: string): boolean => {
     if (!isModuleUnlocked(moduleId)) return false;
     if (!isModuleTopicsCompleted(moduleId)) return false;
     const targetMod = activeCourse.modules.find((m) => m.id === moduleId);
-    if (targetMod?.assignment && targetMod.assignment.submissionStatus !== 'graded') {
-      return false;
+    if (targetMod?.assignment) {
+      const status = targetMod.assignment.submissionStatus;
+      const isSubmitted = status === 'submitted' || status === 'graded';
+      const hasSubmission =
+        isSubmitted ||
+        assignmentSubmissions.some(
+          (s) => (s.topicId === targetMod.assignment?.id || s.topicId === moduleId) && s.status !== 'REJECTED'
+        );
+      if (!hasSubmission) {
+        return false;
+      }
     }
     return true;
   };

@@ -156,6 +156,14 @@ export const App: React.FC = () => {
                         }
                       />
                       <Route
+                        path="/assignments"
+                        element={
+                          <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                            <AssignmentsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/discussions"
                         element={
                           <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>

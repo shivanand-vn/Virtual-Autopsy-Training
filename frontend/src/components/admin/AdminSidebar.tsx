@@ -49,7 +49,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
-    { name: 'Assignment Submissions', path: '/admin/assignments', icon: ClipboardList, badge: pendingSubmissions > 0 ? String(pendingSubmissions) : undefined },
+    { name: 'Assignment Submissions', path: '/admin/assignments', icon: ClipboardList },
     { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },

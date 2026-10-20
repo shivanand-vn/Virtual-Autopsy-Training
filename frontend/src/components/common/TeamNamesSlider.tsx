@@ -26,7 +26,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     name: 'Iranna K',
-    portfolioUrl: 'PORTFOLIO_URL_3',
+    portfolioUrl: 'https://my-portfolio-lac-mu-62.vercel.app/',
   },
   {
     name: 'Ziyakausar',
@@ -34,7 +34,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     name: 'MD Rizwan',
-    portfolioUrl: 'PORTFOLIO_URL_5',
+    portfolioUrl: 'https://rizwan-kotwal.vercel.app/',
   },
   {
     name: 'Vikram G',

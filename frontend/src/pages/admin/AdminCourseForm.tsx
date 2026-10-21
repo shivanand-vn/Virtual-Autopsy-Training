@@ -1566,7 +1566,7 @@ export const AdminCourseForm: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Module Body Content: Topics -> Module Test -> Module Assignment */}
+                      {/* Module Body Content: Topics -> Module Assignment -> Module Test */}
                       <div className="relative pl-8 sm:pl-10 space-y-4">
                         {/* Subtle vertical dotted connector extending from module badge downward */}
                         <div 
@@ -1677,64 +1677,7 @@ export const AdminCourseForm: React.FC = () => {
                           )}
                         </div>
 
-                        {/* 2. Module Test / Assessment Card (Displayed before Module Assignment) */}
-                        <div className="pt-3 border-t border-slate-100 space-y-2 relative">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-center space-x-2">
-                              {/* Horizontal connector branch from vertical dotted line */}
-                              <div className="flex items-center -ml-5 mr-1 sm:-ml-6 sm:mr-1.5 pointer-events-none">
-                                <div className="w-2.5 sm:w-3.5 border-t-2 border-dotted border-amber-400/80" />
-                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 -ml-0.5 shrink-0" />
-                              </div>
-                              <span className="text-xs font-black uppercase tracking-wider text-[#0A192F]">
-                                MODULE TEST
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => openEditAssessmentModal(mod.id)}
-                              className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                            >
-                              <FileQuestion className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Configure Assessment</span>
-                            </button>
-                          </div>
-
-                          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200/80 space-y-2 text-xs">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                              <div className="flex items-center space-x-2 min-w-0">
-                                <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span className="font-extrabold text-slate-900 truncate">
-                                  {mod.test?.title || `Module ${mod.moduleNumber} Practice Quiz`}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-2 shrink-0">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-900">
-                                  {bankQuestions.filter((q) => q.moduleId === mod.id).length || mod.test?.totalQuestions || 5} Questions
-                                </span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  Unlimited Retakes
-                                </span>
-                              </div>
-                            </div>
-
-                            <p className="text-[11px] text-slate-600 leading-relaxed">
-                              {mod.test?.description || 'Formative assessment testing module core competencies with unlimited practice retakes.'}
-                            </p>
-
-                            <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
-                              <span>✓ Formative Mastery • Unlimited practice attempts for student reinforcement</span>
-                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
-                                {bankQuestions.filter((q) => q.moduleId === mod.id).length > 0
-                                  ? `${bankQuestions.filter((q) => q.moduleId === mod.id).length} Custom Questions in Bank`
-                                  : 'Default Assessment Pool Active'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 3. Module Assignment Card */}
+                        {/* 2. Module Assignment Card */}
                         <div className="pt-3 border-t border-slate-100 space-y-2 relative">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="flex items-center space-x-2">
@@ -1804,6 +1747,63 @@ export const AdminCourseForm: React.FC = () => {
                             </div>
                           </div>
                         </div>
+{/* 3. Module Test / Assessment Card */}
+                        <div className="pt-3 border-t border-slate-100 space-y-2 relative">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2">
+                              {/* Horizontal connector branch from vertical dotted line */}
+                              <div className="flex items-center -ml-5 mr-1 sm:-ml-6 sm:mr-1.5 pointer-events-none">
+                                <div className="w-2.5 sm:w-3.5 border-t-2 border-dotted border-amber-400/80" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 -ml-0.5 shrink-0" />
+                              </div>
+                              <span className="text-xs font-black uppercase tracking-wider text-[#0A192F]">
+                                MODULE TEST
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => openEditAssessmentModal(mod.id)}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <FileQuestion className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Configure Assessment</span>
+                            </button>
+                          </div>
+
+                          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200/80 space-y-2 text-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <Award className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span className="font-extrabold text-slate-900 truncate">
+                                  {mod.test?.title || `Module ${mod.moduleNumber} Practice Quiz`}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-900">
+                                  {bankQuestions.filter((q) => q.moduleId === mod.id).length || mod.test?.totalQuestions || 5} Questions
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Unlimited Retakes
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              {mod.test?.description || 'Formative assessment testing module core competencies with unlimited practice retakes.'}
+                            </p>
+
+                            <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px] text-emerald-800 font-medium">
+                              <span>✓ Formative Mastery • Unlimited practice attempts for student reinforcement</span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                                {bankQuestions.filter((q) => q.moduleId === mod.id).length > 0
+                                  ? `${bankQuestions.filter((q) => q.moduleId === mod.id).length} Custom Questions in Bank`
+                                  : 'Default Assessment Pool Active'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
                       </div>
                     </div>
                   );

@@ -91,18 +91,18 @@ export const TeamNamesSlider: React.FC = () => {
   return (
     <div className="team-slider-container flex flex-col items-center justify-center text-center group/slider">
       {/* Stationary Heading */}
-      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 select-none">
+      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 select-none whitespace-nowrap">
         Designed &amp; Developed By
       </span>
 
       {/* Sliding Names Viewport Container */}
       <div
-        className="relative w-64 max-w-full h-5 overflow-hidden"
+        className="relative w-38 min-[380px]:w-44 sm:w-52 md:w-60 max-w-full h-5 overflow-hidden"
         aria-label="Development team members"
       >
         {reducedMotion ? (
           // Accessible stationary fallback when reduced motion is requested
-          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-700">
+          <div className="w-full h-full flex items-center justify-center text-[10px] min-[380px]:text-[11px] sm:text-xs font-bold text-slate-700">
             {renderMemberLink(TEAM_PAIRS[0].member1)}
             <span className="text-amber-500 font-extrabold mx-1.5 select-none" aria-hidden="true">
               ·
@@ -172,7 +172,7 @@ export const TeamNamesSlider: React.FC = () => {
             {TEAM_PAIRS.map((pair, idx) => (
               <div
                 key={pair.id}
-                className={`absolute inset-0 w-full h-full flex items-center justify-center text-xs font-bold text-slate-700 whitespace-nowrap will-change-transform team-pair-anim-${idx}`}
+                className={`absolute inset-0 w-full h-full flex items-center justify-center text-[10px] min-[380px]:text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap will-change-transform team-pair-anim-${idx}`}
               >
                 {renderMemberLink(pair.member1)}
                 <span className="text-amber-500 font-extrabold mx-1.5 select-none" aria-hidden="true">

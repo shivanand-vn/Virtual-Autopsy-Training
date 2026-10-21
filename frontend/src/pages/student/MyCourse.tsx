@@ -1163,7 +1163,7 @@ export const MyCoursePage: React.FC = () => {
                           {currentModule.assignment?.title || `Module ${currentModule.moduleNumber || 1} Assignment`}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {currentModule.assignment?.totalMarks || 100} Marks • Required submission
+                          Required assignment submission
                         </p>
                       </div>
                     </div>
@@ -1172,16 +1172,12 @@ export const MyCoursePage: React.FC = () => {
                         ? 'bg-purple-100 text-purple-800'
                         : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'bg-emerald-100 text-emerald-800'
-                        : currentModule.assignment?.submissionStatus === 'rejected'
-                        ? 'bg-rose-100 text-rose-800'
                         : 'bg-emerald-100 text-emerald-800'
                     }`}>
                       {currentModule.assignment?.submissionStatus === 'graded'
                         ? 'Graded'
                         : currentModule.assignment?.submissionStatus === 'submitted'
                         ? 'Submitted'
-                        : currentModule.assignment?.submissionStatus === 'rejected'
-                        ? 'Resubmit'
                         : 'Available'}
                     </span>
                   </div>
@@ -1567,57 +1563,38 @@ export const MyCoursePage: React.FC = () => {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    {currentModule.assignment?.submissionStatus === 'graded' && currentModule.assignment?.score !== undefined ? (
-                      <span className="text-xs font-black px-3.5 py-1.5 rounded-xl bg-purple-700 text-white shadow-xs">
-                        Score: {currentModule.assignment.score} / {currentModule.assignment.totalMarks || 100} Marks
-                      </span>
+                    {(currentModule.assignment?.submissionStatus === 'submitted' || currentModule.assignment?.submissionStatus === 'graded') ? (
+                      <>
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-emerald-50 text-emerald-800 border-emerald-200">
+                          {currentModule.assignment?.submissionStatus === 'graded'
+                            ? '✓ Evaluated'
+                            : '✓ Submitted'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => goToTest(currentModule.id)}
+                          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-sm transition-all cursor-pointer shrink-0"
+                        >
+                          <span>Next: Module Quiz</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
                     ) : (
-                      <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700">
-                        {currentModule.assignment?.totalMarks || 100} Marks
+                      <span className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-emerald-50 text-emerald-800 border-emerald-200">
+                        Direct Access • Available
                       </span>
-                    )}
-                    <span className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${
-                      currentModule.assignment?.submissionStatus === 'graded'
-                        ? 'bg-purple-50 text-purple-800 border-purple-200'
-                        : currentModule.assignment?.submissionStatus === 'submitted'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : currentModule.assignment?.submissionStatus === 'rejected'
-                        ? 'bg-rose-50 text-rose-800 border-rose-200'
-                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    }`}>
-                      {currentModule.assignment?.submissionStatus === 'graded'
-                        ? '✓ Evaluated & Graded'
-                        : currentModule.assignment?.submissionStatus === 'submitted'
-                        ? '✓ Submitted'
-                        : currentModule.assignment?.submissionStatus === 'rejected'
-                        ? '⚠️ Resubmission Requested'
-                        : 'Direct Access • Available'}
-                    </span>
-
-                    {(currentModule.assignment?.submissionStatus === 'graded' || currentModule.assignment?.submissionStatus === 'submitted') && (
-                      <button
-                        type="button"
-                        onClick={() => goToTest(currentModule.id)}
-                        className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-sm transition-all cursor-pointer shrink-0"
-                      >
-                        <span>Next: Module Quiz</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
                     )}
                   </div>
                 </div>
 
                 {/* Faculty Evaluation Result (Prominently displayed at the top if graded) */}
-                {currentModule.assignment?.submissionStatus === 'graded' && currentModule.assignment?.score !== undefined && (
+                {currentModule.assignment?.submissionStatus === 'graded' && (
                   <div className="p-5 bg-gradient-to-r from-purple-50 via-indigo-50/50 to-purple-50/30 border border-purple-200 rounded-2xl space-y-2.5 shadow-xs animate-in fade-in duration-300">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Award className="w-4 h-4 text-purple-700 shrink-0" />
                         <span className="text-xs font-extrabold uppercase tracking-wider text-purple-900">Faculty Evaluation</span>
                       </div>
-                      <span className="text-xs font-black text-white bg-purple-700 px-3 py-1 rounded-xl shadow-xs">
-                        Score: {currentModule.assignment.score} / {currentModule.assignment.totalMarks || 100} Marks
-                      </span>
                     </div>
                     {currentModule.assignment?.feedback && (
                       <p className="text-xs text-purple-950 leading-relaxed font-medium">
@@ -1649,7 +1626,6 @@ export const MyCoursePage: React.FC = () => {
                       {currentModule.assignment?.dueDate && (
                         <span>• Due Date: {currentModule.assignment.dueDate}</span>
                       )}
-                      <span>• Total Marks: {currentModule.assignment?.totalMarks || 100}</span>
                     </div>
                   </div>
                 </div>
@@ -1737,7 +1713,7 @@ export const MyCoursePage: React.FC = () => {
                       <div className="flex items-center space-x-2.5 shrink-0 self-end sm:self-center">
                         <span className="text-xs font-bold text-emerald-800 bg-white border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs flex items-center space-x-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>{currentModule.assignment?.submissionStatus === 'graded' ? 'Evaluated' : 'Awaiting Marks'}</span>
+                          <span>{currentModule.assignment?.submissionStatus === 'graded' ? 'Evaluated' : 'Submitted'}</span>
                         </span>
 
                         {currentModule.assignment?.submittedFileUrl && (
@@ -1819,28 +1795,8 @@ export const MyCoursePage: React.FC = () => {
                   /* Upload & Submission Form (ONLY RENDER IF NOT YET SUBMITTED) */
                   <form onSubmit={handleSubmitAssignment} className="space-y-4 pt-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A192F]">
-                      {currentModule.assignment?.submissionStatus === 'rejected'
-                        ? 'Upload Revised Case Report'
-                        : 'Upload Completed Case Report'}
+                      Upload Completed Case Report
                     </h4>
-
-                    {currentModule.assignment?.submissionStatus === 'rejected' && (
-                      <div className="p-4 bg-rose-50/80 border border-rose-300 rounded-2xl space-y-2 animate-in fade-in duration-300">
-                        <div className="flex items-center space-x-2 text-rose-900 font-extrabold text-xs">
-                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                          <span>Faculty Review Notice: Resubmission Requested</span>
-                        </div>
-                        {currentModule.assignment?.feedback && (
-                          <div className="pl-6 text-xs text-rose-950 font-medium">
-                            <span className="font-bold">Faculty Feedback: </span>
-                            <span>{currentModule.assignment.feedback}</span>
-                          </div>
-                        )}
-                        <p className="text-[11px] text-rose-800/90 font-medium pl-6">
-                          Please review the feedback above and submit your revised PDF report below for re-evaluation.
-                        </p>
-                      </div>
-                    )}
 
                     {uploadError && (
                       <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center space-x-2 text-xs text-rose-800 font-bold">
@@ -1923,16 +1879,12 @@ export const MyCoursePage: React.FC = () => {
                         rows={3}
                         value={studentResponseText}
                         onChange={(e) => setStudentResponseText(e.target.value)}
-                        placeholder="Provide executive case findings, summary notes, or methodology highlights for the faculty evaluation..."
+                        placeholder="Provide executive case findings, summary notes, or methodology highlights..."
                         className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-y custom-scrollbar transition-all font-medium"
                       />
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        Assignments are reviewed by the accredited forensic pathology faculty.
-                      </span>
-
+                    <div className="flex items-center justify-end pt-2">
                       <button
                         type="submit"
                         disabled={!selectedFile || isUploading}

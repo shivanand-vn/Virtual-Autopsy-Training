@@ -570,19 +570,19 @@ export const LandingPage: React.FC = () => {
           </div>
 
           {/* Copyright & Sub-footer */}
-          <div className="pt-8 border-t border-slate-200/80 grid grid-cols-1 md:grid-cols-3 items-center justify-between text-[11px] text-slate-500 gap-4">
+          <div className="pt-8 border-t border-slate-200/80 grid grid-cols-2 md:grid-cols-3 items-center gap-y-6 gap-x-2 text-[11px] text-slate-500">
             {/* Left: Social Media Follow Us Icons */}
-            <div className="flex items-center justify-center md:justify-start space-x-2.5">
-              <span className="text-[11px] font-semibold text-slate-600 mr-1">Follow us:</span>
+            <div className="order-1 md:order-1 flex items-center justify-start space-x-1.5 sm:space-x-2.5">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-600 mr-0.5 sm:mr-1 shrink-0">Follow us:</span>
               {/* LinkedIn Link */}
               <a
                 href="https://www.linkedin.com/company/virtualautopsysolutionsukltd/"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="LinkedIn"
-                className="relative group w-8 h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A66C2] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
+                className="relative group w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A66C2] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
               >
-                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-current" viewBox="0 0 24 24">
                   <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.78a1.62 1.62 0 1 0 0 3.24 1.62 1.62 0 0 0 0-3.24z" />
                 </svg>
                 {/* Top Tooltip */}
@@ -598,11 +598,11 @@ export const LandingPage: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Virtual Autopsy Global Website"
-                className="relative group w-8 h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A192F] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
+                className="relative group w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A192F] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
               >
-                <Globe className="w-3.5 h-3.5" />
+                <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 {/* Top Badge */}
-                <span className="absolute -top-1 -right-1 text-[7.5px] font-black tracking-tight px-1 py-0.2 rounded bg-slate-700 text-white group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors shadow-2xs">
+                <span className="absolute -top-1 -right-1 text-[7px] sm:text-[7.5px] font-black tracking-tight px-1 py-0.2 rounded bg-slate-700 text-white group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors shadow-2xs">
                   GL
                 </span>
                 {/* Top Tooltip */}
@@ -618,11 +618,11 @@ export const LandingPage: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Virtual Autopsy India Website"
-                className="relative group w-8 h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A192F] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
+                className="relative group w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-200/70 hover:bg-[#0A192F] hover:text-white text-slate-700 transition-colors flex items-center justify-center shadow-2xs"
               >
-                <Globe className="w-3.5 h-3.5" />
+                <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 {/* Top Badge */}
-                <span className="absolute -top-1 -right-1 text-[7.5px] font-black tracking-tight px-1 py-0.2 rounded bg-slate-700 text-white group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors shadow-2xs">
+                <span className="absolute -top-1 -right-1 text-[7px] sm:text-[7.5px] font-black tracking-tight px-1 py-0.2 rounded bg-slate-700 text-white group-hover:bg-amber-400 group-hover:text-slate-950 transition-colors shadow-2xs">
                   IN
                 </span>
                 {/* Top Tooltip */}
@@ -633,15 +633,15 @@ export const LandingPage: React.FC = () => {
               </a>
             </div>
 
-            {/* Center: Copyright Notice */}
-            <div className="text-center font-medium leading-relaxed">
-              <div>© 2026 Virtual Autopsy Global Solutions Academy.</div>
-              <div>All rights reserved.</div>
+            {/* Right on mobile / Col 3 on desktop: Designed & Developed By Animated Team Names */}
+            <div className="order-2 md:order-3 flex items-center justify-end">
+              <TeamNamesSlider />
             </div>
 
-            {/* Right: Designed & Developed By Animated Team Names */}
-            <div className="flex items-center justify-center md:justify-end">
-              <TeamNamesSlider />
+            {/* Bottom on mobile / Col 2 on desktop: Copyright Notice */}
+            <div className="order-3 md:order-2 col-span-2 md:col-span-1 text-center font-medium leading-relaxed text-[10.5px] sm:text-[11px] text-slate-500">
+              <div>© 2026 Virtual Autopsy Global Solutions Academy.</div>
+              <div>All rights reserved.</div>
             </div>
           </div>
 

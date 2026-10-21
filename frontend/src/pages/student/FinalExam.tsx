@@ -710,10 +710,10 @@ export const FinalExamPage: React.FC = () => {
                 className={`flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-bold font-mono border shadow-2xs transition-colors ${
                   timeRemaining < 300
                     ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                    : 'bg-blue-50/80 text-blue-900 border-blue-200'
+                    : 'bg-amber-50 text-amber-900 border-amber-200'
                 }`}
               >
-                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
                 <span>Time Left: {formatTime(timeRemaining)}</span>
               </div>
 
@@ -734,7 +734,7 @@ export const FinalExamPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setExamStage('confirm_modal')}
-                className="px-4 sm:px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-sm hover:shadow flex items-center space-x-1.5 cursor-pointer"
+                className="px-4 sm:px-5 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-sm hover:shadow flex items-center space-x-1.5 cursor-pointer"
               >
                 <span>Submit Exam</span>
               </button>
@@ -771,7 +771,7 @@ export const FinalExamPage: React.FC = () => {
                 {/* Question Card Header: Badge & Marks */}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div className="flex items-center space-x-2.5">
-                    <span className="text-xs font-black uppercase tracking-wider px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200/60">
+                    <span className="text-xs font-black uppercase tracking-wider px-3 py-1 bg-amber-100 text-amber-900 rounded-full border border-amber-300">
                       QUESTION {currentQuestionIndex + 1} OF {totalQuestions}
                     </span>
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden sm:inline-block">
@@ -782,7 +782,7 @@ export const FinalExamPage: React.FC = () => {
                   </div>
 
                   <div className="text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
-                    Marks: <span className="font-extrabold text-blue-600">+{currentQuestion.marks || 10}</span>
+                    Marks: <span className="font-extrabold text-amber-700">+{currentQuestion.marks || 10}</span>
                   </div>
                 </div>
 
@@ -833,7 +833,7 @@ export const FinalExamPage: React.FC = () => {
                         onClick={() => handleSelectAnswer(currentQuestion.id, opt.id, isMultiple)}
                         className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between group cursor-pointer ${
                           isSelected
-                            ? 'bg-blue-50/70 border-blue-500 shadow-2xs ring-1 ring-blue-500/30 text-blue-950'
+                            ? 'bg-amber-50/70 border-amber-500 shadow-2xs ring-1 ring-amber-500/30 text-slate-950'
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                         }`}
                       >
@@ -842,7 +842,7 @@ export const FinalExamPage: React.FC = () => {
                           <span
                             className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 transition-colors ${
                               isSelected
-                                ? 'bg-blue-600 text-white shadow-2xs'
+                                ? 'bg-amber-500 text-slate-950 font-black shadow-2xs'
                                 : 'bg-slate-100 text-slate-700 border border-slate-200 group-hover:bg-slate-200'
                             }`}
                           >
@@ -861,7 +861,7 @@ export const FinalExamPage: React.FC = () => {
                             <div
                               className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
                                 isSelected
-                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  ? 'bg-amber-500 border-amber-500 text-slate-950'
                                   : 'border-slate-300 bg-white group-hover:border-slate-400'
                               }`}
                             >
@@ -871,11 +871,11 @@ export const FinalExamPage: React.FC = () => {
                             <div
                               className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                                 isSelected
-                                  ? 'border-blue-600'
+                                  ? 'border-amber-500'
                                   : 'border-slate-300 group-hover:border-slate-400'
                               }`}
                             >
-                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
+                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />}
                             </div>
                           )}
                         </div>
@@ -924,7 +924,7 @@ export const FinalExamPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCurrentQuestionIndex(prev => Math.min(totalQuestions - 1, prev + 1))}
-                        className="px-5 sm:px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                        className="px-5 sm:px-6 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black rounded-xl text-xs sm:text-sm transition-all flex items-center space-x-1.5 shadow-sm hover:shadow cursor-pointer"
                       >
                         <span>Next</span>
                         <ChevronRight className="w-4 h-4" />
@@ -933,7 +933,7 @@ export const FinalExamPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setExamStage('confirm_modal')}
-                        className="px-5 sm:px-6 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                        className="px-5 sm:px-6 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black rounded-xl text-xs sm:text-sm transition-all flex items-center space-x-1.5 shadow-sm hover:shadow cursor-pointer"
                       >
                         <span>Review & Submit</span>
                         <Check className="w-4 h-4" />
@@ -972,11 +972,11 @@ export const FinalExamPage: React.FC = () => {
                     if (isAnswered && isMarked) {
                       tileClasses = 'bg-purple-600 text-white border-purple-700 hover:bg-purple-700';
                     } else if (isMarked) {
-                      tileClasses = 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600';
+                      tileClasses = 'bg-amber-500 text-slate-950 border-amber-600 hover:bg-amber-600 font-bold';
                     } else if (isAnswered) {
                       tileClasses = 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700';
                     } else if (isCurrent) {
-                      tileClasses = 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700';
+                      tileClasses = 'bg-[#0A192F] text-white border-slate-900 hover:bg-slate-800 font-black';
                     } else if (isVisited) {
                       tileClasses = 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200';
                     } else {
@@ -984,7 +984,7 @@ export const FinalExamPage: React.FC = () => {
                     }
 
                     const activeRing = isCurrent
-                      ? 'ring-2 ring-offset-2 ring-blue-600 font-black z-10'
+                      ? 'ring-2 ring-offset-2 ring-[#0A192F] font-black z-10'
                       : '';
 
                     return (
@@ -1012,7 +1012,7 @@ export const FinalExamPage: React.FC = () => {
                       <span>Answered</span>
                     </div>
                     <div className="flex items-center space-x-2.5">
-                      <span className="w-3.5 h-3.5 rounded-md bg-blue-600 flex-shrink-0 shadow-2xs" />
+                      <span className="w-3.5 h-3.5 rounded-md bg-[#0A192F] flex-shrink-0 shadow-2xs" />
                       <span>Current</span>
                     </div>
                     <div className="flex items-center space-x-2.5">
@@ -1076,7 +1076,7 @@ export const FinalExamPage: React.FC = () => {
               </div>
               <div className="p-2.5 bg-white rounded-xl border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Time Left</span>
-                <p className="text-base font-black text-blue-600 mt-0.5">
+                <p className="text-base font-black text-amber-700 mt-0.5">
                   {formatTime(timeRemaining)}
                 </p>
               </div>
@@ -1106,7 +1106,7 @@ export const FinalExamPage: React.FC = () => {
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmSubmit}
-                className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold rounded-xl text-xs transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                className="w-1/2 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-black rounded-xl text-xs transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? 'Submitting...' : 'Confirm Submit'}
               </button>

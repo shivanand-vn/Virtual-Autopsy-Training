@@ -50,7 +50,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Courses', path: '/admin/courses', icon: BookOpen },
     { name: 'Assignment Submissions', path: '/admin/assignments', icon: ClipboardList },
-    { name: 'Exams', path: '/admin/exams', icon: GraduationCap },
+    { name: 'Final Exam', path: '/admin/exams', icon: GraduationCap },
     { name: 'Payments', path: '/admin/payments', icon: CreditCard },
     { name: 'Certificates', path: '/admin/certificates', icon: Award },
     { name: 'Discussions', path: '/admin/discussions', icon: MessageSquare, badge: discussions.length > 0 ? String(discussions.length) : undefined },
@@ -84,9 +84,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
   return (
     <>
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 w-72 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out flex flex-col justify-between overflow-y-auto ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}
+        className={`fixed top-0 left-0 bottom-0 z-40 w-72 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out flex flex-col justify-between overflow-y-auto ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          }`}
       >
         <div>
           {/* Logo Header */}
@@ -123,11 +122,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                     key={item.name}
                     to={item.path}
                     onClick={onClose}
-                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
+                    className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${isActive
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
                   >
                     <div className="flex items-center space-x-3">
                       <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
@@ -141,11 +139,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                       )}
                       {item.badge && (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                            isActive
-                              ? 'bg-slate-950 text-amber-400'
-                              : 'bg-amber-100 text-amber-900'
-                          }`}
+                          className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isActive
+                            ? 'bg-slate-950 text-amber-400'
+                            : 'bg-amber-100 text-amber-900'
+                            }`}
                         >
                           {item.badge}
                         </span>
@@ -172,11 +169,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen = true, onClo
                     key={item.name}
                     to={item.path}
                     onClick={onClose}
-                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                      isActive
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
+                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${isActive
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm shadow-amber-500/20'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
                   >
                     <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
                     <span>{item.name}</span>

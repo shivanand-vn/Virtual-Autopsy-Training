@@ -21,7 +21,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     portfolioUrl: 'https://nandeeshmn.vercel.app/',
   },
   {
-    name: 'ShivanandVN',
+    name: 'Shivanand VN',
     portfolioUrl: 'https://shivanandvn.vercel.app/',
   },
   {

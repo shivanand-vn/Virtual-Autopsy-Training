@@ -217,14 +217,9 @@ export const SupportPage: React.FC = () => {
 
             {/* Field 2: Screenshot Attachment with Clipboard Paste */}
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-wider text-[#0A192F] flex items-center justify-between">
-                <span className="flex items-center space-x-1">
-                  <span>Attach Screenshot</span>
-                  <span className="text-rose-500 font-bold text-sm leading-none">*</span>
-                </span>
-                <span className="text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                  Ctrl + V to Paste directly
-                </span>
+              <label className="text-xs font-black uppercase tracking-wider text-[#0A192F] flex items-center space-x-1">
+                <span>Attach Screenshot</span>
+                <span className="text-rose-500 font-bold text-sm leading-none">*</span>
               </label>
 
               {!screenshotUrl ? (

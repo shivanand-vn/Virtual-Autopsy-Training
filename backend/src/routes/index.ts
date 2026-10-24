@@ -7,6 +7,7 @@ import examRoutes from './exam.routes.js';
 import assignmentRoutes from './assignment.routes.js';
 import discussionRoutes from './discussion.routes.js';
 import paymentRoutes from './payment.routes.js';
+import supportRoutes from './support.routes.js';
 import { verifyEmailService, sendTestEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
@@ -21,6 +22,7 @@ router.use('/exams', examRoutes);
 router.use('/assignments', assignmentRoutes);
 router.use('/discussions', discussionRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/support', supportRoutes);
 
 import { verifyRedisConnection } from '../services/redis.service.js';
 import { verifyCloudinaryConnection } from '../services/cloudinary.service.js';

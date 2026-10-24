@@ -1,12 +1,20 @@
 export interface SupportIssueReport {
   id: string;
-  studentId?: string;
   studentName: string;
   studentEmail: string;
-  studentAvatar?: string;
+  category: string;
   description: string;
-  screenshotUrl: string;
-  screenshotName?: string;
-  status: 'pending' | 'resolved';
-  createdAt: string;
+  screenshotBase64?: string;
+  status: 'pending' | 'solved';
+  submittedAt: string;
+  resolvedAt?: string;
+}
+
+/** Payload for POST /api/support/issues */
+export interface CreateSupportIssuePayload {
+  studentName: string;
+  studentEmail: string;
+  category: string;
+  description: string;
+  screenshotBase64?: string | null;
 }

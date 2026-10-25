@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/dashboard/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
-import { saveSupportIssue } from '../../lib/supportStorage';
+import { saveSupportIssue, getMySupportIssues } from '../../lib/supportStorage';
 import { SupportIssueReport } from '../../types/support';
 
 const CATEGORY_OPTIONS = [
@@ -42,6 +42,15 @@ export const SupportPage: React.FC = () => {
   const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch previously submitted issues for this student
+  useEffect(() => {
+    if (user) {
+      getMySupportIssues()
+        .then((data) => setStudentIssues(data))
+        .catch((err) => console.warn('[SupportPage] Failed to fetch previous issues:', err));
+    }
+  }, [user]);
 
   // Handle direct Clipboard Paste (Ctrl + V)
   useEffect(() => {
@@ -262,10 +271,6 @@ export const SupportPage: React.FC = () => {
                 <span className="text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                   Ctrl + V to Paste directly
                 </span>
-              </label>
-              <label className="text-xs font-black uppercase tracking-wider text-[#0A192F] flex items-center space-x-1">
-                <span>Attach Screenshot</span>
-                <span className="text-rose-500 font-bold text-sm leading-none">*</span>
               </label>
 
               {!screenshotData ? (

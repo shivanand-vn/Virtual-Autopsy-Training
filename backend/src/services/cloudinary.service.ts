@@ -117,6 +117,41 @@ export async function uploadToCloudinary(
 }
 
 /**
+ * Uploads a base64 Data URI or raw base64 string to Cloudinary.
+ * Returns the secure HTTPS Cloudinary CDN URL.
+ * Falls back to the original string if Cloudinary credentials are missing or upload fails.
+ */
+export async function uploadBase64ImageToCloudinary(
+  base64Data: string,
+  folder: string = 'support-screenshots'
+): Promise<string> {
+  if (!base64Data) return base64Data;
+
+  // If already an HTTP/HTTPS URL, return it directly
+  if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
+    return base64Data;
+  }
+
+  configureCloudinary();
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    console.warn('[Cloudinary] Credentials missing, falling back to raw data');
+    return base64Data;
+  }
+
+  try {
+    const result = await cloudinary.uploader.upload(base64Data, {
+      folder: `vat-lms/${folder}`,
+      resource_type: 'image',
+      timeout: 60000,
+    });
+    return result.secure_url;
+  } catch (err: any) {
+    console.warn('[Cloudinary] Failed to upload base64 screenshot, falling back to raw data:', err?.message || err);
+    return base64Data;
+  }
+}
+
+/**
  * Diagnostic ping check for Cloudinary storage
  */
 export async function verifyCloudinaryConnection(): Promise<{

@@ -13,6 +13,15 @@ export async function saveSupportIssue(
 }
 
 /**
+ * Fetch issues submitted by the currently logged-in student.
+ * GET /api/support/my-issues
+ */
+export async function getMySupportIssues(): Promise<SupportIssueReport[]> {
+  const res = await api.get<SupportIssueReport[]>('/support/my-issues');
+  return res.data;
+}
+
+/**
  * Fetch all support issues (admin only).
  * GET /api/support/issues
  */

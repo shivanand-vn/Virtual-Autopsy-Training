@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { AuthRequest } from '../middlewares/auth.middleware.js';
+import {
+  uploadBase64ImageToCloudinary,
+  deleteFromCloudinary,
+} from '../services/cloudinary.service.js';
 
 // ------------------------------------------
 // Validation Schemas
@@ -68,6 +72,12 @@ export async function createSupportIssue(req: AuthRequest, res: Response): Promi
 
     const { studentName, studentEmail, category, description, screenshotBase64 } = parsed.data;
 
+    // Upload screenshot to Cloudinary if provided (falls back gracefully to base64 if unconfigured)
+    let finalImageUrl: string | null = null;
+    if (screenshotBase64 && screenshotBase64.trim()) {
+      finalImageUrl = await uploadBase64ImageToCloudinary(screenshotBase64, 'support-screenshots');
+    }
+
     const issue = await prisma.supportIssue.create({
       data: {
         userId: req.user.userId,
@@ -75,7 +85,7 @@ export async function createSupportIssue(req: AuthRequest, res: Response): Promi
         studentEmail: studentEmail.toLowerCase().trim(),
         category: category.trim(),
         description: description.trim(),
-        screenshotBase64: screenshotBase64 || null,
+        screenshotBase64: finalImageUrl,
         status: 'PENDING',
       },
     });
@@ -84,6 +94,29 @@ export async function createSupportIssue(req: AuthRequest, res: Response): Promi
   } catch (error: any) {
     console.error('[createSupportIssue] Error:', error?.message || error);
     sendError(res, 'Failed to submit support issue. Please try again.', 500);
+  }
+}
+
+// ------------------------------------------
+// GET /api/support/my-issues — Authenticated students
+// ------------------------------------------
+
+export async function getMySupportIssues(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      sendError(res, 'Authentication required.', 401);
+      return;
+    }
+
+    const issues = await prisma.supportIssue.findMany({
+      where: { userId: req.user.userId },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    sendSuccess(res, 'My support issues retrieved', issues.map(toSupportIssueReport));
+  } catch (error: any) {
+    console.error('[getMySupportIssues] Error:', error?.message || error);
+    sendError(res, 'Failed to retrieve your support issues. Please try again.', 500);
   }
 }
 
@@ -177,6 +210,13 @@ export async function deleteSupportIssue(req: AuthRequest, res: Response): Promi
     }
 
     await prisma.supportIssue.delete({ where: { id } });
+
+    // Clean up Cloudinary asset if present
+    if (existing.screenshotBase64) {
+      deleteFromCloudinary(existing.screenshotBase64, 'image').catch((err) =>
+        console.warn('[deleteSupportIssue] Cloudinary cleanup warning:', err?.message || err)
+      );
+    }
 
     sendSuccess(res, 'Support issue deleted successfully');
   } catch (error: any) {

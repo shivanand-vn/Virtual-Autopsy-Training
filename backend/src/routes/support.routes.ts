@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createSupportIssue,
+  getMySupportIssues,
   getSupportIssues,
   resolveSupportIssue,
   deleteSupportIssue,
@@ -11,6 +12,9 @@ const router = Router();
 
 // Student: Submit a support issue (any authenticated user)
 router.post('/issues', requireAuth, createSupportIssue);
+
+// Student: Fetch issues submitted by current student
+router.get('/my-issues', requireAuth, getMySupportIssues);
 
 // Admin: Fetch all support issues
 router.get('/issues', requireAuth, requireRole('ADMIN'), getSupportIssues);

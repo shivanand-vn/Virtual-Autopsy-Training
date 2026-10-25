@@ -41,12 +41,11 @@
 - Module management
 - Video and resource management
 - Assignment management
-- Assignment submission and grading
+- Assignment submission 
 - Final exam management
 - Question bank management
 - Payment monitoring
 - Certificate management
-- Student progress monitoring
 - LMS analytics
 - Notifications
 - Support management

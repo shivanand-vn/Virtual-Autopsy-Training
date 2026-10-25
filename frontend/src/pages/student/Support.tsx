@@ -262,6 +262,7 @@ export const SupportPage: React.FC = () => {
                 <span className="text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                   Ctrl + V to Paste directly
                 </span>
+              </label>
               <label className="text-xs font-black uppercase tracking-wider text-[#0A192F] flex items-center space-x-1">
                 <span>Attach Screenshot</span>
                 <span className="text-rose-500 font-bold text-sm leading-none">*</span>

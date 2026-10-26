@@ -233,46 +233,6 @@ export const AdminSupportPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Minimal Clean Issues Table */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase text-[10px] tracking-wider">
-                  <th className="py-3.5 px-6 font-bold w-1/4">Student</th>
-                  <th className="py-3.5 px-4 font-bold w-1/5 text-center">Screenshot</th>
-                  <th className="py-3.5 px-6 font-bold w-2/5">Issue & Time</th>
-                  <th className="py-3.5 px-6 font-bold text-center w-1/6">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredIssues.length > 0 ? (
-                  filteredIssues.map((issue) => (
-                    <tr
-                      key={issue.id}
-                      className="hover:bg-slate-50/60 transition-colors"
-                    >
-                      {/* Column 1: Student Details */}
-                      <td className="py-4 px-6 align-middle">
-                        <div className="flex items-center space-x-3">
-                          {issue.studentAvatar ? (
-                            <img
-                              src={issue.studentAvatar}
-                              alt={issue.studentName}
-                              className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-extrabold flex items-center justify-center shrink-0">
-                              {issue.studentName.charAt(0)}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="font-extrabold text-slate-900 truncate">
-                              {issue.studentName}
-                            </p>
-                            <p className="text-[11px] text-slate-400 font-mono truncate">
-                              {issue.studentEmail}
-                            </p>
         {/* Main Content: Loading / Error / Table */}
         {isLoading ? (
           <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-12 flex flex-col items-center justify-center space-y-3">
@@ -310,9 +270,8 @@ export const AdminSupportPage: React.FC = () => {
                     filteredIssues.map((issue) => (
                       <tr
                         key={issue.id}
-                        onClick={() => setSelectedIssue(issue)}
-                        className={`hover:bg-amber-50/20 transition-colors cursor-pointer group ${
-                          actionLoading === issue.id ? 'opacity-50 pointer-events-none' : ''
+                        className={`hover:bg-slate-50/60 transition-colors ${
+                          actionLoading === issue.id ? "opacity-50 pointer-events-none" : ""
                         }`}
                       >
                         {/* Column 1: Student Details */}
@@ -322,7 +281,7 @@ export const AdminSupportPage: React.FC = () => {
                               {issue.studentName.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-extrabold text-slate-900 truncate group-hover:text-amber-800 transition-colors">
+                              <p className="font-extrabold text-slate-900 truncate">
                                 {issue.studentName}
                               </p>
                               <p className="text-[11px] text-slate-400 font-mono truncate">
@@ -338,10 +297,7 @@ export const AdminSupportPage: React.FC = () => {
                             {issue.screenshotBase64 ? (
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedIssue(issue);
-                                }}
+                                onClick={() => setSelectedIssue(issue)}
                                 title="Click to view full screenshot"
                                 className="relative w-24 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 shadow-2xs group/thumb transition-all hover:scale-105 hover:border-amber-400 cursor-pointer"
                               >
@@ -362,43 +318,7 @@ export const AdminSupportPage: React.FC = () => {
                           </div>
                         </td>
 
-                      {/* Column 2: Screenshot Thumbnail */}
-                      <td className="py-4 px-4 text-center align-middle">
-                        <div className="inline-block relative">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedIssue(issue)}
-                            title="Click to view full screenshot"
-                            className="relative w-24 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 shadow-2xs group/thumb transition-all hover:scale-105 hover:border-amber-400 cursor-pointer"
-                          >
-                            <img
-                              src={issue.screenshotUrl}
-                              alt="Issue screenshot"
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
-                              <Maximize2 className="w-4 h-4 text-white" />
-                            </div>
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Column 3: Description & Timestamp (Static text, not clickable) */}
-                      <td className="py-4 px-6 align-middle">
-                        <div className="space-y-1">
-                          <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-relaxed">
-                            {issue.description}
-                          </p>
-                          <div className="flex items-center space-x-2 text-[10px] text-slate-400">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            <span>
-                              {new Date(issue.createdAt).toLocaleDateString()} at{' '}
-                              {new Date(issue.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                        {/* Column 3: Description & Timestamp */}
+                        {/* Column 3: Description & Timestamp (Static text, not clickable) */}
                         <td className="py-4 px-6 align-middle">
                           <div className="space-y-1">
                             <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-relaxed">
@@ -410,42 +330,27 @@ export const AdminSupportPage: React.FC = () => {
                               </span>
                               <Clock className="w-3 h-3 text-slate-400" />
                               <span>
-                                {new Date(issue.submittedAt).toLocaleDateString()} at{' '}
-                                {new Date(issue.submittedAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {new Date(issue.submittedAt).toLocaleDateString()} at{' '}{new Date(issue.submittedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                               </span>
                             </div>
                           </div>
                         </td>
 
-                      {/* Column 4: Dynamic Status Display (Read-only badge, non-clickable) */}
-                      <td className="py-4 px-6 text-center align-middle">
-                        <span
-                          className={`inline-flex items-center space-x-1.5 text-xs font-bold px-3 py-1 rounded-full border cursor-default select-none ${
-                            issue.status === 'resolved'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}
-                        {/* Column 4: Status Badge */}
-                        <td
-                          className="py-4 px-6 text-center align-middle cursor-default"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        {/* Column 4: Dynamic Status Display (Read-only badge, non-clickable) */}
+                        <td className="py-4 px-6 text-center align-middle">
                           <span
                             className={`inline-flex items-center space-x-1.5 text-xs font-bold px-3 py-1 rounded-full border cursor-default select-none ${
-                              issue.status === 'solved'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                              issue.status === "solved"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
                             }`}
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                issue.status === 'solved' ? 'bg-emerald-500' : 'bg-amber-500'
+                                issue.status === "solved" ? "bg-emerald-500" : "bg-amber-500"
                               }`}
                             />
-                            <span>{issue.status === 'solved' ? 'Solved' : 'Pending'}</span>
+                            <span>{issue.status === "solved" ? "Solved" : "Pending"}</span>
                           </span>
                         </td>
                       </tr>

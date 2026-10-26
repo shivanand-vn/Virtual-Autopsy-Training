@@ -4,7 +4,6 @@ import {
   Search,
   CheckCircle2,
   Clock,
-  Eye,
   X,
   Trash2,
   Maximize2,

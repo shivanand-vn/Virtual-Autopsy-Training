@@ -92,6 +92,7 @@ model User {
   discussionReplies DiscussionReply[]
   payments         Payment[]
   moduleTestAttempts ModuleTestAttempt[]
+  supportIssues  SupportIssue[]
 
   @@map("users")
 }
@@ -483,5 +484,30 @@ model Payment {
   updatedAt      DateTime      @updatedAt
 
   @@map("payments")
+}
+
+// ------------------------------------------
+// Student Support Issues
+// ------------------------------------------
+
+enum SupportIssueStatus {
+  PENDING
+  SOLVED
+}
+
+model SupportIssue {
+  id               String              @id @default(uuid())
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentName      String
+  studentEmail     String
+  category         String
+  description      String
+  screenshotBase64 String?             // Optional base64-encoded screenshot data URL
+  status           SupportIssueStatus  @default(PENDING)
+  submittedAt      DateTime            @default(now())
+  resolvedAt       DateTime?
+
+  @@map("support_issues")
 }
 

@@ -740,7 +740,7 @@ export async function verifyRegistrationOtp(req: Request, res: Response): Promis
     const entry = registrationOtpMap.get(normalizedEmail);
 
     if (!entry) {
-      sendError(res, 'No active verification code found for this email. Please request a code.', 400);
+      sendError(res, 'Invalid OTP. Please try again', 400);
       return;
     }
 
@@ -759,7 +759,7 @@ export async function verifyRegistrationOtp(req: Request, res: Response): Promis
 
     const cleanInputOtp = String(otp).trim();
     if (cleanInputOtp !== entry.otp) {
-      sendError(res, 'Invalid verification code. Please check and try again.', 400);
+      sendError(res, 'Invalid OTP. Please try again', 400);
       return;
     }
 

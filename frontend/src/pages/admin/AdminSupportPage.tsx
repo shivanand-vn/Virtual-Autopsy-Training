@@ -4,7 +4,6 @@ import {
   Search,
   CheckCircle2,
   Clock,
-  Eye,
   X,
   Trash2,
   Maximize2,
@@ -270,9 +269,8 @@ export const AdminSupportPage: React.FC = () => {
                     filteredIssues.map((issue) => (
                       <tr
                         key={issue.id}
-                        onClick={() => setSelectedIssue(issue)}
-                        className={`hover:bg-amber-50/20 transition-colors cursor-pointer group ${
-                          actionLoading === issue.id ? 'opacity-50 pointer-events-none' : ''
+                        className={`hover:bg-slate-50/60 transition-colors ${
+                          actionLoading === issue.id ? "opacity-50 pointer-events-none" : ""
                         }`}
                       >
                         {/* Column 1: Student Details */}
@@ -282,7 +280,7 @@ export const AdminSupportPage: React.FC = () => {
                               {issue.studentName.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-extrabold text-slate-900 truncate group-hover:text-amber-800 transition-colors">
+                              <p className="font-extrabold text-slate-900 truncate">
                                 {issue.studentName}
                               </p>
                               <p className="text-[11px] text-slate-400 font-mono truncate">
@@ -298,10 +296,7 @@ export const AdminSupportPage: React.FC = () => {
                             {issue.screenshotBase64 ? (
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedIssue(issue);
-                                }}
+                                onClick={() => setSelectedIssue(issue)}
                                 title="Click to view full screenshot"
                                 className="relative w-24 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-900/5 shadow-2xs group/thumb transition-all hover:scale-105 hover:border-amber-400 cursor-pointer"
                               >
@@ -322,7 +317,7 @@ export const AdminSupportPage: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Column 3: Description & Timestamp */}
+                        {/* Column 3: Description & Timestamp (Static text, not clickable) */}
                         <td className="py-4 px-6 align-middle">
                           <div className="space-y-1">
                             <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-relaxed">
@@ -334,34 +329,27 @@ export const AdminSupportPage: React.FC = () => {
                               </span>
                               <Clock className="w-3 h-3 text-slate-400" />
                               <span>
-                                {new Date(issue.submittedAt).toLocaleDateString()} at{' '}
-                                {new Date(issue.submittedAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {new Date(issue.submittedAt).toLocaleDateString()} at{' '}{new Date(issue.submittedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                               </span>
                             </div>
                           </div>
                         </td>
 
-                        {/* Column 4: Status Badge */}
-                        <td
-                          className="py-4 px-6 text-center align-middle cursor-default"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        {/* Column 4: Dynamic Status Display (Read-only badge, non-clickable) */}
+                        <td className="py-4 px-6 text-center align-middle">
                           <span
                             className={`inline-flex items-center space-x-1.5 text-xs font-bold px-3 py-1 rounded-full border cursor-default select-none ${
-                              issue.status === 'solved'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                              issue.status === "solved"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
                             }`}
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                issue.status === 'solved' ? 'bg-emerald-500' : 'bg-amber-500'
+                                issue.status === "solved" ? "bg-emerald-500" : "bg-amber-500"
                               }`}
                             />
-                            <span>{issue.status === 'solved' ? 'Solved' : 'Pending'}</span>
+                            <span>{issue.status === "solved" ? "Solved" : "Pending"}</span>
                           </span>
                         </td>
                       </tr>

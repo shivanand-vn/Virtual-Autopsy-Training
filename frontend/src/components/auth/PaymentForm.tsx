@@ -149,7 +149,15 @@ export const PaymentForm: React.FC = () => {
       setOtpSuccessMsg(res.message || 'Email verified successfully!');
       setConfirmEmailError(null);
     } catch (err: any) {
-      setOtpError(sanitizeErrorMessage(err.message, 'Invalid or expired verification code.'));
+      const rawMessage = err?.message || '';
+      if (
+        rawMessage.includes('Too many invalid attempts') ||
+        err?.status === 429
+      ) {
+        setOtpError('Too many invalid attempts. Please request a new verification code.');
+      } else {
+        setOtpError('Invalid OTP. Please try again');
+      }
     } finally {
       clearTimeout(otpTimer);
       setAuthOverlay(null);

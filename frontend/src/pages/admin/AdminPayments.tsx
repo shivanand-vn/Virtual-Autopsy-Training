@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  CreditCard,
   Search,
   CheckCircle2,
   Clock,
@@ -8,6 +7,7 @@ import {
   Loader2,
   RefreshCw,
   AlertCircle,
+  Calendar,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { api } from '../../lib/api';
@@ -30,6 +30,22 @@ export interface PaymentRecord {
   };
 }
 
+export type DateFilterType = '7days' | '30days' | '90days' | '1year' | 'all' | 'custom';
+
+export interface DateFilterOption {
+  id: DateFilterType;
+  label: string;
+}
+
+const DATE_FILTER_OPTIONS: DateFilterOption[] = [
+  { id: '7days', label: '7 Days' },
+  { id: '30days', label: '30 Days' },
+  { id: '90days', label: '90 Days' },
+  { id: '1year', label: '1 Year' },
+  { id: 'all', label: 'All Time' },
+  { id: 'custom', label: 'Custom Date Range' },
+];
+
 export const AdminPaymentsPage: React.FC = () => {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -37,6 +53,11 @@ export const AdminPaymentsPage: React.FC = () => {
   const [totalRevenue, setTotalRevenue] = useState<string>('£0.00');
   const [completedCount, setCompletedCount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Date Range Filter State (30 Days default selection)
+  const [dateFilter, setDateFilter] = useState<DateFilterType>('30days');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const fetchPayments = async () => {
     setLoading(true);
@@ -61,12 +82,76 @@ export const AdminPaymentsPage: React.FC = () => {
     fetchPayments();
   }, []);
 
-  const filteredPayments = payments.filter(
-    (p) =>
+  const filteredPayments = payments.filter((p) => {
+    // 1. Search Query Filter
+    const matchesSearch =
       p.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.transactionRef.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      p.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // 2. Date Range Filter (based on actual payment createdAt transaction date)
+    const paymentTimestamp = new Date(p.createdAt).getTime();
+    if (isNaN(paymentTimestamp)) return true;
+
+    if (dateFilter === '7days') {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      cutoff.setHours(0, 0, 0, 0);
+      return paymentTimestamp >= cutoff.getTime();
+    }
+
+    if (dateFilter === '30days') {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      cutoff.setHours(0, 0, 0, 0);
+      return paymentTimestamp >= cutoff.getTime();
+    }
+
+    if (dateFilter === '90days') {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 90);
+      cutoff.setHours(0, 0, 0, 0);
+      return paymentTimestamp >= cutoff.getTime();
+    }
+
+    if (dateFilter === '1year') {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 365);
+      cutoff.setHours(0, 0, 0, 0);
+      return paymentTimestamp >= cutoff.getTime();
+    }
+
+    if (dateFilter === 'custom') {
+      // When custom date is selected, initially list is empty until date is inserted
+      if (!customStartDate && !customEndDate) {
+        return false;
+      }
+
+      if (customStartDate) {
+        const [sYear, sMonth, sDay] = customStartDate.split('-').map(Number);
+        const startTime = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0).getTime();
+        if (paymentTimestamp < startTime) return false;
+      }
+      if (customEndDate) {
+        const [eYear, eMonth, eDay] = customEndDate.split('-').map(Number);
+        const endTime = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999).getTime();
+        if (paymentTimestamp > endTime) return false;
+      }
+      return true;
+    }
+
+    // 'all'
+    return true;
+  });
+
+  const emptyStateMessage =
+    payments.length === 0
+      ? 'No payment transactions recorded in the database yet.'
+      : dateFilter === 'custom' && !customStartDate && !customEndDate
+      ? 'Please select a date range above to view transactions.'
+      : 'No payment transactions found matching the selected date range or search criteria.';
 
   return (
     <AdminLayout title="Financial Transactions & Payments" subtitle="Payments">
@@ -146,7 +231,78 @@ export const AdminPaymentsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Payments Table */}
+        {/* Date Range Filter Buttons (Placed above the payments table) */}
+        <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mr-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span>Date Range:</span>
+            </span>
+            <div className="inline-flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
+              {DATE_FILTER_OPTIONS.map((opt) => {
+                const isSelected = dateFilter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setDateFilter(opt.id);
+                      if (opt.id === 'custom') {
+                        setCustomStartDate('');
+                        setCustomEndDate('');
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {dateFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  max={customEndDate || undefined}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  min={customStartDate || undefined}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
+                />
+              </div>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                  }}
+                  className="text-[11px] text-slate-400 hover:text-rose-600 font-bold transition-colors cursor-pointer px-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Payments Table: Responsive Cards on Mobile, Table on Desktop */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
           {/* Mobile Card View (md:hidden - no horizontal scroll needed) */}
@@ -217,7 +373,7 @@ export const AdminPaymentsPage: React.FC = () => {
               })
             ) : (
               <div className="py-12 text-center text-slate-400 font-semibold text-xs px-4">
-                No payment transactions recorded in the database yet.
+                {emptyStateMessage}
               </div>
             )}
           </div>
@@ -301,7 +457,7 @@ export const AdminPaymentsPage: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
-                      No payment transactions recorded in the database yet.
+                      {emptyStateMessage}
                     </td>
                   </tr>
                 )}

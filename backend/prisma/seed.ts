@@ -113,6 +113,7 @@ async function main() {
         {
           title: 'Core Scanning Protocols and Mortuary Workflow',
           type: ResourceType.VIDEO_STREAM,
+          videoUrl: '/autopsy.mp4',
           bunnyVideoId: 'pmct-mod1-intro',
           durationSeconds: 1800,
           order: 1,
@@ -163,6 +164,7 @@ async function main() {
         {
           title: 'Multiphase Contrast Perfusion Technique',
           type: ResourceType.VIDEO_STREAM,
+          videoUrl: '/autopsy.mp4',
           bunnyVideoId: 'pmct-mod3-pmcta',
           durationSeconds: 2100,
           order: 1,
@@ -188,6 +190,7 @@ async function main() {
         {
           title: 'Drafting the Coronial Virtual Autopsy Report',
           type: ResourceType.VIDEO_STREAM,
+          videoUrl: '/autopsy.mp4',
           bunnyVideoId: 'pmct-mod4-reporting',
           durationSeconds: 1950,
           order: 1,

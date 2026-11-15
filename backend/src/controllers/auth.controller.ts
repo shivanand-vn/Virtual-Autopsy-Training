@@ -81,12 +81,6 @@ export async function login(req: Request, res: Response): Promise<void> {
       isValidPassword = await comparePassword(trimmedPassword, user.passwordHash);
     }
 
-    // Allow convenient case-tolerance for default admin
-    if (!isValidPassword && user.email === 'admin@gmail.com') {
-      if (trimmedPassword.toLowerCase() === 'admin@123') {
-        isValidPassword = true;
-      }
-    }
 
     if (!isValidPassword) {
       const failStatus = await recordFailedLogin(req, normalizedEmail);

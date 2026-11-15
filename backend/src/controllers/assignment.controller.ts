@@ -4,6 +4,7 @@ import { sendSuccess, sendError } from '../utils/response.js';
 import { uploadDocument } from '../services/storage.service.js';
 import { Role, SubmissionStatus } from '@prisma/client';
 import { sendAssignmentEvaluationEmail } from '../services/email.service.js';
+import { AuthRequest } from '../middlewares/auth.middleware.js';
 
 export async function getAssignments(req: Request, res: Response): Promise<void> {
   try {
@@ -72,13 +73,19 @@ export async function getAssignmentById(req: Request, res: Response): Promise<vo
   }
 }
 
-export async function getModuleAssignment(req: Request, res: Response): Promise<void> {
+export async function getModuleAssignment(req: AuthRequest, res: Response): Promise<void> {
   try {
     const moduleId = req.params.moduleId as string;
+    const user = req.user;
+    const isAdmin = user?.role === Role.ADMIN;
     const assignment = await prisma.assignment.findFirst({
       where: { moduleId },
       include: {
-        submissions: true,
+        submissions: isAdmin
+          ? true
+          : user?.userId
+          ? { where: { userId: user.userId } }
+          : false,
       },
     });
 

@@ -19,7 +19,7 @@ const router = Router();
 
 router.get('/', requireAuth, getAssignments);
 router.get('/submissions', requireAuth, getAllSubmissions);
-router.get('/module/:moduleId', getModuleAssignment);
+router.get('/module/:moduleId', requireAuth, getModuleAssignment);
 router.put('/module/:moduleId', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
 router.post('/module/:moduleId', requireAuth, requireRole('ADMIN'), upsertModuleAssignment);
 router.get('/:id', requireAuth, getAssignmentById);

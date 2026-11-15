@@ -74,4 +74,11 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+if (parsed.data.NODE_ENV === 'production') {
+  if (parsed.data.JWT_SECRET === 'vat_jwt_super_secret_dev_key_change_in_production_9988776655') {
+    console.error('FATAL SECURITY CONFIGURATION: Default insecure JWT_SECRET cannot be used in production.');
+    process.exit(1);
+  }
+}
+
 export const env = parsed.data;

@@ -11,6 +11,7 @@ import supportRoutes from './support.routes.js';
 import { verifyEmailService, sendTestEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
+import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
@@ -106,7 +107,7 @@ router.get('/health', async (_req, res) => {
   });
 });
 
-router.post('/health/test-email', async (req, res) => {
+router.post('/health/test-email', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
     const targetEmail = req.body?.email;
     const result = await sendTestEmail(targetEmail);

@@ -5,6 +5,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   role: 'ADMIN' | 'STUDENT' | 'PENDING_APPROVAL';
+  tokenVersion?: number;
 }
 
 export function signToken(payload: TokenPayload): string {

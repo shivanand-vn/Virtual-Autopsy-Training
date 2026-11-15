@@ -106,6 +106,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       userId: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: (user as any).tokenVersion ?? 0,
     });
 
     res.cookie('vat_auth_token', token, {
@@ -202,12 +203,37 @@ export async function changePassword(req: AuthRequest, res: Response): Promise<v
     }
 
     const newHash = await hashPassword(newPassword);
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: newHash },
+      data: {
+        passwordHash: newHash,
+        tokenVersion: { increment: 1 },
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        tokenVersion: true,
+      },
     });
 
-    sendSuccess(res, 'Password changed successfully');
+    // Re-issue a fresh token for the current active browser so this device stays logged in,
+    // while all other devices/sessions with the previous tokenVersion are invalidated (LOGIN-036).
+    const newToken = signToken({
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      tokenVersion: updatedUser.tokenVersion,
+    });
+
+    res.cookie('vat_auth_token', newToken, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, 'Password changed successfully. All other active sessions have been signed out.', { token: newToken });
   } catch (error: any) {
     console.error('changePassword error:', error);
     sendError(res, error.message || 'Failed to change password', 500);
@@ -589,9 +615,13 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
     }
 
     const newHash = await hashPassword(cleanPassword);
+    // Invalidate all existing authentication sessions across all browsers/devices (LOGIN-036)
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: newHash },
+      data: {
+        passwordHash: newHash,
+        tokenVersion: { increment: 1 },
+      },
     });
 
     // Invalidate OTP entry immediately after successful reset

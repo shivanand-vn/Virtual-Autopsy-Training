@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, TokenPayload } from '../utils/jwt.js';
 import { sendError } from '../utils/response.js';
 import { prisma } from '../config/prisma.js';
+import { env } from '../config/env.js';
 
 export interface AuthRequest extends Request {
   user?: TokenPayload & { fullName: string };
@@ -35,14 +36,29 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    // Verify user still exists in database and is active
+    // Verify user still exists in database and is active, and check tokenVersion for session revocation (LOGIN-036)
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, fullName: true, role: true, isActive: true },
+      select: { id: true, email: true, fullName: true, role: true, isActive: true, tokenVersion: true },
     });
 
     if (!user || !user.isActive) {
       sendError(res, 'User account is inactive or not found.', 403);
+      return;
+    }
+
+    // Token revocation check: if user's tokenVersion was incremented (e.g. via password reset/change),
+    // any session issued with an older tokenVersion is immediately revoked.
+    const userVersion = (user as any).tokenVersion ?? 0;
+    const tokenVersion = typeof payload.tokenVersion === 'number' ? payload.tokenVersion : 0;
+
+    if (tokenVersion !== userVersion) {
+      res.clearCookie('vat_auth_token', {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      });
+      sendError(res, 'Session has expired due to a password change or reset. Please log in again.', 401);
       return;
     }
 
@@ -51,6 +67,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       email: user.email,
       fullName: user.fullName,
       role: user.role,
+      tokenVersion: userVersion,
     };
 
     next();
@@ -63,6 +80,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
         email: payload.email,
         fullName: payload.email,
         role: payload.role,
+        tokenVersion: payload.tokenVersion,
       };
       return next();
     }
@@ -96,14 +114,18 @@ export async function optionalAuth(req: AuthRequest, _res: Response, next: NextF
         try {
           const user = await prisma.user.findUnique({
             where: { id: payload.userId },
-            select: { id: true, email: true, fullName: true, role: true, isActive: true },
+            select: { id: true, email: true, fullName: true, role: true, isActive: true, tokenVersion: true },
           });
-          if (user && user.isActive) {
+          const userVersion = (user as any)?.tokenVersion ?? 0;
+          const tokenVersion = typeof payload.tokenVersion === 'number' ? payload.tokenVersion : 0;
+
+          if (user && user.isActive && userVersion === tokenVersion) {
             req.user = {
               userId: user.id,
               email: user.email,
               fullName: user.fullName,
               role: user.role,
+              tokenVersion: userVersion,
             };
           }
         } catch (dbErr: any) {
@@ -114,6 +136,7 @@ export async function optionalAuth(req: AuthRequest, _res: Response, next: NextF
             email: payload.email,
             fullName: payload.email,
             role: payload.role,
+            tokenVersion: payload.tokenVersion,
           };
         }
       }

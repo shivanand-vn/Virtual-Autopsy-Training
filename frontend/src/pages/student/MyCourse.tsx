@@ -235,8 +235,15 @@ export const MyCoursePage: React.FC = () => {
     if (norm.url) rawUrl = norm.url;
     const rawBunnyId = currentTopic.bunnyVideoId || norm.bunnyVideoId || (rawUrl ? rawUrl.match(/embed\/\d+\/([a-zA-Z0-9-]+)/)?.[1] : null);
 
-    if (!rawUrl && rawBunnyId && !rawBunnyId.startsWith('pmct-')) {
-      rawUrl = `https://iframe.mediadelivery.net/embed/764331/${rawBunnyId}`;
+    // Fallback dead dummy Bunny IDs or sample pmct topics to the local autopsy video
+    if (rawUrl.includes('abdaf5ab-4983-4101-927d-35d02d2f44d4') || rawBunnyId === 'abdaf5ab-4983-4101-927d-35d02d2f44d4') {
+      rawUrl = '/autopsy.mp4';
+    } else if (!rawUrl && rawBunnyId) {
+      if (rawBunnyId.startsWith('pmct-')) {
+        rawUrl = '/autopsy.mp4';
+      } else {
+        rawUrl = `https://iframe.mediadelivery.net/embed/764331/${rawBunnyId}`;
+      }
     }
 
     if (rawUrl && rawUrl.includes('iframe.mediadelivery.net') && !rawUrl.includes('token=')) {

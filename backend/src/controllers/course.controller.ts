@@ -16,6 +16,11 @@ export async function invalidateCourseCache(): Promise<void> {
 }
 
 export function signBunnyEmbedUrlIfNeeded(url: string | null | undefined, videoId?: string | null): string {
+  // If a topic has a known dummy/broken Bunny ID, fallback to sample autopsy video
+  if (url?.includes('abdaf5ab-4983-4101-927d-35d02d2f44d4') || videoId === 'abdaf5ab-4983-4101-927d-35d02d2f44d4') {
+    return '/autopsy.mp4';
+  }
+
   const effectiveUrl = url || (videoId && !videoId.startsWith('pmct-') ? `https://iframe.mediadelivery.net/embed/${env.BUNNY_STREAM_LIBRARY_ID || '764331'}/${videoId}` : (videoId?.startsWith('pmct-') ? '/autopsy.mp4' : ''));
   if (!effectiveUrl) return url || '';
 

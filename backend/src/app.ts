@@ -41,7 +41,7 @@ export function createApp(): Express {
         ) {
           return callback(null, true);
         }
-        return callback(null, true);
+        return callback(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

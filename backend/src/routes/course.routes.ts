@@ -17,11 +17,23 @@ import {
   updateProgress,
   uploadCourseMediaHandler,
   deleteCourseMediaHandler,
+  getPublicCourses,
+  getPublicCourseById,
+  getMyCourses,
+  getAvailableCourses,
 } from '../controllers/course.controller.js';
 import { getModuleAssignment, upsertModuleAssignment, submitAssignment } from '../controllers/assignment.controller.js';
 import { uploadCourseMedia, uploadFileOrImage } from '../middlewares/upload.middleware.js';
 
 const router = Router();
+
+// Public Routes (Accessible without authentication)
+router.get('/public', getPublicCourses);
+router.get('/public/:id', getPublicCourseById);
+
+// Student Enrolled & Available Course Hub (Authenticated)
+router.get('/my-courses', requireAuth, getMyCourses);
+router.get('/available', requireAuth, getAvailableCourses);
 
 // Protected Course Access (Authenticated Users Only)
 router.get('/', requireAuth, getAllCourses);

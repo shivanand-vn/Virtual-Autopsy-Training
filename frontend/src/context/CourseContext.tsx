@@ -13,7 +13,13 @@ import { api, getAuthToken } from '../lib/api';
 
 export interface CourseContextType {
   courses: Course[];
+  myCourses: Course[];
+  availableCourses: Course[];
+  publicCourses: Course[];
   activeCourse: Course;
+  activeCourseId: string;
+  setActiveCourseId: (courseId: string) => void;
+  purchaseCourse: (courseId: string, cardLast4?: string) => Promise<any>;
   isLoading: boolean;
   refreshCourses: () => Promise<void>;
   getCourse: (courseId: string) => Course | undefined;
@@ -145,6 +151,13 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
     thumbnail: bCourse.thumbnailUrl || bCourse.thumbnail || '',
     thumbnailUrl: bCourse.thumbnailUrl || bCourse.thumbnail || '',
     status: (bCourse.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
+    fee: bCourse.fee !== undefined ? Number(bCourse.fee) : 750.0,
+    currency: bCourse.currency || 'GBP',
+    isPublishedOnLanding: bCourse.isPublishedOnLanding !== undefined ? Boolean(bCourse.isPublishedOnLanding) : true,
+    order: bCourse.order !== undefined ? Number(bCourse.order) : 1,
+    progressPercent: bCourse.progressPercent,
+    enrolledAt: bCourse.enrolledAt,
+    enrollmentStatus: bCourse.enrollmentStatus,
     createdAt: bCourse.createdAt ? new Date(bCourse.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     modules: (bCourse.modules || []).map((m: any, idx: number) => {
       const bAssignment = m.assignment || (m.assignments && m.assignments[0]);
@@ -209,6 +222,10 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
 
 export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [courses, setCourses] = useState<Course[]>(getInitialCourses);
+  const [myCourses, setMyCourses] = useState<Course[]>([]);
+  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [publicCourses, setPublicCourses] = useState<Course[]>([]);
+  const [activeCourseId, setActiveCourseId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Persistent student completed topics (by topic id)
@@ -301,53 +318,60 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Fetch courses directly from Supabase / Backend API on mount
   const refreshCourses = useCallback(async () => {
     const token = getAuthToken();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
 
     try {
       setIsLoading(true);
+
+      // 1. Always fetch public courses (for landing page, overview & prospective students)
+      try {
+        const pubRes = await api.get('/courses/public');
+        if (pubRes && pubRes.data && Array.isArray(pubRes.data)) {
+          const mappedPub = pubRes.data.map(mapBackendCourseToFrontend);
+          setPublicCourses(mappedPub);
+          if (!token) {
+            setCourses(mappedPub);
+          }
+        }
+      } catch (pubErr) {
+        console.warn('Failed to fetch public courses:', pubErr);
+      }
+
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Fetch authenticated course catalog
       const res = await api.get('/courses');
       if (res && res.data && Array.isArray(res.data)) {
         const mapped = res.data.map(mapBackendCourseToFrontend);
         if (mapped.length > 0) {
-          setCourses((prevCourses) => {
-            return mapped.map((mCourse) => {
-              const existingCourse = prevCourses.find((pc) => pc.id === mCourse.id);
-              return {
-                ...mCourse,
-                modules: mCourse.modules.map((mod) => {
-                  const existingMod = existingCourse?.modules.find((em) => em.id === mod.id);
-                  const existingAsgn = existingMod?.assignment;
-                  const modAsgn = mod.assignment;
-                  const resolvedAsgn = modAsgn
-                    ? {
-                        ...modAsgn,
-                        submissionStatus:
-                          existingAsgn?.submissionStatus === 'submitted' || existingAsgn?.submissionStatus === 'graded'
-                            ? existingAsgn.submissionStatus
-                            : modAsgn.submissionStatus,
-                        submittedFileName: existingAsgn?.submittedFileName || modAsgn.submittedFileName,
-                        submittedFileUrl: existingAsgn?.submittedFileUrl || modAsgn.submittedFileUrl,
-                        submittedAt: existingAsgn?.submittedAt || modAsgn.submittedAt,
-                        studentResponseText: existingAsgn?.studentResponseText || modAsgn.studentResponseText,
-                        score: existingAsgn?.score !== undefined ? existingAsgn.score : modAsgn.score,
-                        feedback: existingAsgn?.feedback || modAsgn.feedback,
-                      }
-                    : existingAsgn;
-
-                  return {
-                    ...mod,
-                    assignment: resolvedAsgn,
-                    test: mod.test || existingMod?.test,
-                  };
-                }),
-              };
-            });
-          });
+          setCourses(mapped);
         }
       }
+
+      // 3. Fetch student's purchased/enrolled courses
+      try {
+        const myRes = await api.get('/courses/my-courses');
+        if (myRes && myRes.data && Array.isArray(myRes.data)) {
+          const mappedMy = myRes.data.map(mapBackendCourseToFrontend);
+          setMyCourses(mappedMy);
+        }
+      } catch (myErr) {
+        // Ignore for admin roles
+      }
+
+      // 4. Fetch public courses available for purchase
+      try {
+        const availRes = await api.get('/courses/available');
+        if (availRes && availRes.data && Array.isArray(availRes.data)) {
+          const mappedAvail = availRes.data.map(mapBackendCourseToFrontend);
+          setAvailableCourses(mappedAvail);
+        }
+      } catch (availErr) {
+        // Ignore for admin roles
+      }
+
       await refreshAssignmentSubmissions();
     } catch (err: any) {
       if (err?.status !== 401 && err?.status !== 403) {
@@ -359,9 +383,10 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [refreshAssignmentSubmissions]);
 
   useEffect(() => {
+    refreshCourses();
+
     const token = getAuthToken();
     if (token) {
-      refreshCourses();
       refreshAssignmentSubmissions();
     }
 
@@ -380,6 +405,9 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const handleAuthLogout = () => {
       setCourses([]);
+      setMyCourses([]);
+      setAvailableCourses([]);
+      setActiveCourseId('');
       setAssignmentSubmissions([]);
       setCompletedTopicIds({});
       setAssessmentResults({});
@@ -394,7 +422,24 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
   }, [refreshCourses, refreshAssignmentSubmissions]);
 
-  const activeCourse = courses[0] || INITIAL_COURSES[0];
+  const activeCourse =
+    myCourses.find((c) => c.id === activeCourseId) ||
+    courses.find((c) => c.id === activeCourseId) ||
+    myCourses[0] ||
+    courses[0] ||
+    publicCourses[0] ||
+    INITIAL_COURSES[0];
+
+  const purchaseCourse = async (courseId: string, cardLast4: string = '4242') => {
+    const res = await api.post('/payments/purchase-course', {
+      courseId,
+      cardLast4,
+      paymentMethod: 'Stripe Credit Card',
+    });
+    await refreshCourses();
+    setActiveCourseId(courseId);
+    return res.data;
+  };
 
   const getCourse = (courseId: string) => {
     return courses.find((c) => c.id === courseId);
@@ -411,6 +456,10 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       duration: courseData.duration || '16 Weeks',
       thumbnailUrl: courseData.thumbnailUrl || courseData.thumbnail || null,
       status: courseData.status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+      fee: courseData.fee !== undefined ? Number(courseData.fee) : 750.0,
+      currency: courseData.currency || 'GBP',
+      isPublishedOnLanding: courseData.isPublishedOnLanding !== undefined ? Boolean(courseData.isPublishedOnLanding) : true,
+      order: courseData.order !== undefined ? Number(courseData.order) : 1,
     };
 
     let createdCourse: Course;
@@ -555,6 +604,10 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (updatedData.status !== undefined) {
         payload.status = updatedData.status.toUpperCase();
       }
+      if (updatedData.fee !== undefined) payload.fee = Number(updatedData.fee);
+      if (updatedData.currency !== undefined) payload.currency = updatedData.currency;
+      if (updatedData.isPublishedOnLanding !== undefined) payload.isPublishedOnLanding = Boolean(updatedData.isPublishedOnLanding);
+      if (updatedData.order !== undefined) payload.order = Number(updatedData.order);
 
       try {
         await api.put(`/courses/${courseId}`, payload);
@@ -800,6 +853,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       })
     );
 
+    refreshCourses().catch(() => {});
     return newTopic;
   };
 
@@ -849,6 +903,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return c;
       })
     );
+    refreshCourses().catch(() => {});
   };
 
   const deleteTopic = async (courseId: string, moduleId: string, topicId: string): Promise<void> => {
@@ -874,6 +929,7 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return c;
       })
     );
+    refreshCourses().catch(() => {});
   };
 
   const reorderTopics = (
@@ -1211,7 +1267,13 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     <CourseContext.Provider
       value={{
         courses,
+        myCourses,
+        availableCourses,
+        publicCourses,
         activeCourse,
+        activeCourseId,
+        setActiveCourseId,
+        purchaseCourse,
         isLoading,
         refreshCourses,
         getCourse,

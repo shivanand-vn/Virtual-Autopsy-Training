@@ -11,6 +11,7 @@ import { FinalExamProvider } from './context/FinalExamContext';
 import { ScrollToTop } from './components/common/ScrollToTop';
 
 import { LandingPage } from './pages/public/LandingPage';
+import { CourseOverviewPage } from './pages/public/CourseOverview';
 import { LoginPage } from './pages/student/Login';
 import { RegistrationPage } from './pages/student/Registration';
 import { PrivacyPolicyPage } from './pages/student/PrivacyPolicy';
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
                       {/* Public Course Landing Page & Auth Routes */}
                       <Route path="/" element={<LandingPage />} />
                       <Route path="/landing" element={<LandingPage />} />
+                      <Route path="/courses/:courseId" element={<CourseOverviewPage />} />
                       <Route path="/register" element={<RegistrationPage />} />
                       <Route path="/register/privacy-policy" element={<PrivacyPolicyPage />} />
                       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

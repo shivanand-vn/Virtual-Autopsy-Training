@@ -18,6 +18,13 @@ function cleanMemoryFallback() {
 }
 setInterval(cleanMemoryFallback, 60000).unref();
 
+// Upstash free tier keepalive: ping every 6 hours to prevent database inactivity archival
+setInterval(() => {
+  if (redisClient && isConnected) {
+    redisClient.set('vat_keepalive', new Date().toISOString()).catch(() => {});
+  }
+}, 6 * 60 * 60 * 1000).unref();
+
 export function getRedisClient(): Redis | null {
   if (redisClient) return redisClient;
 
@@ -43,6 +50,8 @@ export function getRedisClient(): Redis | null {
     redisClient.on('connect', () => {
       isConnected = true;
       console.log('  Redis Cache : Connected to Upstash Redis (Ready)');
+      // Auto keepalive to keep Upstash database active
+      redisClient?.set('vat_keepalive', new Date().toISOString()).catch(() => {});
     });
 
     redisClient.on('ready', () => {

@@ -30,7 +30,8 @@ import {
   FileQuestion,
   HelpCircle,
   Award,
-  Sparkles
+  Sparkles,
+  Globe
 } from 'lucide-react';
 
 export const AdminCourseForm: React.FC = () => {
@@ -40,12 +41,16 @@ export const AdminCourseForm: React.FC = () => {
   const { addCourse, updateCourse, getCourse, refreshCourses } = useCourse();
   const { questions: bankQuestions, addQuestion, updateQuestion, deleteQuestion } = useQuestionBank();
 
-  // Course Form State (NO FEE OR PRICE FIELDS)
+  // Course Form State with Dynamic Fees & Landing Page Publication
   const [courseName, setCourseName] = useState('');
   const [shortDescription, setShortDescription] = useState('');
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState('6 Months');
+  const [courseFee, setCourseFee] = useState<number>(750.0);
+  const [isPublishedOnLanding, setIsPublishedOnLanding] = useState<boolean>(true);
+  const [order, setOrder] = useState<number>(1);
   const [status, setStatus] = useState<'draft' | 'published'>('published');
+  const [showPublishConfirmModal, setShowPublishConfirmModal] = useState<boolean>(false);
   const [modules, setModules] = useState<CourseModule[]>([]);
   const [initialModules, setInitialModules] = useState<CourseModule[]>([]);
   const [initialCourseMeta, setInitialCourseMeta] = useState<{
@@ -54,6 +59,9 @@ export const AdminCourseForm: React.FC = () => {
     description: string;
     duration: string;
     status: 'draft' | 'published';
+    fee: number;
+    isPublishedOnLanding: boolean;
+    order: number;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -431,12 +439,18 @@ export const AdminCourseForm: React.FC = () => {
         description: existing.description || '',
         duration: existing.duration || '6 Months',
         status: (existing.status?.toLowerCase() === 'draft' ? 'draft' : 'published') as 'draft' | 'published',
+        fee: existing.fee !== undefined ? Number(existing.fee) : 750.0,
+        isPublishedOnLanding: existing.isPublishedOnLanding !== undefined ? Boolean(existing.isPublishedOnLanding) : true,
+        order: existing.order !== undefined ? Number(existing.order) : 1,
       };
       setCourseName(meta.name);
       setShortDescription(meta.shortDescription);
       setDescription(meta.description);
       setDuration(meta.duration);
       setStatus(meta.status);
+      setCourseFee(meta.fee);
+      setIsPublishedOnLanding(meta.isPublishedOnLanding);
+      setOrder(meta.order);
       setInitialCourseMeta(meta);
 
       const mappedModules = (existing.modules || []).map((m: any, idx: number) => ({
@@ -1139,7 +1153,7 @@ export const AdminCourseForm: React.FC = () => {
   };
 
   // SAVE COURSE
-  const handleSaveCourse = async (e: React.FormEvent) => {
+  const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -1158,7 +1172,18 @@ export const AdminCourseForm: React.FC = () => {
       return;
     }
 
+    // Prompt admin confirmation if publishing course to Landing Page
+    if (isPublishedOnLanding && status === 'published') {
+      setShowPublishConfirmModal(true);
+    } else {
+      executeSaveCourse(isPublishedOnLanding);
+    }
+  };
+
+  const executeSaveCourse = async (publishOnLanding: boolean = isPublishedOnLanding) => {
+    setShowPublishConfirmModal(false);
     setIsSaving(true);
+    setValidationError(null);
 
     try {
       if (isEditing && courseId) {
@@ -1168,7 +1193,10 @@ export const AdminCourseForm: React.FC = () => {
           (shortDescription || '').trim() !== (initialCourseMeta.shortDescription || '').trim() ||
           description.trim() !== initialCourseMeta.description.trim() ||
           duration.trim() !== initialCourseMeta.duration.trim() ||
-          status !== initialCourseMeta.status;
+          status !== initialCourseMeta.status ||
+          courseFee !== initialCourseMeta.fee ||
+          publishOnLanding !== initialCourseMeta.isPublishedOnLanding ||
+          order !== initialCourseMeta.order;
 
         if (isCourseMetaChanged) {
           await api.put(`/courses/${courseId}`, {
@@ -1177,6 +1205,10 @@ export const AdminCourseForm: React.FC = () => {
             description,
             duration,
             status: status === 'draft' ? 'DRAFT' : 'PUBLISHED',
+            fee: courseFee,
+            currency: 'GBP',
+            isPublishedOnLanding: publishOnLanding,
+            order,
           });
         }
 
@@ -1338,6 +1370,10 @@ export const AdminCourseForm: React.FC = () => {
           description,
           duration,
           status,
+          fee: courseFee,
+          currency: 'GBP',
+          isPublishedOnLanding: publishOnLanding,
+          order,
           modules,
         }, false);
 
@@ -1347,10 +1383,15 @@ export const AdminCourseForm: React.FC = () => {
         // Create new course with modules and topics through CourseContext.addCourse
         const coursePayload = {
           name: courseName,
+          title: courseName,
           shortDescription,
           description,
           duration,
           status,
+          fee: courseFee,
+          currency: 'GBP',
+          isPublishedOnLanding: publishOnLanding,
+          order,
           modules,
         };
 
@@ -1401,11 +1442,14 @@ export const AdminCourseForm: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleSaveCourse} className="space-y-6">
-          {/* COURSE GENERAL INFORMATION CARD (NO FEES/PRICES) */}
+        <form onSubmit={onFormSubmit} className="space-y-6">
+          {/* COURSE GENERAL INFORMATION CARD */}
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <h3 className="text-base font-extrabold text-[#0A192F] pb-3 border-b border-slate-100">
-              Course Information
+            <h3 className="text-base font-extrabold text-[#0A192F] pb-3 border-b border-slate-100 flex items-center justify-between">
+              <span>Course Information</span>
+              <span className="text-xs font-normal text-slate-500">
+                Configure curriculum details, tuition pricing, and landing page visibility.
+              </span>
             </h3>
 
             <div className="space-y-4">
@@ -1442,7 +1486,7 @@ export const AdminCourseForm: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Course Duration</label>
                   <input
@@ -1455,6 +1499,36 @@ export const AdminCourseForm: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Course Fee (£ GBP) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">£</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={courseFee}
+                      onChange={(e) => setCourseFee(parseFloat(e.target.value) || 0)}
+                      placeholder="750.00"
+                      className="w-full text-xs pl-8 pr-3 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-900 font-bold"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Default is £750.00. Set to £1.00 for testing.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Landing Display Order</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={order}
+                    onChange={(e) => setOrder(parseInt(e.target.value, 10) || 1)}
+                    placeholder="1"
+                    className="w-full text-xs p-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-400 text-slate-800 font-semibold"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">Order on Landing page (1 = first).</p>
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-[#0A192F] mb-1.5">Publish Status</label>
                   <select
                     value={status}
@@ -1464,6 +1538,26 @@ export const AdminCourseForm: React.FC = () => {
                     <option value="published">Published</option>
                     <option value="draft">Draft</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Publish to Landing Page Toggle Box */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-start space-x-3.5">
+                <input
+                  type="checkbox"
+                  id="landingPageToggle"
+                  checked={isPublishedOnLanding}
+                  onChange={(e) => setIsPublishedOnLanding(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                />
+                <div>
+                  <label htmlFor="landingPageToggle" className="text-xs font-extrabold text-[#0A192F] cursor-pointer flex items-center space-x-1.5">
+                    <Globe className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Publish Course on Public Landing Page & Student Catalog</span>
+                  </label>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    When checked, this course and its tuition fee (£{courseFee.toFixed(2)} GBP) will be featured on the public Landing Page and shown to existing students on their Dashboard under Available Courses.
+                  </p>
                 </div>
               </div>
             </div>
@@ -3009,6 +3103,70 @@ export const AdminCourseForm: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {/* Landing Page Publication Confirmation Modal */}
+        {showPublishConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scale-in">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <Globe className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#0A192F]">Publish to Landing Page?</h3>
+                  <p className="text-xs text-slate-500 font-medium">Confirm course visibility & pricing</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs text-slate-700">
+                <p>
+                  You are publishing <strong className="text-slate-900 font-bold">{courseName}</strong> on the public Landing Page.
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 font-mono">
+                  <span className="text-slate-500">Configured Fee:</span>
+                  <span className="text-sm font-extrabold text-amber-600">£{courseFee.toFixed(2)} GBP</span>
+                </div>
+                <div className="flex items-center justify-between font-mono">
+                  <span className="text-slate-500">Landing Order:</span>
+                  <span className="font-bold text-slate-800">#{order}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 pt-1 leading-snug">
+                  Prospective students can review the curriculum and register for £{courseFee.toFixed(2)}. Existing enrolled students will see it in their Dashboard under Available Courses.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => executeSaveCourse(true)}
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                >
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin text-slate-950" />}
+                  <span>Confirm & Publish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPublishedOnLanding(false);
+                    executeSaveCourse(false);
+                  }}
+                  disabled={isSaving}
+                  className="py-3 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Save Internal Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPublishConfirmModal(false)}
+                  disabled={isSaving}
+                  className="py-3 px-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}

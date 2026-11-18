@@ -15,7 +15,8 @@ import {
   Video,
   Sparkles,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Globe
 } from 'lucide-react';
 
 /**
@@ -51,10 +52,20 @@ export const getShortCourseName = (fullName: string): string => {
 
 export const AdminCoursesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { courses, deleteCourse } = useCourse();
+  const { courses, deleteCourse, updateCourse, refreshCourses } = useCourse();
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  const togglePublishLanding = async (course: any) => {
+    try {
+      const nextVal = !course.isPublishedOnLanding;
+      await updateCourse(course.id, { isPublishedOnLanding: nextVal }, true);
+      await refreshCourses();
+    } catch (err) {
+      console.error('Failed to toggle landing page visibility:', err);
+    }
+  };
 
   const deletingCourse = courses.find((c) => c.id === deletingCourseId);
   const deletingCourseFullName = deletingCourse?.name || deletingCourse?.title || '';
@@ -153,17 +164,19 @@ export const AdminCoursesPage: React.FC = () => {
               <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-mono text-[10px] border-b border-slate-200">
                 <tr>
                   <th className="py-3.5 px-4 font-bold">Course Name</th>
+                  <th className="py-3.5 px-4 font-bold text-center">Fee</th>
                   <th className="py-3.5 px-4 font-bold text-center">Modules</th>
                   <th className="py-3.5 px-4 font-bold text-center">Topics</th>
                   <th className="py-3.5 px-4 font-bold text-center">Duration</th>
                   <th className="py-3.5 px-4 font-bold text-center">Status</th>
+                  <th className="py-3.5 px-4 font-bold text-center">Landing Page</th>
                   <th className="py-3.5 px-4 font-bold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredCourses.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 font-semibold text-xs">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold text-xs">
                       No courses available yet. Click "+ Add Course" to build a new curriculum.
                     </td>
                   </tr>
@@ -178,6 +191,10 @@ export const AdminCoursesPage: React.FC = () => {
                           <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                             {c.shortDescription}
                           </p>
+                        </td>
+
+                        <td className="py-4 px-4 text-center font-mono font-black text-amber-600">
+                          £{(c.fee !== undefined ? Number(c.fee) : 750).toFixed(2)}
                         </td>
 
                         <td className="py-4 px-4 text-center">
@@ -206,6 +223,21 @@ export const AdminCoursesPage: React.FC = () => {
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span className="capitalize">{c.status}</span>
                           </span>
+                        </td>
+
+                        <td className="py-4 px-4 text-center">
+                          <button
+                            onClick={() => togglePublishLanding(c)}
+                            className={`inline-flex items-center space-x-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all ${
+                              c.isPublishedOnLanding
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 shadow-2xs'
+                                : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                            }`}
+                            title="Click to toggle Landing Page publication"
+                          >
+                            <Globe className="w-3 h-3" />
+                            <span>{c.isPublishedOnLanding ? 'Live on Landing' : 'Hidden'}</span>
+                          </button>
                         </td>
 
                         <td className="py-4 px-4 text-right space-x-1 whitespace-nowrap">

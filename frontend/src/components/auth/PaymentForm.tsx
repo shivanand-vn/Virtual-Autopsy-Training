@@ -29,6 +29,7 @@ export const PaymentForm: React.FC = () => {
     processPayment,
     updatePaymentData,
     demoCredential,
+    selectedCourse,
   } = useRegistrationFlow();
 
   // Email confirmation state (CRITICAL: MUST start completely empty "")
@@ -352,11 +353,11 @@ export const PaymentForm: React.FC = () => {
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">ENROLLMENT COURSE</p>
-              <h3 className="text-sm font-bold text-white mt-0.5">Post-Mortem Computed Tomography (PMCT) Training</h3>
+              <h3 className="text-sm font-bold text-white mt-0.5">{selectedCourse?.title || 'Post-Mortem Computed Tomography (PMCT) Training'}</h3>
             </div>
             <div className="text-right shrink-0 ml-3">
               <p className="text-[10px] text-slate-400 uppercase font-bold">FELLOWSHIP FEE</p>
-              <p className="text-lg font-black text-amber-400 font-mono">{paymentData.amount || '£750'}</p>
+              <p className="text-lg font-black text-amber-400 font-mono">{paymentData.amount || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750')}</p>
             </div>
           </div>
 
@@ -592,7 +593,7 @@ export const PaymentForm: React.FC = () => {
             ) : !isEmailVerified ? (
               <span>Verify Email with OTP to Pay</span>
             ) : (
-              <span>Pay {paymentData.amount || '£750'} & Complete Registration</span>
+              <span>Pay {paymentData.amount || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750')} & Complete Registration</span>
             )}
           </PrimaryButton>
 
@@ -609,7 +610,7 @@ export const PaymentForm: React.FC = () => {
           email={paymentData.confirmedEmail || registrationData.email || 'student@virtualautopsy.edu'}
           transactionId={paymentData.transactionId}
           amount={paymentData.amount}
-          courseName="Post-Mortem Computed Tomography (PMCT) Training"
+          courseName={selectedCourse?.title || 'Post-Mortem Computed Tomography (PMCT) Training'}
           temporaryPassword={demoCredential?.temporaryPassword}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -35,9 +35,13 @@ import { isEmbedVideoUrl, normalizeVideoUrl } from '../../lib/videoUtils';
 
 export const MyCoursePage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryCourseId = searchParams.get('courseId');
   const { moduleId: paramModuleId, lessonId: paramLessonId } = useParams<{ moduleId?: string; lessonId?: string }>();
   const {
     activeCourse,
+    myCourses,
+    setActiveCourseId,
     completedTopicIds,
     markTopicCompleted,
     isModuleCompletedByStudent,
@@ -49,6 +53,12 @@ export const MyCoursePage: React.FC = () => {
     updateModuleAssignment,
     refreshCourses
   } = useCourse();
+
+  useEffect(() => {
+    if (queryCourseId) {
+      setActiveCourseId(queryCourseId);
+    }
+  }, [queryCourseId]);
 
   const { getAssessmentResult } = useCourseProgress();
 
@@ -771,6 +781,35 @@ export const MyCoursePage: React.FC = () => {
 
   return (
     <DashboardLayout headerSubtitle="MY COURSE">
+      {/* MULTI-COURSE SWITCHER FOR ENROLLED STUDENTS */}
+      {myCourses && myCourses.length > 1 && (
+        <div className="bg-white rounded-2xl p-3 border border-slate-200/80 mb-4 shadow-2xs flex items-center justify-between gap-3 overflow-x-auto">
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+              Active Enrolled Course:
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            {myCourses.map((mc) => (
+              <button
+                key={mc.id}
+                onClick={() => {
+                  setActiveCourseId(mc.id);
+                  navigate(`/my-course?courseId=${mc.id}`);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeCourse?.id === mc.id
+                    ? 'bg-[#0A192F] text-white shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                {mc.title || mc.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* FLOATING GATING NOTIFICATION TOAST */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-50 max-w-md animate-in fade-in slide-in-from-top-4 duration-300">

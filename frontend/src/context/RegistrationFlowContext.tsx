@@ -31,16 +31,19 @@ export interface SelectedCourseInfo {
 }
 
 interface RegistrationFlowContextType {
-  step: 1 | 2;
-  setStep: (step: 1 | 2) => void;
+  step: 1 | 2 | 3;
+  setStep: (step: 1 | 2 | 3) => void;
   registrationData: RegistrationFormData;
   updateRegistrationData: (data: Partial<RegistrationFormData>) => void;
   paymentData: PaymentData;
   updatePaymentData: (data: Partial<PaymentData>) => void;
   selectedCourse: SelectedCourseInfo | null;
   setSelectedCourse: (course: SelectedCourseInfo | null) => void;
+  selectedCourses: SelectedCourseInfo[];
+  setSelectedCourses: (courses: SelectedCourseInfo[]) => void;
   demoCredential: DemoCredential | null;
   saveStep1AndContinue: (data: RegistrationFormData) => void;
+  saveStep2AndContinue: (courses: SelectedCourseInfo[]) => void;
   processPayment: (confirmEmail?: string, cardData?: Partial<CardData>) => Promise<boolean>;
   resetFlow: () => void;
 }
@@ -81,6 +84,8 @@ const LOCAL_STORAGE_REG_KEY = 'virtual_autopsy_registration_email';
 const SESSION_STORAGE_DRAFT_KEY = 'vat_registration_draft';
 const SESSION_STORAGE_CV_KEY = 'vat_registration_cv_b64';
 const SESSION_STORAGE_COURSE_KEY = 'vat_selected_course';
+const SESSION_STORAGE_COURSES_KEY = 'vat_selected_courses';
+const SESSION_STORAGE_STEP_KEY = 'vat_registration_step';
 
 function dataUrlToFile(dataUrl: string, filename: string): File | null {
   try {
@@ -100,7 +105,26 @@ function dataUrlToFile(dataUrl: string, filename: string): File | null {
 }
 
 export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStepState] = useState<1 | 2 | 3>(() => {
+    try {
+      const savedStep = sessionStorage.getItem(SESSION_STORAGE_STEP_KEY);
+      if (savedStep === '2' || savedStep === '3') {
+        return Number(savedStep) as 2 | 3;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return 1;
+  });
+
+  const setStep = (newStep: 1 | 2 | 3) => {
+    setStepState(newStep);
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_STEP_KEY, String(newStep));
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const [registrationData, setRegistrationData] = useState<RegistrationFormData>(() => {
     let base = { ...initialRegistrationData };
     try {
@@ -127,18 +151,40 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     return base;
   });
 
-  const [selectedCourse, setSelectedCourseState] = useState<SelectedCourseInfo | null>(() => {
+  const [selectedCourses, setSelectedCoursesState] = useState<SelectedCourseInfo[]>(() => {
     try {
-      const saved = sessionStorage.getItem(SESSION_STORAGE_COURSE_KEY);
-      if (saved) return JSON.parse(saved);
+      const savedList = sessionStorage.getItem(SESSION_STORAGE_COURSES_KEY);
+      if (savedList) {
+        const parsed = JSON.parse(savedList);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const single = sessionStorage.getItem(SESSION_STORAGE_COURSE_KEY);
+      if (single) {
+        const parsedSingle = JSON.parse(single);
+        if (parsedSingle) return [parsedSingle];
+      }
     } catch (e) {
-      console.error('Failed restoring selected course:', e);
+      console.error('Failed restoring selected courses:', e);
     }
-    return null;
+    return [];
   });
+
+  const selectedCourse = selectedCourses[0] || null;
 
   const [paymentData, setPaymentData] = useState<PaymentData>(() => {
     try {
+      const savedList = sessionStorage.getItem(SESSION_STORAGE_COURSES_KEY);
+      if (savedList) {
+        const parsed = JSON.parse(savedList);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const total = parsed.reduce((sum: number, c: any) => sum + (Number(c.fee) || 0), 0);
+          const symbol = parsed[0]?.currency === 'USD' ? '$' : parsed[0]?.currency === 'EUR' ? '€' : '£';
+          return {
+            ...initialPaymentData,
+            amount: `${symbol}${total.toFixed(2)}`,
+          };
+        }
+      }
       const saved = sessionStorage.getItem(SESSION_STORAGE_COURSE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -153,25 +199,31 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
   });
   const [demoCredential, setDemoCredential] = useState<DemoCredential | null>(null);
 
-  const setSelectedCourse = (course: SelectedCourseInfo | null) => {
-    setSelectedCourseState(course);
-    if (course) {
-      try {
-        sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(course));
-      } catch (e) {
-        console.error(e);
-      }
-      const symbol = course.currency === 'USD' ? '$' : course.currency === 'EUR' ? '€' : '£';
-      setPaymentData((prev) => ({
-        ...prev,
-        amount: `${symbol}${Number(course.fee || 750).toFixed(2)}`,
-      }));
-    } else {
-      try {
+  const setSelectedCourses = (courses: SelectedCourseInfo[]) => {
+    setSelectedCoursesState(courses);
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_COURSES_KEY, JSON.stringify(courses));
+      if (courses.length > 0) {
+        sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(courses[0]));
+      } else {
         sessionStorage.removeItem(SESSION_STORAGE_COURSE_KEY);
-      } catch (e) {
-        console.error(e);
       }
+    } catch (e) {
+      console.error(e);
+    }
+    const total = courses.reduce((sum, c) => sum + (Number(c.fee) || 0), 0);
+    const sym = courses[0]?.currency === 'USD' ? '$' : courses[0]?.currency === 'EUR' ? '€' : '£';
+    setPaymentData((prev) => ({
+      ...prev,
+      amount: `${sym}${total.toFixed(2)}`,
+    }));
+  };
+
+  const setSelectedCourse = (course: SelectedCourseInfo | null) => {
+    if (course) {
+      setSelectedCourses([course]);
+    } else {
+      setSelectedCourses([]);
     }
   };
 
@@ -185,11 +237,20 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
           .then((res) => {
             const course = res.data?.data;
             if (course) {
-              setSelectedCourse({
+              const newCourse: SelectedCourseInfo = {
                 id: course.id,
                 title: course.title,
                 fee: typeof course.fee === 'number' ? course.fee : 750,
                 currency: course.currency || 'GBP',
+              };
+              setSelectedCoursesState((prev) => {
+                if (prev.some((c) => c.id === newCourse.id)) return prev;
+                const next = [newCourse, ...prev];
+                try {
+                  sessionStorage.setItem(SESSION_STORAGE_COURSES_KEY, JSON.stringify(next));
+                  sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(next[0]));
+                } catch {}
+                return next;
               });
             }
           })
@@ -255,6 +316,11 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
     setStep(2);
   };
 
+  const saveStep2AndContinue = (courses: SelectedCourseInfo[]) => {
+    setSelectedCourses(courses);
+    setStep(3);
+  };
+
   const processPayment = async (confirmEmail?: string, cardData?: Partial<CardData>): Promise<boolean> => {
     const regEmail = (registrationData.email || localStorage.getItem(LOCAL_STORAGE_REG_KEY) || '').trim();
     const enteredEmail = (confirmEmail || '').trim();
@@ -290,12 +356,20 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       formData.append('professionalRole', registrationData.professionalRole || 'Forensic Pathology Fellow');
       formData.append('organization', registrationData.organization || 'Medical Institution');
       formData.append('marketingConsent', String(registrationData.marketingConsent || false));
-      if (selectedCourse?.id) {
+      if (selectedCourses.length > 0) {
+        formData.append('courseIds', JSON.stringify(selectedCourses.map((c) => c.id)));
+        formData.append('courseId', selectedCourses[0].id);
+      } else if (selectedCourse?.id) {
         formData.append('courseId', selectedCourse.id);
       }
-      formData.append('amount', paymentData.amount || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750.00'));
-      formData.append('currency', selectedCourse?.currency || 'GBP');
-      formData.append('tier', selectedCourse?.title ? `${selectedCourse.title} Enrollment` : 'Virtual Autopsy Online Fellowship (£750)');
+      const totalAmount = selectedCourses.reduce((sum, c) => sum + (Number(c.fee) || 0), 0);
+      const sym = selectedCourses[0]?.currency === 'USD' ? '$' : selectedCourses[0]?.currency === 'EUR' ? '€' : '£';
+      const formattedTotal = `${sym}${totalAmount.toFixed(2)}`;
+      const allTitles = selectedCourses.map((c) => c.title).join(', ');
+
+      formData.append('amount', paymentData.amount || formattedTotal || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750.00'));
+      formData.append('currency', selectedCourses[0]?.currency || selectedCourse?.currency || 'GBP');
+      formData.append('tier', allTitles ? `${allTitles} (${paymentData.amount || formattedTotal})` : (selectedCourse?.title ? `${selectedCourse.title} Enrollment` : 'Virtual Autopsy Online Fellowship (£750)'));
       formData.append('cardholderName', cardData?.cardholderName || registrationData.fullName || 'Cardholder');
       formData.append('cardLast4', (cardData?.cardNumber || '4242').replace(/\s/g, '').slice(-4) || '4242');
 
@@ -351,10 +425,12 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       sessionStorage.removeItem(SESSION_STORAGE_DRAFT_KEY);
       sessionStorage.removeItem(SESSION_STORAGE_CV_KEY);
       sessionStorage.removeItem(SESSION_STORAGE_COURSE_KEY);
+      sessionStorage.removeItem(SESSION_STORAGE_COURSES_KEY);
+      sessionStorage.removeItem(SESSION_STORAGE_STEP_KEY);
     } catch (e) {
       console.error(e);
     }
-    setSelectedCourseState(null);
+    setSelectedCoursesState([]);
     setRegistrationData(initialRegistrationData);
     setPaymentData(initialPaymentData);
     setDemoCredential(null);
@@ -371,8 +447,11 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
         updatePaymentData,
         selectedCourse,
         setSelectedCourse,
+        selectedCourses,
+        setSelectedCourses,
         demoCredential,
         saveStep1AndContinue,
+        saveStep2AndContinue,
         processPayment,
         resetFlow,
       }}

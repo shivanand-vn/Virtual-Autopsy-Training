@@ -24,6 +24,7 @@ const completePaymentSchema = z.object({
   cardLast4: z.string().optional().default('4242'),
   transactionRef: z.string().optional(),
   courseId: z.string().optional(),
+  courseIds: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
 function generateCleanTemporaryPassword(): string {
@@ -164,10 +165,31 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       });
     }
 
-    // 3. Auto-Enroll in Published Course
-    let targetCourse = parsed.data.courseId
-      ? await prisma.course.findUnique({
-          where: { id: parsed.data.courseId },
+    // 3. Auto-Enroll in Selected Published Course(s)
+    let requestedCourseIds: string[] = [];
+    if (parsed.data.courseIds) {
+      if (Array.isArray(parsed.data.courseIds)) {
+        requestedCourseIds = parsed.data.courseIds;
+      } else if (typeof parsed.data.courseIds === 'string') {
+        try {
+          const parsedArr = JSON.parse(parsed.data.courseIds);
+          if (Array.isArray(parsedArr)) {
+            requestedCourseIds = parsedArr;
+          } else {
+            requestedCourseIds = [parsed.data.courseIds];
+          }
+        } catch {
+          requestedCourseIds = parsed.data.courseIds.split(',').map((id: string) => id.trim()).filter(Boolean);
+        }
+      }
+    }
+    if (parsed.data.courseId && !requestedCourseIds.includes(parsed.data.courseId)) {
+      requestedCourseIds.unshift(parsed.data.courseId);
+    }
+
+    let targetCourses = requestedCourseIds.length > 0
+      ? await prisma.course.findMany({
+          where: { id: { in: requestedCourseIds } },
           include: {
             modules: {
               orderBy: { order: 'asc' },
@@ -175,10 +197,10 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
             },
           },
         })
-      : null;
+      : [];
 
-    if (!targetCourse) {
-      targetCourse = await prisma.course.findFirst({
+    if (targetCourses.length === 0) {
+      const defaultCourse = await prisma.course.findFirst({
         where: { status: 'PUBLISHED' },
         include: {
           modules: {
@@ -187,9 +209,10 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
           },
         },
       });
+      if (defaultCourse) targetCourses = [defaultCourse];
     }
 
-    if (targetCourse) {
+    for (const targetCourse of targetCourses) {
       // Create Enrollment
       await prisma.enrollment.upsert({
         where: {
@@ -231,17 +254,28 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       }
     }
 
+    const primaryCourse = targetCourses[0] || null;
+    const allCourseTitles = targetCourses.map((c) => c.title).join(', ');
+
+    // Authoritative backend revalidation of tuition total based on database prices
+    const authoritativeTotal = targetCourses.reduce((sum, c) => sum + (Number(c.fee) || 0), 0);
+    const authoritativeCurrency = primaryCourse?.currency || currency || 'GBP';
+    const sym = authoritativeCurrency === 'USD' ? '$' : authoritativeCurrency === 'EUR' ? '€' : '£';
+    const serverValidatedAmount = authoritativeTotal > 0
+      ? `${sym}${authoritativeTotal.toFixed(2)}`
+      : (amount || '£750.00');
+
     // 4. Record Payment Transaction in Database
     const payment = await prisma.payment.create({
       data: {
         transactionRef: txnId,
         userId: user.id,
-        courseId: targetCourse?.id || null,
+        courseId: primaryCourse?.id || null,
         candidateName: fullName.trim(),
         email: normalizedEmail,
-        tier: tier || (targetCourse ? `${targetCourse.title} (£${targetCourse.fee.toFixed(2)})` : 'Virtual Autopsy Online Fellowship (£750)'),
-        amount: amount || (targetCourse ? `£${targetCourse.fee.toFixed(2)}` : '£750.00'),
-        currency: currency || targetCourse?.currency || 'GBP',
+        tier: tier || (allCourseTitles ? `${allCourseTitles} (${serverValidatedAmount})` : 'Virtual Autopsy Online Fellowship (£750)'),
+        amount: serverValidatedAmount,
+        currency: authoritativeCurrency,
         paymentMethod: 'Stripe Credit Card',
         cardLast4: cardLast4 || '4242',
         status: 'COMPLETED',
@@ -251,7 +285,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     console.log(`💳 Recorded Payment: ${payment.transactionRef} for ${payment.email} - ${payment.amount}`);
 
     // 5. Send Welcome & Receipt Transactional Email
-    const courseTitle = targetCourse?.title || 'Basic Virtual Autopsy – An Online Introduction';
+    const courseTitle = allCourseTitles || primaryCourse?.title || 'Basic Virtual Autopsy – An Online Introduction';
     const formattedDate = new Date().toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -263,7 +297,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       name: fullName.trim(),
       temporaryPassword,
       transactionId: txnId,
-      amount: amount || '£750.00',
+      amount: serverValidatedAmount,
       courseTitle,
       date: formattedDate,
     }).catch((emailErr) => {

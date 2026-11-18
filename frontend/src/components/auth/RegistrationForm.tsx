@@ -143,7 +143,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
 
       // Email is available: Save Step 1 registration details and proceed to Step 2 (/payment)
       saveStep1AndContinue(formData);
-      navigate('/payment');
+      const searchParams = new URLSearchParams(window.location.search);
+      const courseId = searchParams.get('courseId');
+      navigate(courseId ? `/payment?courseId=${courseId}` : '/payment');
     } catch (err: any) {
       if (
         err.status === 409 ||

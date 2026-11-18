@@ -35,6 +35,12 @@ enum CourseStatus {
   ARCHIVED
 }
 
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+}
+
 enum ResourceType {
   VIDEO_STREAM         // Bunny.net Stream HLS playback
   PROTECTED_DOCUMENT   // In-app Canvas PDF (View-only)
@@ -85,6 +91,7 @@ model User {
 
   // Relationships
   application      Application?
+  enrollments      Enrollment[]
   courseProgress   CourseProgress[]
   submissions      Submission[]
   examAttempts     ExamAttempt[]
@@ -131,23 +138,42 @@ model Application {
 // ------------------------------------------
 
 model Course {
-  id               String         @id @default(uuid())
-  title            String
-  shortDescription String?
-  description      String
-  duration         String?        @default("16 Weeks")
-  thumbnailUrl     String?
-  status           CourseStatus   @default(PUBLISHED)
-  order            Int            @default(1)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                   String         @id @default(uuid())
+  title                String
+  shortDescription     String?
+  description          String
+  duration             String?        @default("16 Weeks")
+  thumbnailUrl         String?
+  status               CourseStatus   @default(PUBLISHED)
+  fee                  Float          @default(750.00)
+  currency             String         @default("GBP")
+  isPublishedOnLanding Boolean        @default(true)
+  order                Int            @default(1)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   // Relationships
   modules      Module[]
+  enrollments  Enrollment[]
+  payments     Payment[]
   finalExams   FinalExam[]
   certificates Certificate[]
 
   @@map("courses")
+}
+
+model Enrollment {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
 }
 
 model Module {
@@ -472,10 +498,12 @@ model Payment {
   transactionRef String        @unique // e.g. "VA-DEMO-480783"
   userId         String?
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  courseId       String?
+  course         Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
   candidateName  String
   email          String
-  tier           String        @default("Virtual Autopsy Online Fellowship (£999)")
-  amount         String        @default("£999.00")
+  tier           String        @default("Virtual Autopsy Online Fellowship (£750)")
+  amount         String        @default("£750.00")
   currency       String        @default("GBP")
   paymentMethod  String        @default("Stripe Credit Card")
   cardLast4      String?       @default("4242")

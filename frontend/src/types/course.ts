@@ -103,6 +103,13 @@ export interface Course {
   thumbnail?: string;
   thumbnailUrl?: string;
   status: 'draft' | 'published';
+  fee?: number;
+  currency?: string;
+  isPublishedOnLanding?: boolean;
+  order?: number;
+  progressPercent?: number;
+  enrolledAt?: string;
+  enrollmentStatus?: string;
   createdAt: string;
   modules: CourseModule[];
 }

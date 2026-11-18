@@ -25,12 +25,19 @@ import { useAuth } from '../../context/AuthContext';
 import { RecentDiscussionsWidget } from '../../components/discussions/RecentDiscussionsWidget';
 import { CertificateCard } from '../../components/certificate/CertificateCard';
 import { SecurityNoticeModal } from '../../components/auth/SecurityNoticeModal';
+import { CoursePurchaseModal } from '../../components/dashboard/CoursePurchaseModal';
+import type { Course } from '../../types/course';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const {
     activeCourse,
+    myCourses,
+    availableCourses,
+    activeCourseId,
+    setActiveCourseId,
+    refreshCourses,
     completedTopicIds,
     isModuleCompletedByStudent,
     isModuleUnlocked,
@@ -46,6 +53,8 @@ export const DashboardPage: React.FC = () => {
     getStudentExamHistory,
     studentExamResult
   } = useFinalExams();
+
+  const [selectedCourseForPurchase, setSelectedCourseForPurchase] = useState<Course | null>(null);
 
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(
     activeCourse?.modules[0]?.id || null
@@ -109,6 +118,93 @@ export const DashboardPage: React.FC = () => {
     <DashboardLayout headerSubtitle="DASHBOARD">
       <SecurityNoticeModal isOpen={showSecurityNotice} onClose={handleDismissSecurityNotice} />
       <div className="space-y-6 pb-12">
+        {/* NEW AVAILABLE COURSES - DISPLAYED ABOVE BLUE CARD (ENTIRE ROW, CARD BY CARD, MATCHING COLOR) */}
+        {availableCourses && availableCourses.length > 0 && (
+          <div className="space-y-4">
+            {availableCourses.map((ac) => {
+              const fee = ac.fee !== undefined ? Number(ac.fee) : 750.0;
+              return (
+                <div
+                  key={ac.id}
+                  className="bg-gradient-to-br from-[#0c1f3a] via-[#0A192F] to-[#071526] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-amber-500/40"
+                >
+                  <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute right-36 top-0 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                    <div className="space-y-3 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center space-x-1.5 bg-amber-500/25 border border-amber-400/50 text-amber-300 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>NEW COURSE AVAILABLE</span>
+                        </span>
+                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-300 bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded-full">
+                          {ac.duration || '16 Weeks'}
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+                          CPD Accredited
+                        </span>
+                      </div>
+
+                      <div>
+                        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                          {ac.title || ac.name}
+                        </h2>
+                        <p className="text-slate-300 text-sm max-w-3xl leading-relaxed mt-1">
+                          {ac.shortDescription || ac.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300/80 pt-1">
+                        <span className="flex items-center space-x-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{ac.modules?.length || 0} Core Modules</span>
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center space-x-1.5">
+                          <Award className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Verified Certificate Upon Completion</span>
+                        </span>
+                        <span>•</span>
+                        <span>Instant Access Upon Enrollment</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-center gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800/80">
+                      <div className="text-left lg:text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          COURSE ENROLLMENT FEE
+                        </span>
+                        <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
+                          £{fee.toFixed(2)} GBP
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/courses/${ac.id}`)}
+                          className="flex-1 sm:flex-initial py-2.5 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                        >
+                          <span>Course Info</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCourseForPurchase(ac)}
+                          className="flex-1 sm:flex-initial py-2.5 px-5 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                        >
+                          <span>Enroll & Pay Fee • £{fee.toFixed(2)}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Welcome Header & Hero Banner */}
         <div className="bg-[#0A192F] text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-slate-800">
           <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -126,6 +222,28 @@ export const DashboardPage: React.FC = () => {
               <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
                 {activeCourse?.shortDescription || 'Welcome to your Virtual Autopsy LMS training portal.'}
               </p>
+
+              {/* Multi-Course Switcher for Enrolled Students */}
+              {myCourses.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                    Switch Enrolled Course:
+                  </span>
+                  {myCourses.map((mc) => (
+                    <button
+                      key={mc.id}
+                      onClick={() => setActiveCourseId(mc.id)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeCourse?.id === mc.id
+                          ? 'bg-amber-500 text-slate-950 shadow-sm'
+                          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {mc.title || mc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -551,6 +669,18 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Course Purchase Modal */}
+      {selectedCourseForPurchase && (
+        <CoursePurchaseModal
+          course={selectedCourseForPurchase}
+          onClose={() => setSelectedCourseForPurchase(null)}
+          onSuccess={async () => {
+            setSelectedCourseForPurchase(null);
+            await refreshCourses();
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 };

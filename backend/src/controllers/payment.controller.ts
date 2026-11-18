@@ -23,6 +23,7 @@ const completePaymentSchema = z.object({
   cardholderName: z.string().optional(),
   cardLast4: z.string().optional().default('4242'),
   transactionRef: z.string().optional(),
+  courseId: z.string().optional(),
 });
 
 function generateCleanTemporaryPassword(): string {
@@ -164,37 +165,69 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     }
 
     // 3. Auto-Enroll in Published Course
-    const defaultCourse = await prisma.course.findFirst({
-      where: { status: 'PUBLISHED' },
-      include: {
-        modules: {
-          orderBy: { order: 'asc' },
-          take: 1,
-        },
-      },
-    });
+    let targetCourse = parsed.data.courseId
+      ? await prisma.course.findUnique({
+          where: { id: parsed.data.courseId },
+          include: {
+            modules: {
+              orderBy: { order: 'asc' },
+              take: 1,
+            },
+          },
+        })
+      : null;
 
-    if (defaultCourse && defaultCourse.modules.length > 0) {
-      const firstModule = defaultCourse.modules[0];
-      const existingProgress = await prisma.courseProgress.findUnique({
-        where: {
-          userId_moduleId: {
-            userId: user.id,
-            moduleId: firstModule.id,
+    if (!targetCourse) {
+      targetCourse = await prisma.course.findFirst({
+        where: { status: 'PUBLISHED' },
+        include: {
+          modules: {
+            orderBy: { order: 'asc' },
+            take: 1,
           },
         },
       });
+    }
 
-      if (!existingProgress) {
-        await prisma.courseProgress.create({
-          data: {
+    if (targetCourse) {
+      // Create Enrollment
+      await prisma.enrollment.upsert({
+        where: {
+          userId_courseId: {
             userId: user.id,
-            moduleId: firstModule.id,
-            isCompleted: false,
-            lastVideoTimestamp: 0,
+            courseId: targetCourse.id,
+          },
+        },
+        update: { status: 'ACTIVE' },
+        create: {
+          userId: user.id,
+          courseId: targetCourse.id,
+          status: 'ACTIVE',
+        },
+      });
+
+      if (targetCourse.modules.length > 0) {
+        const firstModule = targetCourse.modules[0];
+        const existingProgress = await prisma.courseProgress.findUnique({
+          where: {
+            userId_moduleId: {
+              userId: user.id,
+              moduleId: firstModule.id,
+            },
           },
         });
-        console.log(`📚 Auto-enrolled student in Module 1 of: ${defaultCourse.title}`);
+
+        if (!existingProgress) {
+          await prisma.courseProgress.create({
+            data: {
+              userId: user.id,
+              moduleId: firstModule.id,
+              isCompleted: false,
+              lastVideoTimestamp: 0,
+            },
+          });
+          console.log(`📚 Auto-enrolled student in Module 1 of: ${targetCourse.title}`);
+        }
       }
     }
 
@@ -203,11 +236,12 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
       data: {
         transactionRef: txnId,
         userId: user.id,
+        courseId: targetCourse?.id || null,
         candidateName: fullName.trim(),
         email: normalizedEmail,
-        tier: tier || 'Virtual Autopsy Online Fellowship (£750)',
-        amount: amount || '£750.00',
-        currency: currency || 'GBP',
+        tier: tier || (targetCourse ? `${targetCourse.title} (£${targetCourse.fee.toFixed(2)})` : 'Virtual Autopsy Online Fellowship (£750)'),
+        amount: amount || (targetCourse ? `£${targetCourse.fee.toFixed(2)}` : '£750.00'),
+        currency: currency || targetCourse?.currency || 'GBP',
         paymentMethod: 'Stripe Credit Card',
         cardLast4: cardLast4 || '4242',
         status: 'COMPLETED',
@@ -217,7 +251,7 @@ export async function completeRegistrationAndPayment(req: Request, res: Response
     console.log(`💳 Recorded Payment: ${payment.transactionRef} for ${payment.email} - ${payment.amount}`);
 
     // 5. Send Welcome & Receipt Transactional Email
-    const courseTitle = defaultCourse?.title || 'Basic Virtual Autopsy – An Online Introduction';
+    const courseTitle = targetCourse?.title || 'Basic Virtual Autopsy – An Online Introduction';
     const formattedDate = new Date().toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -335,5 +369,147 @@ export async function getPaymentReceipt(req: Request, res: Response): Promise<vo
   } catch (error: any) {
     console.error('Error fetching payment receipt:', error);
     sendError(res, error.message || 'Failed to fetch receipt.', 500);
+  }
+}
+
+const purchaseCourseSchema = z.object({
+  courseId: z.string().min(1, 'Course ID is required'),
+  cardLast4: z.string().optional().default('4242'),
+  paymentMethod: z.string().optional().default('Stripe Credit Card'),
+});
+
+export async function purchaseCourseForExistingUser(req: Request, res: Response): Promise<void> {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      sendError(res, 'Authentication required to purchase courses.', 401);
+      return;
+    }
+
+    const parsed = purchaseCourseSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, 'Validation failed: ' + parsed.error.issues.map((i) => i.message).join(', '), 400);
+      return;
+    }
+
+    const { courseId, cardLast4, paymentMethod } = parsed.data;
+
+    // 1. Check if course exists and is published
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        modules: {
+          orderBy: { order: 'asc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!course || course.status !== 'PUBLISHED') {
+      sendError(res, 'The requested course is not available for enrollment.', 404);
+      return;
+    }
+
+    // 2. Check if user is already enrolled
+    const existingEnrollment = await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId: user.userId,
+          courseId: course.id,
+        },
+      },
+    });
+
+    if (existingEnrollment && existingEnrollment.status === 'ACTIVE') {
+      sendError(res, 'You are already enrolled in this course.', 400);
+      return;
+    }
+
+    // 3. Fetch user details for payment receipt
+    const userRecord = await prisma.user.findUnique({
+      where: { id: user.userId },
+    });
+
+    if (!userRecord) {
+      sendError(res, 'User record not found.', 404);
+      return;
+    }
+
+    const txnId = `VA-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 4. Create Payment Record
+    const payment = await prisma.payment.create({
+      data: {
+        transactionRef: txnId,
+        userId: userRecord.id,
+        courseId: course.id,
+        candidateName: userRecord.fullName,
+        email: userRecord.email,
+        tier: `${course.title} (£${course.fee.toFixed(2)})`,
+        amount: `£${course.fee.toFixed(2)}`,
+        currency: course.currency || 'GBP',
+        paymentMethod: paymentMethod || 'Stripe Credit Card',
+        cardLast4: cardLast4 || '4242',
+        status: 'COMPLETED',
+      },
+    });
+
+    // 5. Create or activate Enrollment
+    const enrollment = await prisma.enrollment.upsert({
+      where: {
+        userId_courseId: {
+          userId: userRecord.id,
+          courseId: course.id,
+        },
+      },
+      update: {
+        status: 'ACTIVE',
+      },
+      create: {
+        userId: userRecord.id,
+        courseId: course.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    // 6. Initialize Module 1 progress if available
+    if (course.modules.length > 0) {
+      const firstModule = course.modules[0];
+      await prisma.courseProgress.upsert({
+        where: {
+          userId_moduleId: {
+            userId: userRecord.id,
+            moduleId: firstModule.id,
+          },
+        },
+        update: {},
+        create: {
+          userId: userRecord.id,
+          moduleId: firstModule.id,
+          isCompleted: false,
+          lastVideoTimestamp: 0,
+        },
+      });
+    }
+
+    console.log(`🎉 Student ${userRecord.email} successfully enrolled in ${course.title} (Fee: £${course.fee.toFixed(2)})`);
+
+    sendSuccess(
+      res,
+      {
+        enrollment,
+        payment,
+        course: {
+          id: course.id,
+          title: course.title,
+          fee: course.fee,
+        },
+      },
+      'Course purchased and enrollment activated successfully!',
+      201
+    );
+  } catch (error: any) {
+    console.error('Error purchasing course:', error);
+    sendError(res, error.message || 'Failed to complete course purchase.', 500);
   }
 }

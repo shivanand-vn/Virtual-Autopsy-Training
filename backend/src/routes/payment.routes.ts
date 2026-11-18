@@ -3,6 +3,7 @@ import {
   completeRegistrationAndPayment,
   getAdminPayments,
   getPaymentReceipt,
+  purchaseCourseForExistingUser,
 } from '../controllers/payment.controller.js';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware.js';
 import { uploadCV } from '../middlewares/upload.middleware.js';
@@ -14,6 +15,9 @@ router.post('/complete-registration', uploadCV.single('cvFile'), completeRegistr
 
 // Public: View single receipt details by transaction reference
 router.get('/receipt/:transactionRef', getPaymentReceipt);
+
+// Protected: Existing student purchase of another published course
+router.post('/purchase-course', requireAuth, purchaseCourseForExistingUser);
 
 // Protected: Admin view of all financial transactions and revenue
 router.get('/admin', requireAuth, requireRole('ADMIN'), getAdminPayments);

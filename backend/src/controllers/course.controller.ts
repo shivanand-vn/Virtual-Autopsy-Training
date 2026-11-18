@@ -291,7 +291,7 @@ function isDisallowedExternalThumbnailLink(url: string | null | undefined): bool
 
 export async function createCourse(req: Request, res: Response): Promise<void> {
   try {
-    const { title, shortDescription, description, duration, thumbnailUrl, status } = req.body;
+    const { title, shortDescription, description, duration, thumbnailUrl, status, fee, currency, isPublishedOnLanding, order } = req.body;
 
     if (!title || !description) {
       sendError(res, 'Course title and description are required', 400);
@@ -312,7 +312,10 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
         duration: duration || '16 Weeks',
         thumbnailUrl: thumbnailUrl || null,
         status: status === 'DRAFT' ? CourseStatus.DRAFT : CourseStatus.PUBLISHED,
-        order: courseCount + 1,
+        fee: fee !== undefined && !isNaN(Number(fee)) ? Number(fee) : 750.0,
+        currency: currency || 'GBP',
+        isPublishedOnLanding: isPublishedOnLanding !== undefined ? Boolean(isPublishedOnLanding) : true,
+        order: order !== undefined && !isNaN(Number(order)) ? Number(order) : courseCount + 1,
       },
       include: {
         modules: true,
@@ -329,7 +332,7 @@ export async function createCourse(req: Request, res: Response): Promise<void> {
 export async function updateCourse(req: Request, res: Response): Promise<void> {
   try {
     const courseId = req.params.id as string;
-    const { title, shortDescription, description, duration, thumbnailUrl, status } = req.body;
+    const { title, shortDescription, description, duration, thumbnailUrl, status, fee, currency, isPublishedOnLanding, order } = req.body;
 
     const existing = await prisma.course.findUnique({ where: { id: courseId } });
     if (!existing) {
@@ -351,6 +354,10 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
         ...(duration !== undefined && { duration }),
         ...(thumbnailUrl !== undefined && { thumbnailUrl }),
         ...(status && { status }),
+        ...(fee !== undefined && !isNaN(Number(fee)) && { fee: Number(fee) }),
+        ...(currency !== undefined && { currency }),
+        ...(isPublishedOnLanding !== undefined && { isPublishedOnLanding: Boolean(isPublishedOnLanding) }),
+        ...(order !== undefined && !isNaN(Number(order)) && { order: Number(order) }),
       },
     });
 
@@ -505,6 +512,7 @@ export async function createTopic(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, {
       ...newTopic,
       videoUrl: signBunnyEmbedUrlIfNeeded(newTopic.videoUrl, newTopic.bunnyVideoId),
@@ -556,6 +564,7 @@ export async function updateTopic(req: Request, res: Response): Promise<void> {
       },
     });
 
+    await invalidateCourseCache();
     sendSuccess(res, {
       ...updated,
       videoUrl: signBunnyEmbedUrlIfNeeded(updated.videoUrl, updated.bunnyVideoId),
@@ -569,6 +578,7 @@ export async function deleteTopic(req: Request, res: Response): Promise<void> {
   try {
     const topicId = req.params.topicId as string;
     await prisma.resource.delete({ where: { id: topicId } });
+    await invalidateCourseCache();
     sendSuccess(res, { deleted: true }, 'Topic deleted successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to delete topic', 500);
@@ -856,6 +866,238 @@ export async function getVideoStreamTokenByVideoId(req: Request, res: Response):
     sendSuccess(res, tokenData, 'Stream token generated successfully');
   } catch (error: any) {
     sendError(res, error.message || 'Failed to generate stream token', 500);
+  }
+}
+
+export async function getPublicCourses(req: Request, res: Response): Promise<void> {
+  try {
+    const cacheKey = 'cache:course:public:list';
+    let courses = await cacheGet<any[]>(cacheKey);
+
+    if (!courses) {
+      courses = await prisma.course.findMany({
+        where: {
+          status: CourseStatus.PUBLISHED,
+          isPublishedOnLanding: true,
+        },
+        orderBy: [
+          { order: 'asc' },
+          { createdAt: 'desc' },
+        ],
+        include: {
+          modules: {
+            where: { status: CourseStatus.PUBLISHED },
+            orderBy: { order: 'asc' },
+            include: {
+              resources: {
+                where: { status: CourseStatus.PUBLISHED },
+                orderBy: { order: 'asc' },
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  type: true,
+                  durationSeconds: true,
+                  order: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (courses) {
+        await cacheSet(cacheKey, courses, 3600);
+      }
+    }
+
+    sendSuccess(res, courses);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to retrieve public courses', 500);
+  }
+}
+
+export async function getPublicCourseById(req: Request, res: Response): Promise<void> {
+  try {
+    const courseId = req.params.id as string;
+    const cacheKey = `cache:course:public:detail:${courseId}`;
+    let course = await cacheGet<any>(cacheKey);
+
+    if (!course) {
+      course = await prisma.course.findFirst({
+        where: {
+          id: courseId,
+          status: CourseStatus.PUBLISHED,
+          isPublishedOnLanding: true,
+        },
+        include: {
+          modules: {
+            where: { status: CourseStatus.PUBLISHED },
+            orderBy: { order: 'asc' },
+            include: {
+              resources: {
+                where: { status: CourseStatus.PUBLISHED },
+                orderBy: { order: 'asc' },
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  type: true,
+                  durationSeconds: true,
+                  order: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (course) {
+        await cacheSet(cacheKey, course, 3600);
+      }
+    }
+
+    if (!course) {
+      sendError(res, 'Course not found or is not currently available to the public', 404);
+      return;
+    }
+
+    sendSuccess(res, course);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to retrieve course details', 500);
+  }
+}
+
+export async function getMyCourses(req: Request, res: Response): Promise<void> {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      sendError(res, 'Authentication required', 401);
+      return;
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        userId: user.userId,
+        status: 'ACTIVE',
+      },
+      include: {
+        course: {
+          include: {
+            modules: {
+              where: { status: CourseStatus.PUBLISHED },
+              orderBy: { order: 'asc' },
+              include: {
+                resources: {
+                  where: { status: CourseStatus.PUBLISHED },
+                  orderBy: { order: 'asc' },
+                },
+                assignments: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const progressRecords = await prisma.courseProgress.findMany({
+      where: { userId: user.userId },
+    });
+    const progressMap = new Map(progressRecords.map((p) => [p.moduleId, p]));
+
+    const enrolledCourses = enrollments.map((enr) => {
+      const c = enr.course;
+      const totalModules = c.modules.length;
+      let completedModules = 0;
+
+      const modulesWithProgress = c.modules.map((m) => {
+        const prog = progressMap.get(m.id);
+        const isCompleted = prog?.isCompleted || false;
+        if (isCompleted) completedModules++;
+
+        return {
+          ...m,
+          isCompleted,
+          lastVideoTimestamp: prog?.lastVideoTimestamp || 0,
+          resources: m.resources.map((r) => ({
+            ...r,
+            videoUrl: signBunnyEmbedUrlIfNeeded(r.videoUrl, r.bunnyVideoId),
+          })),
+        };
+      });
+
+      const progressPercent = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+      return {
+        ...c,
+        enrolledAt: enr.enrolledAt,
+        enrollmentStatus: enr.status,
+        progressPercent,
+        completedModules,
+        totalModules,
+        modules: modulesWithProgress,
+      };
+    });
+
+    sendSuccess(res, enrolledCourses);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to retrieve enrolled courses', 500);
+  }
+}
+
+export async function getAvailableCourses(req: Request, res: Response): Promise<void> {
+  try {
+    const user = (req as any).user;
+    if (!user || !user.userId) {
+      sendError(res, 'Authentication required', 401);
+      return;
+    }
+
+    const userEnrollments = await prisma.enrollment.findMany({
+      where: {
+        userId: user.userId,
+        status: 'ACTIVE',
+      },
+      select: { courseId: true },
+    });
+    const enrolledIds = new Set(userEnrollments.map((e) => e.courseId));
+
+    const available = await prisma.course.findMany({
+      where: {
+        status: CourseStatus.PUBLISHED,
+        isPublishedOnLanding: true,
+        id: { notIn: Array.from(enrolledIds) },
+      },
+      orderBy: [
+        { order: 'asc' },
+        { createdAt: 'desc' },
+      ],
+      include: {
+        modules: {
+          where: { status: CourseStatus.PUBLISHED },
+          orderBy: { order: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            subtitle: true,
+            resources: {
+              where: { status: CourseStatus.PUBLISHED },
+              select: {
+                id: true,
+                title: true,
+                durationSeconds: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    sendSuccess(res, available);
+  } catch (error: any) {
+    sendError(res, error.message || 'Failed to retrieve available courses', 500);
   }
 }
 

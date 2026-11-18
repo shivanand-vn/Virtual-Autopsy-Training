@@ -23,7 +23,7 @@ import { getAuthToken, getStoredUser } from '../../lib/api';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { courses } = useCourse();
+  const { courses, publicCourses } = useCourse();
   const { user, token } = useAuth();
 
   const handleSignInClick = () => {
@@ -44,8 +44,6 @@ export const LandingPage: React.FC = () => {
     }
   };
 
-  // Accordion State for Modules
-  const [openModuleId, setOpenModuleId] = useState<string | null>('mod-1');
   const [isScrolled, setIsScrolled] = useState(false);
 
   // Handle scroll detection for glassmorphism fixed navbar
@@ -62,81 +60,21 @@ export const LandingPage: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fallback Modules matching the reference image layout exactly
-  const fallbackModules = [
-    {
-      id: 'mod-1',
-      moduleNumber: 1,
-      title: 'Introduction to Virtual Autopsy & Legal Frameworks',
-      description: 'Principles, evidentiary value, comparative autopsy review',
-      topics: [
-        { id: 't-1', title: 'High-Definition Lecture: History and Physics of PMCT', duration: '42 min', type: 'video' },
-        { id: 't-2', title: 'Reading Dossier: International Chain of Custody & Admissibility', duration: '28 pgs', type: 'doc' },
-        { id: 't-3', title: 'Module 01 Foundational Competency Quiz', duration: '15 Questions', type: 'quiz' }
-      ]
-    },
-    {
-      id: 'mod-2',
-      moduleNumber: 2,
-      title: 'PMCT Acquisition Protocols & MPR Reconstruction',
-      description: 'Scanning parameters, metal artifact reduction, multi-planar reformations',
-      topics: [
-        { id: 't-4', title: 'Volumetric CT Calibration & Artifact Reduction Protocols', duration: '35 min', type: 'video' },
-        { id: 't-5', title: 'Multi-Planar Reconstruction (MPR) Hands-on PACS Exercise', duration: '50 min', type: 'video' },
-        { id: 't-6', title: 'Module 02 Assessment: MPR Analysis & Artifact Identification', duration: '20 Questions', type: 'quiz' }
-      ]
-    },
-    {
-      id: 'mod-3',
-      moduleNumber: 3,
-      title: 'Forensic Traumatology: Ballistics, Blunt & Sharp Force',
-      description: 'Volumetric wound trajectory analysis, bone fracture mapping',
-      topics: [
-        { id: 't-7', title: 'Cranial & Maxillofacial Trauma Reconstruction in PMCT', duration: '48 min', type: 'video' },
-        { id: 't-8', title: 'Ballistic Trajectory & Fragment Localization Case Vault', duration: '40 min', type: 'video' },
-        { id: 't-9', title: 'Module 03 Assessment: Traumatology Interpretation', duration: '25 Questions', type: 'quiz' }
-      ]
-    },
-    {
-      id: 'mod-4',
-      moduleNumber: 4,
-      title: 'Asphyxia, Drowning & Postmortem Alterations',
-      description: 'Internal fluid level identification, gas redistribution vs embolism',
-      topics: [
-        { id: 't-10', title: 'Differentiating Postmortem Redistribution from Intravital Pathology', duration: '45 min', type: 'video' },
-        { id: 't-11', title: 'PMCT Angiography & Pulmonary Embolism Evaluation', duration: '38 min', type: 'video' },
-        { id: 't-12', title: 'Module 04 Final Competency Examination & Case Review', duration: '30 Questions', type: 'quiz' }
-      ]
-    }
-  ];
+  // Published public courses sorted by admin order or latest first
+  const landingCourses = (publicCourses.length > 0 ? publicCourses : courses.filter((c) => c.status === 'published' && c.isPublishedOnLanding !== false))
+    .slice()
+    .sort((a, b) => {
+      const orderA = a.order !== undefined ? a.order : 1;
+      const orderB = b.order !== undefined ? b.order : 1;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
+    });
 
-  // Derive the LATEST uploaded course from CourseContext (only one latest course displayed)
-  const latestCourse = courses && courses.length > 0 ? courses[courses.length - 1] : null;
-
-  // Dynamically map modules from the latest uploaded course, or fallback if none uploaded
-  const displayModules = latestCourse && latestCourse.modules && latestCourse.modules.length > 0
-    ? latestCourse.modules.map((m, idx) => ({
-      id: m.id,
-      moduleNumber: m.moduleNumber || idx + 1,
-      title: m.title,
-      description: m.description || m.subtitle || 'Module learning objectives and curriculum topics',
-      topics: m.topics && m.topics.length > 0
-        ? m.topics.map((t) => ({
-          id: t.id,
-          title: t.title,
-          duration: t.contentType === 'video' ? 'Video Lesson' : 'Theory Lesson',
-          type: t.contentType === 'video' ? 'video' : 'theory'
-        }))
-        : []
-    }))
-    : fallbackModules;
-
-  // Automatically open the first module whenever course or modules update
-  useEffect(() => {
-    if (displayModules && displayModules.length > 0) {
-      setOpenModuleId(displayModules[0].id);
-    }
-  }, [courses]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const activeLandingCourse =
+    landingCourses.find((c) => c.id === selectedCourseId) ||
+    landingCourses[0] ||
+    (courses && courses.length > 0 ? courses[courses.length - 1] : null);
 
   // Smooth scroll handler
   const scrollToSection = (id: string) => {
@@ -178,7 +116,7 @@ export const LandingPage: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigate('/register')}
+              onClick={() => navigate(activeLandingCourse?.id ? `/register?courseId=${activeLandingCourse.id}` : '/register')}
               className="px-4 sm:px-5 py-2.5 text-xs font-extrabold text-slate-950 bg-[#F5A623] hover:bg-[#E0951C] rounded-lg shadow-xs transition-all cursor-pointer"
             >
               Enroll Now
@@ -214,7 +152,7 @@ export const LandingPage: React.FC = () => {
               {/* CTAs */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                 <button
-                  onClick={() => navigate('/register')}
+                  onClick={() => navigate(activeLandingCourse?.id ? `/register?courseId=${activeLandingCourse.id}` : '/register')}
                   className="px-6 py-3 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center justify-center space-x-2"
                 >
                   <BookOpen className="w-4 h-4 text-slate-950" />
@@ -222,11 +160,11 @@ export const LandingPage: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => scrollToSection('curriculum')}
+                  onClick={() => scrollToSection('courses')}
                   className="px-6 py-3 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center justify-center space-x-2"
                 >
-                  <FileText className="w-4 h-4 text-slate-500" />
-                  <span>Explore Course</span>
+                  <BookOpen className="w-4 h-4 text-slate-500" />
+                  <span>Explore Courses</span>
                 </button>
               </div>
 
@@ -318,84 +256,109 @@ export const LandingPage: React.FC = () => {
               </div>
             </section>
 
-            {/* COURSE CURRICULUM SECTION (ACCORDIONS) */}
-            <section id="curriculum" className="space-y-4">
+            {/* ONLINE TRAINING COURSES SECTION (MULTI-COURSE CATALOG) */}
+            <section id="courses" className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#A76900]">
-                    RIGOROUS SYLLABUS
+                    ACCREDITED CERTIFICATIONS
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-[#0A192F] tracking-tight mt-0.5">
-                    Course Curriculum
+                    Online Training Courses
                   </h2>
                 </div>
                 <span className="text-xs font-mono font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1 rounded-md shadow-2xs self-start sm:self-auto">
-                  {displayModules.length} Core Modules
+                  {landingCourses.length} Available Program{landingCourses.length === 1 ? '' : 's'}
                 </span>
               </div>
 
-              {/* Accordion Modules */}
-              <div className="space-y-3 pt-1">
-                {displayModules.map((mod) => {
-                  const isOpen = openModuleId === mod.id;
+              {/* Course Cards - One Per Each Row */}
+              <div className="flex flex-col gap-4 pt-1">
+                {landingCourses.map((c) => {
+                  const fee = c.fee !== undefined ? Number(c.fee) : 750.0;
+                  const isSelected = activeLandingCourse?.id === c.id;
+
                   return (
                     <div
-                      key={mod.id}
-                      className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200"
+                      key={c.id}
+                      onClick={() => setSelectedCourseId(c.id)}
+                      className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md cursor-pointer ${
+                        isSelected ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200/90 hover:border-amber-300'
+                      }`}
                     >
-                      {/* Accordion Header Button */}
-                      <button
-                        onClick={() => setOpenModuleId(isOpen ? null : mod.id)}
-                        className="w-full p-4 sm:p-4.5 flex items-start justify-between gap-4 text-left hover:bg-slate-50/80 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <span className="text-[11px] font-mono font-bold bg-amber-100/90 text-amber-950 border border-amber-300/80 px-2 py-0.5 rounded shrink-0 mt-0.5">
-                            MOD {String(mod.moduleNumber).padStart(2, '0')}
-                          </span>
-                          <div>
-                            <h3 className="text-sm sm:text-base font-extrabold text-[#0A192F]">{mod.title}</h3>
-                            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{mod.description}</p>
+                      <div className="p-5 sm:p-6 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded">
+                              {c.duration || '16 Weeks'}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                              CPD Accredited
+                            </span>
                           </div>
+                          <span className="text-lg font-black text-amber-600 font-mono">
+                            £{fee.toFixed(2)} GBP
+                          </span>
                         </div>
-                        <div className="text-slate-400 shrink-0 mt-1">
-                          {isOpen ? <ChevronUp className="w-4 h-4 text-amber-700" /> : <ChevronDown className="w-4 h-4" />}
-                        </div>
-                      </button>
 
-                      {/* Accordion Content Drawer */}
-                      {isOpen && (
-                        <div className="px-4 sm:px-5 pb-4 pt-2 border-t border-slate-100 bg-slate-50/50 space-y-2 animate-in fade-in duration-150">
-                          {mod.topics.map((t) => (
-                            <div
-                              key={t.id}
-                              className="p-2.5 bg-white rounded-lg border border-slate-200/80 flex items-center justify-between gap-3 text-xs text-slate-700"
-                            >
-                              <div className="flex items-center space-x-2.5 min-w-0">
-                                {t.type === 'video' ? (
-                                  <PlayCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                ) : t.type === 'quiz' ? (
-                                  <CheckSquare className="w-4 h-4 text-amber-600 shrink-0" />
-                                ) : (
-                                  <FileText className="w-4 h-4 text-slate-500 shrink-0" />
-                                )}
-                                <span className="font-semibold truncate">{t.title}</span>
-                              </div>
-                              <span className="font-mono text-[11px] text-slate-400 shrink-0">{t.duration}</span>
-                            </div>
-                          ))}
+                        <div>
+                          <h3 className="text-base sm:text-lg font-extrabold text-[#0A192F] leading-snug">
+                            {c.title || c.name}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1">
+                            {c.shortDescription || c.description}
+                          </p>
                         </div>
-                      )}
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
+                          <span className="flex items-center space-x-1.5 font-medium text-slate-700">
+                            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{c.modules?.length || 0} Core Modules</span>
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center space-x-1.5 font-medium text-slate-700">
+                            <Award className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Official Certificate</span>
+                          </span>
+                          <span>•</span>
+                          <span className="text-slate-500">
+                            Self-Paced 24/7 Access
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 sm:px-6 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <p className="text-[11px] text-slate-500 hidden sm:block">
+                          Click to select course preview, or view complete syllabus details.
+                        </p>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/courses/${c.id}`);
+                            }}
+                            className="flex-1 sm:flex-initial py-2.5 px-4 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+                          >
+                            <span>Course Info & Syllabus</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCourseId(c.id);
+                              navigate(`/register?courseId=${c.id}`);
+                            }}
+                            className="flex-1 sm:flex-initial py-2.5 px-5 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                          >
+                            <span>Enroll • £{fee.toFixed(2)}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Note Banner */}
-              <div className="p-3 bg-slate-100/70 border border-slate-200/80 rounded-xl text-xs text-slate-600 flex items-center space-x-2">
-                <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-                <span className="text-[11px]">
-                  <strong>Structured modular progression:</strong> Modules unlock sequentially upon passing prerequisite evaluations to assure forensic competency.
-                </span>
               </div>
             </section>
 
@@ -409,8 +372,8 @@ export const LandingPage: React.FC = () => {
               {/* Card Header Image */}
               <div className="relative h-44 bg-slate-950 overflow-hidden">
                 <img
-                  src="/autop.png"
-                  alt="Virtual Autopsy Online Course"
+                  src={activeLandingCourse?.thumbnailUrl || activeLandingCourse?.thumbnail || '/autop.png'}
+                  alt={activeLandingCourse?.title || 'Virtual Autopsy Online Course'}
                   className="w-full h-full object-cover opacity-85"
                 />
                 <span className="absolute top-3 right-3 text-[10px] font-extrabold uppercase tracking-wider bg-white text-slate-900 border border-slate-200 px-2.5 py-0.5 rounded shadow-xs">
@@ -418,7 +381,9 @@ export const LandingPage: React.FC = () => {
                 </span>
                 <div className="absolute bottom-3 left-4 right-4 text-white">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 block">ACCREDITED ACADEMY</span>
-                  <h3 className="text-base font-black text-white leading-snug">Virtual Autopsy Online Training</h3>
+                  <h3 className="text-base font-black text-white leading-snug line-clamp-1">
+                    {activeLandingCourse?.title || activeLandingCourse?.name || 'Virtual Autopsy Online Training'}
+                  </h3>
                 </div>
               </div>
 
@@ -426,8 +391,10 @@ export const LandingPage: React.FC = () => {
               <div className="px-5 space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PROFESSIONAL ENROLLMENT FEE</span>
                 <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-black text-[#0A192F]">£750</span>
-                  <span className="text-xs text-slate-500 font-medium">GBP • Single Professional Access</span>
+                  <span className="text-3xl font-black text-[#0A192F]">
+                    £{(activeLandingCourse?.fee !== undefined ? Number(activeLandingCourse.fee) : 750).toFixed(2)}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">GBP • Lifetime Professional Access</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-tight">
                   Includes complete curriculum, examination attempts & verified digital certificate
@@ -435,14 +402,22 @@ export const LandingPage: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="px-5">
+              <div className="px-5 space-y-2">
                 <button
-                  onClick={() => navigate('/register')}
+                  onClick={() => navigate(activeLandingCourse?.id ? `/register?courseId=${activeLandingCourse.id}` : '/register')}
                   className="w-full py-3 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-2"
                 >
-                  <span>Enroll Now</span>
+                  <span>Enroll in Program</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
+                {activeLandingCourse?.id && (
+                  <button
+                    onClick={() => navigate(`/courses/${activeLandingCourse.id}`)}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors cursor-pointer text-center block"
+                  >
+                    View Full Course Syllabus
+                  </button>
+                )}
               </div>
 
               {/* Included Verified Features Checklist */}
@@ -526,7 +501,7 @@ export const LandingPage: React.FC = () => {
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => scrollToSection('curriculum')} className="hover:text-[#0A192F] transition-colors cursor-pointer">
+                  <button onClick={() => scrollToSection('courses')} className="hover:text-[#0A192F] transition-colors cursor-pointer">
                     Online Training Courses
                   </button>
                 </li>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 interface HeaderProps {
-  page?: 'login' | 'register';
+  page?: 'login' | 'register' | 'course';
 }
 
 export const Header: React.FC<HeaderProps> = () => {

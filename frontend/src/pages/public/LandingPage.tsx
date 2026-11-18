@@ -4,16 +4,10 @@ import {
   Globe,
   BookOpen,
   CheckCircle,
-  CheckSquare,
   Clock,
   Award,
   FileText,
-  ChevronDown,
-  ChevronUp,
   ArrowRight,
-  PlayCircle,
-  Lock,
-  ShieldCheck,
   Laptop
 } from 'lucide-react';
 import { TeamNamesSlider } from '../../components/common/TeamNamesSlider';
@@ -210,10 +204,8 @@ export const LandingPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-          {/* LEFT MAIN CONTENT COLUMN */}
-          <div className="lg:col-span-8 space-y-10 text-left">
-
-            {/* INTRODUCTION TO VIRTUAL AUTOPSY CARD */}
+          {/* LEFT COLUMN: INTRODUCTION TO VIRTUAL AUTOPSY */}
+          <div className="lg:col-span-5 xl:col-span-5 space-y-6 lg:sticky lg:top-28 text-left">
             <section id="about" className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-5">
               <div className="space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#A76900]">
@@ -227,8 +219,8 @@ export const LandingPage: React.FC = () => {
                 </p>
               </div>
 
-              {/* 5 Compact Feature Box Pills */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
+              {/* Feature Pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2">
                 <div className="bg-slate-100/80 p-3 rounded-xl border border-slate-200/60 text-center space-y-1">
                   <Laptop className="w-4 h-4 text-slate-700 mx-auto" />
                   <span className="block text-[11px] font-bold text-slate-800">Online Learning</span>
@@ -255,8 +247,10 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
             </section>
+          </div>
 
-            {/* ONLINE TRAINING COURSES SECTION (MULTI-COURSE CATALOG) */}
+          {/* RIGHT COLUMN: ONLINE TRAINING COURSES */}
+          <div className="lg:col-span-7 xl:col-span-7 space-y-4 text-left">
             <section id="courses" className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
@@ -361,106 +355,6 @@ export const LandingPage: React.FC = () => {
                 })}
               </div>
             </section>
-
-          </div>
-
-          {/* RIGHT COLUMN: PROMINENT ENROLLMENT CARD */}
-          <div className="lg:col-span-4 sticky top-28 space-y-6">
-
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden text-left space-y-4 pb-5">
-
-              {/* Card Header Image */}
-              <div className="relative h-44 bg-slate-950 overflow-hidden">
-                <img
-                  src={activeLandingCourse?.thumbnailUrl || activeLandingCourse?.thumbnail || '/autop.png'}
-                  alt={activeLandingCourse?.title || 'Virtual Autopsy Online Course'}
-                  className="w-full h-full object-cover opacity-85"
-                />
-                <span className="absolute top-3 right-3 text-[10px] font-extrabold uppercase tracking-wider bg-white text-slate-900 border border-slate-200 px-2.5 py-0.5 rounded shadow-xs">
-                  STANDARDIZED CPD
-                </span>
-                <div className="absolute bottom-3 left-4 right-4 text-white">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 block">ACCREDITED ACADEMY</span>
-                  <h3 className="text-base font-black text-white leading-snug line-clamp-1">
-                    {activeLandingCourse?.title || activeLandingCourse?.name || 'Virtual Autopsy Online Training'}
-                  </h3>
-                </div>
-              </div>
-
-              {/* Price Box */}
-              <div className="px-5 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PROFESSIONAL ENROLLMENT FEE</span>
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-black text-[#0A192F]">
-                    £{(activeLandingCourse?.fee !== undefined ? Number(activeLandingCourse.fee) : 750).toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-500 font-medium">GBP • Lifetime Professional Access</span>
-                </div>
-                <p className="text-[11px] text-slate-500 leading-tight">
-                  Includes complete curriculum, examination attempts & verified digital certificate
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="px-5 space-y-2">
-                <button
-                  onClick={() => navigate(activeLandingCourse?.id ? `/register?courseId=${activeLandingCourse.id}` : '/register')}
-                  className="w-full py-3 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-2"
-                >
-                  <span>Enroll in Program</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                {activeLandingCourse?.id && (
-                  <button
-                    onClick={() => navigate(`/courses/${activeLandingCourse.id}`)}
-                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors cursor-pointer text-center block"
-                  >
-                    View Full Course Syllabus
-                  </button>
-                )}
-              </div>
-
-              {/* Included Verified Features Checklist */}
-              <div className="px-5 pt-2 pb-1 space-y-2 border-t border-slate-100 text-xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">INCLUDED IN ENROLLMENT:</span>
-
-                <div className="flex items-start space-x-2 text-slate-700">
-                  <CheckCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Online course with unlimited 24/7 access</span>
-                </div>
-
-                <div className="flex items-start space-x-2 text-slate-700">
-                  <CheckCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Self-paced clinical learning modules</span>
-                </div>
-
-                <div className="flex items-start space-x-2 text-slate-700">
-                  <CheckCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Structured forensic module assessments</span>
-                </div>
-
-                <div className="flex items-start space-x-2 text-slate-700">
-                  <CheckCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Verified certificate upon successful completion</span>
-                </div>
-
-                <div className="flex items-start space-x-2 text-slate-700">
-                  <CheckCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Case literature & DICOM demonstration sets</span>
-                </div>
-              </div>
-
-              {/* Security Note */}
-              <div className="mx-5 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 text-center flex items-center justify-center space-x-1.5">
-                <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
-                <span>
-                  <strong>Instant LMS Portal Activation</strong><br />
-                  <span className="text-[10px] text-slate-500">Direct access upon secure payment verification, Encrypted via Stripe.</span>
-                </span>
-              </div>
-
-            </div>
-
           </div>
 
         </div>

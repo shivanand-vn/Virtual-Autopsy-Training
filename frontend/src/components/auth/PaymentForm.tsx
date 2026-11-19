@@ -24,12 +24,14 @@ export const PaymentForm: React.FC = () => {
   const navigate = useNavigate();
   const { setAuthOverlay } = useAuth();
   const {
+    setStep,
     registrationData,
     paymentData,
     processPayment,
     updatePaymentData,
     demoCredential,
     selectedCourse,
+    selectedCourses,
   } = useRegistrationFlow();
 
   // Email confirmation state (CRITICAL: MUST start completely empty "")
@@ -92,7 +94,8 @@ export const PaymentForm: React.FC = () => {
     setCvc(raw);
   };
 
-  const handleBackToRegistration = () => {
+  const handleBackToCourseSelection = () => {
+    setStep(2);
     navigate('/register');
   };
 
@@ -316,17 +319,17 @@ export const PaymentForm: React.FC = () => {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={handleBackToRegistration}
+            onClick={handleBackToCourseSelection}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-navy-950 transition-colors cursor-pointer group"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-amber-600 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Registration</span>
+            <span>Back to Course Selection</span>
           </button>
           <StatusBadge>ACADEMY PAYMENT</StatusBadge>
         </div>
 
-        {/* Step Indicator (Step 2 Active) */}
-        <StepIndicator currentStep={2} isPaymentSuccess={paymentData.paymentStatus === 'success'} />
+        {/* Step Indicator (Step 3 Active) */}
+        <StepIndicator currentStep={3} isPaymentSuccess={paymentData.paymentStatus === 'success'} />
 
         <div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
@@ -348,16 +351,46 @@ export const PaymentForm: React.FC = () => {
           </div>
         )}
 
-        {/* Course Summary Box */}
+        {/* Payment Summary Box */}
         <div className="bg-slate-900 rounded-2xl p-4 text-white border border-slate-800 space-y-2.5 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">ENROLLMENT COURSE</p>
-              <h3 className="text-sm font-bold text-white mt-0.5">{selectedCourse?.title || 'Post-Mortem Computed Tomography (PMCT) Training'}</h3>
+          <div className="flex items-start justify-between border-b border-slate-800 pb-2.5">
+            <div className="space-y-1.5 pr-3 flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                  PAYMENT SUMMARY
+                </p>
+                <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-full">
+                  {selectedCourses.length > 0 ? selectedCourses.length : 1} {(selectedCourses.length === 1 || selectedCourses.length === 0) ? 'Course' : 'Courses'} Selected
+                </span>
+              </div>
+
+              {selectedCourses && selectedCourses.length > 0 ? (
+                <ul className="space-y-1.5 text-xs text-slate-200 mt-1 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                  {selectedCourses.map((c) => {
+                    const sym = c.currency === 'USD' ? '$' : c.currency === 'EUR' ? '€' : '£';
+                    return (
+                      <li key={c.id} className="flex items-center justify-between gap-3 py-0.5 border-b border-slate-800/60 last:border-b-0">
+                        <span className="font-medium text-slate-200 truncate">{c.title}</span>
+                        <span className="font-mono font-bold text-amber-400 shrink-0">{sym}{Number(c.fee).toFixed(2)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-slate-200">
+                  <span className="font-semibold">{selectedCourse?.title || 'Post-Mortem Computed Tomography (PMCT) Training'}</span>
+                  <span className="font-mono font-bold text-amber-400 shrink-0">
+                    {selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750.00'}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="text-right shrink-0 ml-3">
-              <p className="text-[10px] text-slate-400 uppercase font-bold">FELLOWSHIP FEE</p>
-              <p className="text-lg font-black text-amber-400 font-mono">{paymentData.amount || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750')}</p>
+
+            <div className="text-right shrink-0 ml-4 pl-3 border-l border-slate-800">
+              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">TOTAL AMOUNT</p>
+              <p className="text-xl font-black text-amber-400 font-mono mt-0.5">
+                {paymentData.amount || (selectedCourse ? `£${selectedCourse.fee.toFixed(2)}` : '£750.00')}
+              </p>
             </div>
           </div>
 

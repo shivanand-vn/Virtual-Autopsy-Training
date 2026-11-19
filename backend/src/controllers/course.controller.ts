@@ -871,15 +871,20 @@ export async function getVideoStreamTokenByVideoId(req: Request, res: Response):
 
 export async function getPublicCourses(req: Request, res: Response): Promise<void> {
   try {
-    const cacheKey = 'cache:course:public:list';
+    const landingOnly = req.query.landingOnly === 'true';
+    const cacheKey = landingOnly ? 'cache:course:public:landing' : 'cache:course:public:list';
     let courses = await cacheGet<any[]>(cacheKey);
 
     if (!courses) {
+      const whereClause: any = {
+        status: CourseStatus.PUBLISHED,
+      };
+      if (landingOnly) {
+        whereClause.isPublishedOnLanding = true;
+      }
+
       courses = await prisma.course.findMany({
-        where: {
-          status: CourseStatus.PUBLISHED,
-          isPublishedOnLanding: true,
-        },
+        where: whereClause,
         orderBy: [
           { order: 'asc' },
           { createdAt: 'desc' },

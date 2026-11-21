@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useRegistrationFlow, type SelectedCourseInfo } from '../../context/RegistrationFlowContext';
+import { useRegistrationFlow, normalizeCourseFee, type SelectedCourseInfo } from '../../context/RegistrationFlowContext';
 import { useCourse } from '../../context/CourseContext';
 import { StepIndicator } from './StepIndicator';
 import { FormInput } from '../common/FormInput';
@@ -83,27 +83,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
           .map((c: any) => ({
             id: c.id,
             title: c.title || c.name || 'Virtual Autopsy Training',
-            fee: typeof c.fee === 'number' ? c.fee : Number(c.fee) || 499,
+            fee: normalizeCourseFee(c.fee),
             currency: c.currency || 'GBP',
           }));
 
         if (published.length > 0) {
           setAvailableCourses(published);
-          const searchParams = new URLSearchParams(window.location.search);
-          const urlCourseId = searchParams.get('courseId');
-          if (urlCourseId && (!selectedCourses || selectedCourses.length === 0)) {
-            const match = published.find((c) => c.id === urlCourseId);
-            if (match) {
-              setSelectedCourses([match]);
-            }
-          }
         } else if (publicCourses.length > 0) {
           const fallback = publicCourses
             .filter((c) => c.status === 'published')
             .map((c) => ({
               id: c.id,
               title: c.title || c.name,
-              fee: Number(c.fee) || 499,
+              fee: normalizeCourseFee(c.fee),
               currency: c.currency || 'GBP',
             }));
           setAvailableCourses(fallback);
@@ -117,7 +109,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
             .map((c) => ({
               id: c.id,
               title: c.title || c.name,
-              fee: Number(c.fee) || 499,
+              fee: normalizeCourseFee(c.fee),
               currency: c.currency || 'GBP',
             }));
           setAvailableCourses(fallback);
@@ -369,16 +361,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onFlipToLogi
       <div className="shrink-0 pb-1.5 space-y-2">
         <div className="flex items-center justify-between gap-4">
           <StatusBadge>APPLICATION FORM</StatusBadge>
-          {step === 2 && (
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-navy-950 transition-colors cursor-pointer group"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-amber-600 group-hover:-translate-x-0.5 transition-transform" />
-              <span>Back to Step 1</span>
-            </button>
-          )}
         </div>
 
         {/* 3-Step Indicator */}

@@ -52,7 +52,7 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
     const cacheKey = `cache:course:list:${isAdmin ? 'admin' : 'published'}`;
     let courses = await cacheGet<any[]>(cacheKey);
 
-    if (!courses) {
+    if (!courses || !Array.isArray(courses) || courses.length === 0) {
       courses = await prisma.course.findMany({
         where: isAdmin ? {} : { status: CourseStatus.PUBLISHED },
         orderBy: { order: 'asc' },
@@ -68,7 +68,7 @@ export async function getAllCourses(req: Request, res: Response): Promise<void> 
           },
         },
       });
-      if (courses) {
+      if (courses && Array.isArray(courses) && courses.length > 0) {
         await cacheSet(cacheKey, courses, 3600);
       }
     }
@@ -875,7 +875,8 @@ export async function getPublicCourses(req: Request, res: Response): Promise<voi
     const cacheKey = landingOnly ? 'cache:course:public:landing' : 'cache:course:public:list';
     let courses = await cacheGet<any[]>(cacheKey);
 
-    if (!courses) {
+    // If cache is missing, empty, or invalid, query database to avoid serving stale empty listings
+    if (!courses || !Array.isArray(courses) || courses.length === 0) {
       const whereClause: any = {
         status: CourseStatus.PUBLISHED,
       };
@@ -911,12 +912,13 @@ export async function getPublicCourses(req: Request, res: Response): Promise<voi
         },
       });
 
-      if (courses) {
+      // ONLY cache if courses were found and non-empty. Never cache empty responses for an hour.
+      if (courses && Array.isArray(courses) && courses.length > 0) {
         await cacheSet(cacheKey, courses, 3600);
       }
     }
 
-    sendSuccess(res, courses);
+    sendSuccess(res, courses || []);
   } catch (error: any) {
     sendError(res, error.message || 'Failed to retrieve public courses', 500);
   }

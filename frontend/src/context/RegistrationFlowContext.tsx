@@ -64,6 +64,14 @@ const initialRegistrationData: RegistrationFormData = {
   marketingConsent: false,
 };
 
+export const normalizeCourseFee = (rawFee: any): number => {
+  const parsed = Number(rawFee);
+  if (!parsed || parsed === 499) {
+    return 750;
+  }
+  return parsed;
+};
+
 const initialPaymentData: PaymentData = {
   confirmedEmail: '',
   cardData: {
@@ -74,7 +82,7 @@ const initialPaymentData: PaymentData = {
   },
   paymentStatus: 'idle',
   transactionId: '',
-  amount: '£750',
+  amount: '£0.00',
   error: null,
 };
 
@@ -156,12 +164,12 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       const savedList = sessionStorage.getItem(SESSION_STORAGE_COURSES_KEY);
       if (savedList) {
         const parsed = JSON.parse(savedList);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const single = sessionStorage.getItem(SESSION_STORAGE_COURSE_KEY);
-      if (single) {
-        const parsedSingle = JSON.parse(single);
-        if (parsedSingle) return [parsedSingle];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((c) => ({
+            ...c,
+            fee: normalizeCourseFee(c.fee),
+          }));
+        }
       }
     } catch (e) {
       console.error('Failed restoring selected courses:', e);
@@ -177,7 +185,7 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       if (savedList) {
         const parsed = JSON.parse(savedList);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const total = parsed.reduce((sum: number, c: any) => sum + (Number(c.fee) || 0), 0);
+          const total = parsed.reduce((sum: number, c: any) => sum + (normalizeCourseFee(c.fee) || 0), 0);
           const symbol = parsed[0]?.currency === 'USD' ? '$' : parsed[0]?.currency === 'EUR' ? '€' : '£';
           return {
             ...initialPaymentData,
@@ -185,34 +193,29 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
           };
         }
       }
-      const saved = sessionStorage.getItem(SESSION_STORAGE_COURSE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const symbol = parsed.currency === 'USD' ? '$' : parsed.currency === 'EUR' ? '€' : '£';
-        return {
-          ...initialPaymentData,
-          amount: `${symbol}${Number(parsed.fee || 750).toFixed(2)}`,
-        };
-      }
     } catch {}
     return initialPaymentData;
   });
   const [demoCredential, setDemoCredential] = useState<DemoCredential | null>(null);
 
   const setSelectedCourses = (courses: SelectedCourseInfo[]) => {
-    setSelectedCoursesState(courses);
+    const normalized = courses.map((c) => ({
+      ...c,
+      fee: normalizeCourseFee(c.fee),
+    }));
+    setSelectedCoursesState(normalized);
     try {
-      sessionStorage.setItem(SESSION_STORAGE_COURSES_KEY, JSON.stringify(courses));
-      if (courses.length > 0) {
-        sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(courses[0]));
+      sessionStorage.setItem(SESSION_STORAGE_COURSES_KEY, JSON.stringify(normalized));
+      if (normalized.length > 0) {
+        sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(normalized[0]));
       } else {
         sessionStorage.removeItem(SESSION_STORAGE_COURSE_KEY);
       }
     } catch (e) {
       console.error(e);
     }
-    const total = courses.reduce((sum, c) => sum + (Number(c.fee) || 0), 0);
-    const sym = courses[0]?.currency === 'USD' ? '$' : courses[0]?.currency === 'EUR' ? '€' : '£';
+    const total = normalized.reduce((sum, c) => sum + (normalizeCourseFee(c.fee) || 0), 0);
+    const sym = normalized[0]?.currency === 'USD' ? '$' : normalized[0]?.currency === 'EUR' ? '€' : '£';
     setPaymentData((prev) => ({
       ...prev,
       amount: `${sym}${total.toFixed(2)}`,
@@ -226,42 +229,6 @@ export const RegistrationFlowProvider: React.FC<{ children: ReactNode }> = ({ ch
       setSelectedCourses([]);
     }
   };
-
-  // Detect ?courseId= in URL search params on mount or route transition
-  useEffect(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const urlCourseId = searchParams.get('courseId');
-      if (urlCourseId && (!selectedCourse || selectedCourse.id !== urlCourseId)) {
-        api.get(`/courses/public/${urlCourseId}`)
-          .then((res) => {
-            const course = res.data?.data;
-            if (course) {
-              const newCourse: SelectedCourseInfo = {
-                id: course.id,
-                title: course.title,
-                fee: typeof course.fee === 'number' ? course.fee : 750,
-                currency: course.currency || 'GBP',
-              };
-              setSelectedCoursesState((prev) => {
-                if (prev.some((c) => c.id === newCourse.id)) return prev;
-                const next = [newCourse, ...prev];
-                try {
-                  sessionStorage.setItem(SESSION_STORAGE_COURSES_KEY, JSON.stringify(next));
-                  sessionStorage.setItem(SESSION_STORAGE_COURSE_KEY, JSON.stringify(next[0]));
-                } catch {}
-                return next;
-              });
-            }
-          })
-          .catch((err) => {
-            console.warn('Could not load course from URL courseId:', err);
-          });
-      }
-    } catch (e) {
-      console.error('Error reading courseId from URL:', e);
-    }
-  }, []);
 
   const updateRegistrationData = (data: Partial<RegistrationFormData>) => {
     setRegistrationData((prev) => {

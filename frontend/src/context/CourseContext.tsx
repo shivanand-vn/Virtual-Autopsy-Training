@@ -21,6 +21,8 @@ export interface CourseContextType {
   setActiveCourseId: (courseId: string) => void;
   purchaseCourse: (courseId: string, cardLast4?: string) => Promise<any>;
   isLoading: boolean;
+  isPublicLoading: boolean;
+  publicCoursesError: string | null;
   refreshCourses: () => Promise<void>;
   getCourse: (courseId: string) => Course | undefined;
   addCourse: (course: Partial<Course> & { name: string; description: string; modules?: CourseModule[] }) => Promise<Course>;
@@ -95,9 +97,28 @@ const sanitizeCoursesForStorage = (courseList: Course[]): Course[] => {
   }));
 };
 
+const PUBLIC_COURSES_CACHE_KEY = 'vat_public_courses_cache_v1';
+
+export const getInitialPublicCourses = (): Course[] => {
+  try {
+    const cached = localStorage.getItem(PUBLIC_COURSES_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse public courses from cache:', e);
+  }
+  return [];
+};
+
 const getInitialCourses = (): Course[] => {
   const token = getAuthToken();
-  if (!token) return [];
+  if (!token) {
+    return getInitialPublicCourses();
+  }
 
   try {
     localStorage.removeItem('va_lms_courses_v4');
@@ -151,7 +172,7 @@ export const mapBackendCourseToFrontend = (bCourse: any): Course => {
     thumbnail: bCourse.thumbnailUrl || bCourse.thumbnail || '',
     thumbnailUrl: bCourse.thumbnailUrl || bCourse.thumbnail || '',
     status: (bCourse.status?.toLowerCase() === 'draft' ? 'draft' : 'published'),
-    fee: bCourse.fee !== undefined ? Number(bCourse.fee) : 750.0,
+    fee: (bCourse.fee !== undefined && Number(bCourse.fee) !== 499) ? Number(bCourse.fee) : 750.0,
     currency: bCourse.currency || 'GBP',
     isPublishedOnLanding: bCourse.isPublishedOnLanding !== undefined ? Boolean(bCourse.isPublishedOnLanding) : true,
     order: bCourse.order !== undefined ? Number(bCourse.order) : 1,
@@ -224,9 +245,11 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [courses, setCourses] = useState<Course[]>(getInitialCourses);
   const [myCourses, setMyCourses] = useState<Course[]>([]);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
-  const [publicCourses, setPublicCourses] = useState<Course[]>([]);
+  const [publicCourses, setPublicCourses] = useState<Course[]>(getInitialPublicCourses);
   const [activeCourseId, setActiveCourseId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isPublicLoading, setIsPublicLoading] = useState<boolean>(() => getInitialPublicCourses().length === 0);
+  const [publicCoursesError, setPublicCoursesError] = useState<string | null>(null);
 
   // Persistent student completed topics (by topic id)
   const [completedTopicIds, setCompletedTopicIds] = useState<Record<string, boolean>>(() => {
@@ -315,26 +338,61 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, []);
 
-  // Fetch courses directly from Supabase / Backend API on mount
+  // Fetch courses directly from Supabase / Backend API on mount with cold-start & retry resilience
   const refreshCourses = useCallback(async () => {
     const token = getAuthToken();
 
     try {
       setIsLoading(true);
+      setIsPublicLoading(true);
+      setPublicCoursesError(null);
 
-      // 1. Always fetch public courses (for landing page, overview & prospective students)
-      try {
-        const pubRes = await api.get('/courses/public');
-        if (pubRes && pubRes.data && Array.isArray(pubRes.data)) {
-          const mappedPub = pubRes.data.map(mapBackendCourseToFrontend);
-          setPublicCourses(mappedPub);
-          if (!token) {
-            setCourses(mappedPub);
+      // 1. Fetch public courses with automatic retry & cold-start tolerance
+      let mappedPub: Course[] | null = null;
+      let lastPubErr: any = null;
+      const maxAttempts = 3;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const pubRes = await api.get('/courses/public', undefined, { timeoutMs: 45000 });
+          const rawList = Array.isArray(pubRes)
+            ? pubRes
+            : Array.isArray(pubRes?.data)
+            ? pubRes.data
+            : Array.isArray((pubRes as any)?.data?.data)
+            ? (pubRes as any).data.data
+            : [];
+
+          if (Array.isArray(rawList)) {
+            mappedPub = rawList.map(mapBackendCourseToFrontend);
+            break; // Success! Exit retry loop
+          }
+        } catch (pubErr: any) {
+          lastPubErr = pubErr;
+          console.warn(`[CourseContext] Attempt ${attempt}/${maxAttempts} fetching public courses failed:`, pubErr?.message || pubErr);
+          if (attempt < maxAttempts) {
+            // Wait with backoff before retrying (1.5s, 3.0s)
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
           }
         }
-      } catch (pubErr) {
-        console.warn('Failed to fetch public courses:', pubErr);
       }
+
+      if (mappedPub !== null) {
+        setPublicCourses(mappedPub);
+        setPublicCoursesError(null);
+        try {
+          if (mappedPub.length > 0) {
+            localStorage.setItem(PUBLIC_COURSES_CACHE_KEY, JSON.stringify(mappedPub));
+          }
+        } catch {}
+        if (!token) {
+          setCourses(mappedPub);
+        }
+      } else {
+        const errMsg = lastPubErr?.message || 'Failed to load public courses from server.';
+        setPublicCoursesError(errMsg);
+      }
+      setIsPublicLoading(false);
 
       if (!token) {
         setIsLoading(false);
@@ -1275,6 +1333,8 @@ export const CourseProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setActiveCourseId,
         purchaseCourse,
         isLoading,
+        isPublicLoading,
+        publicCoursesError,
         refreshCourses,
         getCourse,
         addCourse,

@@ -166,7 +166,7 @@ async function request<T = any>(
   const url = buildUrl(endpoint);
 
   const isUpload = options.body instanceof FormData;
-  const timeoutMs = isUpload ? 120000 : 15000;
+  const timeoutMs = (options as any)?.timeoutMs || (isUpload ? 120000 : 45000);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -222,8 +222,11 @@ async function request<T = any>(
 }
 
 export const api = {
-  get: <T = any>(url: string, headers?: Record<string, string>) =>
-    request<T>(url, { method: 'GET', headers }),
+  get: <T = any>(
+    url: string,
+    headers?: Record<string, string>,
+    options?: { timeoutMs?: number; signal?: AbortSignal }
+  ) => request<T>(url, { method: 'GET', headers, ...(options || {}) }),
 
   post: <T = any>(url: string, body?: any, headers?: Record<string, string>) =>
     request<T>(url, {

@@ -8,7 +8,10 @@ import {
   Award,
   FileText,
   ArrowRight,
-  Laptop
+  Laptop,
+  Loader2,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { TeamNamesSlider } from '../../components/common/TeamNamesSlider';
 import { useCourse } from '../../context/CourseContext';
@@ -17,7 +20,14 @@ import { getAuthToken, getStoredUser } from '../../lib/api';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { courses, publicCourses } = useCourse();
+  const {
+    courses,
+    publicCourses,
+    isLoading,
+    isPublicLoading,
+    publicCoursesError,
+    refreshCourses,
+  } = useCourse();
   const { user, token } = useAuth();
 
   const handleSignInClick = () => {
@@ -54,8 +64,21 @@ export const LandingPage: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Ensure public courses are proactively fetched on mount if not yet in state
+  useEffect(() => {
+    if (publicCourses.length === 0 && !publicCoursesError) {
+      refreshCourses();
+    }
+  }, [publicCourses.length, publicCoursesError, refreshCourses]);
+
+  const isCoursesLoading = isPublicLoading || (isLoading && publicCourses.length === 0);
+
   // Published public courses sorted by admin order or latest first
-  const landingCourses = (publicCourses.length > 0 ? publicCourses : courses.filter((c) => c.status === 'published' && c.isPublishedOnLanding !== false))
+  const eligibleCourses = (publicCourses.length > 0 ? publicCourses : courses).filter(
+    (c) => c.status === 'published' && c.isPublishedOnLanding !== false
+  );
+
+  const landingCourses = eligibleCourses
     .slice()
     .sort((a, b) => {
       const orderA = a.order !== undefined ? a.order : 1;
@@ -261,99 +284,184 @@ export const LandingPage: React.FC = () => {
                     Online Training Courses
                   </h2>
                 </div>
-                <span className="text-xs font-mono font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1 rounded-md shadow-2xs self-start sm:self-auto">
-                  {landingCourses.length} Available Program{landingCourses.length === 1 ? '' : 's'}
-                </span>
+                {isCoursesLoading && landingCourses.length === 0 ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200/90 px-3 py-1 rounded-md shadow-2xs self-start sm:self-auto animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                    <span>Loading Programs...</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-mono font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1 rounded-md shadow-2xs self-start sm:self-auto">
+                    {landingCourses.length} Available Program{landingCourses.length === 1 ? '' : 's'}
+                  </span>
+                )}
               </div>
 
-              {/* Course Cards - One Per Each Row */}
-              <div className="flex flex-col gap-4 pt-1">
-                {landingCourses.map((c) => {
-                  const fee = c.fee !== undefined ? Number(c.fee) : 750.0;
-                  const isSelected = activeLandingCourse?.id === c.id;
-
-                  return (
+              {/* 1. Loading Skeleton State */}
+              {isCoursesLoading && landingCourses.length === 0 && (
+                <div className="space-y-4 pt-1" aria-busy="true" aria-label="Loading available courses">
+                  {[1, 2].map((n) => (
                     <div
-                      key={c.id}
-                      onClick={() => setSelectedCourseId(c.id)}
-                      className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md cursor-pointer ${
-                        isSelected ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200/90 hover:border-amber-300'
-                      }`}
+                      key={`course-skeleton-${n}`}
+                      className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs p-5 sm:p-6 space-y-4 animate-pulse"
                     >
-                      <div className="p-5 sm:p-6 space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded">
-                              {c.duration || '16 Weeks'}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                              CPD Accredited
-                            </span>
-                          </div>
-                          <span className="text-lg font-black text-amber-600 font-mono">
-                            £{fee.toFixed(2)} GBP
-                          </span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-5 w-20 bg-amber-100/70 rounded" />
+                          <div className="h-5 w-24 bg-emerald-100/70 rounded" />
                         </div>
-
-                        <div>
-                          <h3 className="text-base sm:text-lg font-extrabold text-[#0A192F] leading-snug">
-                            {c.title || c.name}
-                          </h3>
-                          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1">
-                            {c.shortDescription || c.description}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
-                          <span className="flex items-center space-x-1.5 font-medium text-slate-700">
-                            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-                            <span>{c.modules?.length || 0} Core Modules</span>
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center space-x-1.5 font-medium text-slate-700">
-                            <Award className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Official Certificate</span>
-                          </span>
-                          <span>•</span>
-                          <span className="text-slate-500">
-                            Self-Paced 24/7 Access
-                          </span>
-                        </div>
+                        <div className="h-6 w-24 bg-amber-100/80 rounded" />
                       </div>
-
-                      <div className="p-3.5 sm:px-6 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                        <p className="text-[11px] text-slate-500 hidden sm:block">
-                          Click to select course preview, or view complete syllabus details.
-                        </p>
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/courses/${c.id}`);
-                            }}
-                            className="flex-1 sm:flex-initial py-2.5 px-4 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
-                          >
-                            <span>Course Info & Syllabus</span>
-                            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCourseId(c.id);
-                              navigate(`/register?courseId=${c.id}`);
-                            }}
-                            className="flex-1 sm:flex-initial py-2.5 px-5 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
-                          >
-                            <span>Enroll • £{fee.toFixed(2)}</span>
-                          </button>
+                      <div className="space-y-2">
+                        <div className="h-5 w-3/4 bg-slate-200 rounded" />
+                        <div className="h-4 w-full bg-slate-100 rounded" />
+                        <div className="h-4 w-4/5 bg-slate-100 rounded" />
+                      </div>
+                      <div className="flex items-center gap-3 pt-1">
+                        <div className="h-4 w-28 bg-slate-100 rounded" />
+                        <div className="h-4 w-28 bg-slate-100 rounded" />
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                        <div className="h-3 w-40 bg-slate-100 rounded hidden sm:block" />
+                        <div className="flex items-center gap-2">
+                          <div className="h-9 w-36 bg-slate-100 rounded-lg" />
+                          <div className="h-9 w-28 bg-amber-100 rounded-lg" />
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                  <div className="py-2 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                    <span>Connecting to live course catalog...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Error State with Retry Button */}
+              {!isCoursesLoading && publicCoursesError && landingCourses.length === 0 && (
+                <div className="bg-white rounded-2xl border border-red-200 p-8 text-center space-y-4 shadow-2xs my-2">
+                  <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900">Unable to Load Course Catalog</h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      {publicCoursesError || 'We could not connect to the course catalog server. The server may be warming up. Please try again.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => refreshCourses()}
+                    className="px-5 py-2.5 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry Loading Courses</span>
+                  </button>
+                </div>
+              )}
+
+              {/* 3. Empty State (Only when loaded and genuinely 0 courses) */}
+              {!isCoursesLoading && !publicCoursesError && landingCourses.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 shadow-2xs my-2">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800">No Published Programs Available</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    There are currently no training programs open for public enrollment. Please check back soon or contact academy admissions.
+                  </p>
+                </div>
+              )}
+
+              {/* 4. Active Course Cards (When courses are loaded) */}
+              {landingCourses.length > 0 && (
+                <div className="flex flex-col gap-4 pt-1">
+                  {landingCourses.map((c) => {
+                    const fee = (c.fee !== undefined && Number(c.fee) !== 499) ? Number(c.fee) : 750.0;
+                    const isSelected = activeLandingCourse?.id === c.id;
+
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => setSelectedCourseId(c.id)}
+                        className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md cursor-pointer ${
+                          isSelected ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200/90 hover:border-amber-300'
+                        }`}
+                      >
+                        <div className="p-5 sm:p-6 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded">
+                                {c.duration || '16 Weeks'}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                CPD Accredited
+                              </span>
+                            </div>
+                            <span className="text-lg font-black text-amber-600 font-mono">
+                              £{fee.toFixed(2)} GBP
+                            </span>
+                          </div>
+
+                          <div>
+                            <h3 className="text-base sm:text-lg font-extrabold text-[#0A192F] leading-snug">
+                              {c.title || c.name}
+                            </h3>
+                            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1">
+                              {c.shortDescription || c.description}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-1">
+                            <span className="flex items-center space-x-1.5 font-medium text-slate-700">
+                              <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{c.modules?.length || 0} Core Modules</span>
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center space-x-1.5 font-medium text-slate-700">
+                              <Award className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Official Certificate</span>
+                            </span>
+                            <span>•</span>
+                            <span className="text-slate-500">
+                              Self-Paced 24/7 Access
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 sm:px-6 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                          <p className="text-[11px] text-slate-500 hidden sm:block">
+                            Click to select course preview, or view complete syllabus details.
+                          </p>
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/courses/${c.id}`);
+                              }}
+                              className="flex-1 sm:flex-initial py-2.5 px-4 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+                            >
+                              <span>Course Info & Syllabus</span>
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCourseId(c.id);
+                                navigate(`/register?courseId=${c.id}`);
+                              }}
+                              className="flex-1 sm:flex-initial py-2.5 px-5 bg-[#F5A623] hover:bg-[#E0951C] text-slate-950 font-extrabold text-xs rounded-lg shadow-2xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                            >
+                              <span>Enroll • £{fee.toFixed(2)}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </div>
 

@@ -99,7 +99,12 @@ export async function cacheGet<T = any>(key: string): Promise<T | null> {
     try {
       const data = await client.get(key);
       if (!data) return null;
-      return JSON.parse(data) as T;
+      const parsed = JSON.parse(data) as T;
+      // Do not serve stale empty course arrays from cache
+      if (key.includes('course') && Array.isArray(parsed) && parsed.length === 0) {
+        return null;
+      }
+      return parsed;
     } catch {
       // Fall through to memory fallback
     }
@@ -108,7 +113,12 @@ export async function cacheGet<T = any>(key: string): Promise<T | null> {
   // Memory fallback
   const memItem = memoryFallback.get(key);
   if (memItem && Date.now() < memItem.expiry) {
-    return memItem.value as T;
+    const val = memItem.value as T;
+    // Do not serve stale empty course arrays from memory fallback
+    if (key.includes('course') && Array.isArray(val) && val.length === 0) {
+      return null;
+    }
+    return val;
   }
   return null;
 }

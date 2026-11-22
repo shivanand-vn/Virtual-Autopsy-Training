@@ -124,6 +124,8 @@ export const INITIAL_COURSES: Course[] = [
     duration: '8 Hours • 4 Core Modules',
     thumbnail: '/autop.png',
     status: 'published',
+    fee: 750,
+    currency: 'GBP',
     createdAt: '2025-01-15',
     modules: [
       {
